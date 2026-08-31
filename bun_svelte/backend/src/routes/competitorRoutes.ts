@@ -5,6 +5,8 @@
 
 import express from "express";
 import {
+  getAllCompetitors,
+  getZoneC6Score,
   getCompetitorsByZone,
   createCompetitor,
   deleteCompetitor,
@@ -13,6 +15,18 @@ import { authenticateToken } from "../middlewares/authMiddleware.js";
 import { checkRole } from "../middlewares/roleMiddleware.js";
 
 const router = express.Router();
+
+router.get(
+  "/",
+  authenticateToken,
+  getAllCompetitors
+);
+
+router.get(
+  "/score/:zone_id",
+  authenticateToken,
+  getZoneC6Score
+);
 
 router.get(
   "/zone/:zone_id",

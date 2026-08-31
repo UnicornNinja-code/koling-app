@@ -3,9 +3,13 @@
  * User Profile & RBAC Service in TypeScript
  */
 
-import bcrypt from "bcryptjs";
+import { hashPassword, verifyPassword } from "../utils/crypto.js";
 import { UserModel } from "../models/userModel.js";
 import { RefreshTokenModel } from "../models/refreshTokenModel.js";
+import { PasswordResetTokenModel } from "../models/passwordResetTokenModel.js";
+import { sendMail } from "../config/mailer.js";
+import { env } from "../config/env.js";
+import crypto from "crypto";
 import { UserRole } from "../types/user.types.js";
 
 /**
@@ -43,21 +47,21 @@ export const getUserByIdService = async (id: number | string): Promise<any> => {
 };
 
 /**
- * Create a new user account with RBAC Hierarchy check
+ * Create a new user account with RBAC Hierarchy check and send email invitation
  */
 export const createUserService = async (
-  { username, name, email, password, role }: { username: string; name: string; email: string; password?: string; role: string },
+  { username, name, email, password, role }: { username?: string; name: string; email: string; password?: string; role: string },
   currentUser: any
 ): Promise<any> => {
-  if (!username || !name || !email || !password || !role) {
-    const error: any = new Error("Please provide all required fields: username, name, email, password, and role");
+  if (!name || !email || !role) {
+    const error: any = new Error("Harap lengkapi field wajib: Nama Lengkap, Alamat Email, dan Peran Akun.");
     error.statusCode = 400;
     throw error;
   }
 
   const validRoles = ["SUPERADMIN", "MANAGEMENT", "SUPERVISOR", "RIDER"];
   if (!validRoles.includes(role)) {
-    const error: any = new Error("Invalid role specified");
+    const error: any = new Error("Peran pengguna tidak valid.");
     error.statusCode = 400;
     throw error;
   }
@@ -66,40 +70,108 @@ export const createUserService = async (
     // Superadmin can create any role
   } else if (currentUser.role === "MANAGEMENT") {
     if (role === "SUPERADMIN") {
-      const error: any = new Error("Access forbidden: MANAGEMENT cannot create SUPERADMIN accounts");
+      const error: any = new Error("Akses Ditolak: Manajemen tidak memiliki hak membuat akun Super Admin.");
       error.statusCode = 403;
       throw error;
     }
   } else {
-    const error: any = new Error("Access forbidden: insufficient permissions to create user accounts");
+    const error: any = new Error("Akses Ditolak: Anda tidak memiliki otoritas membuat akun pengguna.");
     error.statusCode = 403;
     throw error;
   }
 
   const existingUser = await UserModel.findByEmailOrUsername(email);
   if (existingUser) {
-    const error: any = new Error("Email is already registered");
+    const error: any = new Error(`Email [${email}] sudah terdaftar dalam sistem.`);
     error.statusCode = 400;
     throw error;
   }
 
-  const existingUsername = await UserModel.findByEmailOrUsername(username);
+  let finalUsername = username?.trim() || email.split("@")[0].toLowerCase().replace(/[^a-z0-9_]/g, "_");
+  const existingUsername = await UserModel.findByEmailOrUsername(finalUsername);
   if (existingUsername) {
-    const error: any = new Error("Username is already taken");
-    error.statusCode = 400;
-    throw error;
+    finalUsername = `${finalUsername}_${Math.floor(100 + Math.random() * 900)}`;
   }
 
-  const hashedPassword = await bcrypt.hash(password, 10);
+  const initialPassword = password || crypto.randomBytes(8).toString("hex") + "A1!";
+  const hashedPassword = await hashPassword(initialPassword);
+
   const newUser = await UserModel.create({
-    username,
-    name,
-    email,
+    username: finalUsername,
+    name: name.trim(),
+    email: email.trim().toLowerCase(),
     role: role as UserRole,
     password: hashedPassword,
   });
 
-  return newUser;
+  // 1. Generate secure 48-hour invitation token
+  const invitationToken = crypto.randomBytes(32).toString("hex");
+  const resetId = crypto.randomUUID();
+  const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 jam
+
+  await PasswordResetTokenModel.create({
+    id: resetId,
+    token: invitationToken,
+    userId: newUser.id,
+    expiresAt,
+  });
+
+  const activationUrl = `${env.FRONTEND_URL}/register?token=${invitationToken}&email=${encodeURIComponent(email)}`;
+
+  // 2. Send Invitation Email via Nodemailer
+  const roleLabel = role === "RIDER" ? "Rider Armada Kopi Keliling" : role === "SUPERVISOR" ? "Supervisor Operasional" : role;
+  const html = `
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; background: #131316; color: #f4f4f5; border-radius: 16px; border: 1px solid #272730;">
+      <div style="text-align: center; margin-bottom: 20px;">
+        <h1 style="color: #FF634A; margin: 0; font-size: 24px;">☕ MantaKopi COZIS</h1>
+        <p style="color: #a1a1aa; font-size: 13px; margin-top: 4px;">Coffee Zone Intelligence & Spatial Decision Support System</p>
+      </div>
+      <div style="background: #18181D; padding: 20px; border-radius: 12px; border: 1px solid #272730;">
+        <h2 style="color: #fff; font-size: 18px; margin-top: 0;">Halo, ${name}! 👋</h2>
+        <p style="color: #d4d4d8; font-size: 14px; line-height: 1.6;">
+          Akun Anda telah didaftarkan oleh Manajemen sebagai <strong>${roleLabel}</strong>.
+        </p>
+        <p style="color: #d4d4d8; font-size: 14px; line-height: 1.6;">
+          Silakan lakukan verifikasi email dan aktivasi akun Anda untuk mulai bertugas:
+        </p>
+        <div style="text-align: center; margin: 24px 0;">
+          <a href="${activationUrl}" 
+             style="display: inline-block; padding: 12px 32px; background: #FF634A; color: #09090B; text-decoration: none; border-radius: 12px; font-weight: bold; font-size: 14px; box-shadow: 0 4px 14px rgba(255, 99, 74, 0.4);">
+            Aktivasi Akun Sekarang
+          </a>
+        </div>
+        <p style="color: #a1a1aa; font-size: 12px; line-height: 1.5; border-top: 1px solid #272730; padding-top: 12px;">
+          💡 <strong>Petunjuk Aktivasi:</strong> Klik tombol di atas untuk memverifikasi tanggal lahir dan membuat kata sandi baru akun Anda.
+        </p>
+      </div>
+      <p style="color: #71717a; font-size: 11px; text-align: center; margin-top: 20px;">
+        © 2026 MantaKopi COZIS. Tautan berlaku selama 48 jam.
+      </p>
+    </div>
+  `;
+
+  let mailResult: any = { sent: false };
+  try {
+    mailResult = await sendMail({
+      to: email,
+      subject: `🚀 Undangan Bergabung & Aktivasi Akun ${roleLabel} — MantaKopi COZIS`,
+      html,
+      text: `Halo ${name}, Anda diundang bergabung sebagai ${roleLabel}. Buka link berikut untuk aktivasi akun: ${activationUrl}`,
+    });
+    console.log(`📧 Undangan email terkirim ke ${email} (ID: ${mailResult.messageId})`);
+    if (mailResult?.previewUrl) {
+      console.log(`🔗 Buka & Baca Email di Ethereal: ${mailResult.previewUrl}`);
+    }
+  } catch (err: any) {
+    console.warn(`⚠️ Gagal mengirim email ke ${email}:`, err.message);
+  }
+
+  return {
+    ...newUser,
+    invitation_token: invitationToken,
+    invitation_link: activationUrl,
+    email_preview_url: mailResult?.previewUrl || null,
+  };
 };
 
 /**
@@ -268,13 +340,56 @@ export const changePasswordService = async (
     error.statusCode = 404;
     throw error;
   }
-  const isMatch = await bcrypt.compare(currentPassword, user.password || "");
+  const isMatch = await verifyPassword(currentPassword, user.password || "");
   if (!isMatch) {
     const error: any = new Error("Kata sandi saat ini (lama) tidak sesuai.");
     error.statusCode = 400;
     throw error;
   }
-  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  const hashedPassword = await hashPassword(newPassword);
   const updatedUser = await UserModel.updatePassword(userId, hashedPassword);
   return updatedUser;
 };
+
+/**
+ * Admin reset user password with RBAC check
+ */
+export const adminResetPasswordService = async (
+  targetUserId: number | string,
+  newPassword: string,
+  currentUser: any
+): Promise<any> => {
+  if (!newPassword || newPassword.length < 6) {
+    const error: any = new Error("Password baru minimal 6 karakter");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const targetUser = await UserModel.findById(targetUserId);
+  if (!targetUser) {
+    const error: any = new Error("User tidak ditemukan");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (currentUser.role === "SUPERADMIN") {
+    // Allowed
+  } else if (currentUser.role === "MANAGEMENT") {
+    if (targetUser.role === "SUPERADMIN") {
+      const error: any = new Error("Access forbidden: MANAGEMENT cannot reset SUPERADMIN password");
+      error.statusCode = 403;
+      throw error;
+    }
+  } else {
+    const error: any = new Error("Access forbidden: insufficient permissions to reset user password");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const hashedPassword = await hashPassword(newPassword);
+  await UserModel.updatePassword(targetUserId, hashedPassword);
+  await RefreshTokenModel.revokeAllForUser(targetUserId);
+
+  return { message: `Password akun ${targetUser.username} berhasil direset.` };
+};
+

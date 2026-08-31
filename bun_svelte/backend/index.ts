@@ -33,6 +33,7 @@ import systemSettingRoutes from "./src/routes/systemSettingRoutes.js";
 import productRoutes from "./src/routes/productRoutes.js";
 import salesRoutes from "./src/routes/salesRoutes.js";
 import dashboardRoutes from "./src/routes/dashboardRoutes.js";
+import notificationRoutes from "./src/routes/notificationRoutes.js";
 
 // Initialize BullMQ Background Workers
 import "./src/workers/overpassWorker.js";
@@ -151,6 +152,7 @@ app.use("/api/system-settings", systemSettingRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/sales", salesRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 // Global Centralized Error Handling Middleware
 app.use((err: any, req: Request, res: Response, _next: NextFunction): any => {
@@ -165,15 +167,20 @@ app.use((err: any, req: Request, res: Response, _next: NextFunction): any => {
   });
 });
 
+import { cronManagerService } from "./src/services/cron/CronManagerService.js";
+
 async function startServer() {
   try {
     // Check Database connection
     await pool.query("SELECT 1");
     console.log("🐘 PostgreSQL & PostGIS Terhubung!");
 
+    // Initialize Bun 1.4 Native Cron Scheduler
+    cronManagerService.initBunCronScheduler();
+
     // Start Express HTTP + WebSockets Server on Bun
     server.listen(env.PORT, () => {
-      console.log(`🚀 [BUN + TYPESCRIPT] Server running on http://localhost:${env.PORT} [${env.NODE_ENV}]`);
+      console.log(`🚀 [BUN 1.4 + TYPESCRIPT] Server running on http://localhost:${env.PORT} [${env.NODE_ENV}]`);
     });
   } catch (error: any) {
     console.error("❌ Gagal menyalakan server:", error.message);

@@ -85,7 +85,25 @@ export async function syncProtocolRoadsService(): Promise<any> {
   let geojson = await roadService.getProtocolRoadsGeoJson();
   if (!geojson.features || geojson.features.length === 0) {
     const geoJsonPath = path.join(process.cwd(), "public/geojson/jalan_protokol.geojson");
-    if (fs.existsSync(geoJsonPath)) {
+    const file = typeof Bun !== "undefined" ? Bun.file(geoJsonPath) : null;
+    if (file && (await file.exists())) {
+      const parsed: any = await file.json();
+      const features = parsed.features || [];
+      const validFeatures = features
+        .filter((f: any) => f.geometry?.type === "LineString" && Array.isArray(f.geometry.coordinates))
+        .map((feat: any, idx: number) => ({
+          external_id: feat.properties?.id || `way/gen-${idx + 1}`,
+          name: feat.properties?.name || "Jalan Protokol Utama",
+          highway_type: feat.properties?.highway || "secondary",
+          restriction_type: "PROHIBITED_ROAD",
+          metadata: feat.properties || {},
+          geometry: feat.geometry,
+        }));
+      if (validFeatures.length > 0) {
+        await roadRepository.bulkCreate(validFeatures);
+        geojson = await roadService.getProtocolRoadsGeoJson();
+      }
+    } else if (fs.existsSync(geoJsonPath)) {
       const rawData = fs.readFileSync(geoJsonPath, "utf8");
       const parsed = JSON.parse(rawData);
       const features = parsed.features || [];

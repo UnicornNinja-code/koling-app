@@ -14,6 +14,7 @@ export interface User {
   password?: string;
   role: UserRole;
   phone?: string | null;
+  birth_date?: string | Date | null;
   status?: UserStatus;
   is_active?: boolean;
   avatar_url?: string | null;
@@ -31,6 +32,7 @@ export interface UserSanitized {
   email: string;
   role: UserRole;
   phone?: string | null;
+  birth_date?: string | Date | null;
   status?: UserStatus;
   is_active?: boolean;
   avatar_url?: string | null;
@@ -48,6 +50,7 @@ export interface CreateUserDto {
   password?: string;
   role: UserRole;
   phone?: string;
+  birth_date?: string | Date | null;
   status?: UserStatus;
   is_active?: boolean;
   assigned_zone_id?: number | null;
@@ -61,6 +64,7 @@ export interface UpdateUserDto {
   password?: string;
   role?: UserRole;
   phone?: string;
+  birth_date?: string | Date | null;
   status?: UserStatus;
   is_active?: boolean;
   assigned_zone_id?: number | null;

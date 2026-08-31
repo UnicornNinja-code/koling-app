@@ -376,6 +376,37 @@ async function seedCleanData() {
     }
     console.log(`✅ Data transaksi penjualan historis 30 hari berhasil di-generate.`);
 
+    // 11. Seeding In-App Notifications
+    console.log("⏳ Seeding Notifikasi Sistem...");
+    const { rows: adminRows } = await pool.query(`SELECT id FROM users WHERE role = 'SUPERADMIN' LIMIT 1;`);
+    if (adminRows.length > 0) {
+      const superadminId = adminRows[0].id;
+      const sampleNotifs = [
+        {
+          user_id: superadminId,
+          title: "Sistem Inisialisasi Berhasil",
+          message: "Seluruh 4 zona PostGIS, 885 jalan protokol, dan 692 jalan tol telah aktif.",
+        },
+        {
+          user_id: superadminId,
+          title: "Sinkronisasi Cuaca Satelit",
+          message: "Data Open-Meteo Sidoarjo berhasil diperbarui untuk seluruh zona operasional.",
+        },
+        {
+          user_id: superadminId,
+          title: "Kalibrasi Bobot BWM",
+          message: "Konfigurasi BWM aktif: Best Potensi Pasar, Worst Jarak Hub (CR: 0.042).",
+        },
+      ];
+      for (const n of sampleNotifs) {
+        await pool.query(
+          `INSERT INTO notifications (user_id, title, message, is_read) VALUES ($1, $2, $3, false);`,
+          [n.user_id, n.title, n.message]
+        );
+      }
+      console.log(`✅ ${sampleNotifs.length} notifikasi in-app disiapkan.`);
+    }
+
     console.log("\n==================================================");
     console.log("🎉 SEEDING MASTER & OPERASIONAL DATA SELESAI SUKSES!");
     console.log("==================================================\n");

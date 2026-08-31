@@ -21,21 +21,24 @@
     try {
       // Execute BWM calculation with current baseline matrix
       await dssService.calculateBwmWeights({
-        bestCriterion: 'POTENSI_PASAR',
-        worstCriterion: 'JARAK_HUB',
-        bestToOthers: {
-          POTENSI_PASAR: 1,
-          KEPADATAN_LALULINTAS: 3,
-          JUMLAH_KOMPETITOR: 4,
-          KONDISI_CUACA: 5,
-          JARAK_HUB: 7,
+        name: 'Quick Recalibration Baseline',
+        best_criteria_id: '1',
+        worst_criteria_id: '5',
+        best_to_others: {
+          '1': 1,
+          '2': 2,
+          '3': 3,
+          '4': 4,
+          '5': 7,
+          '6': 5,
         },
-        othersToWorst: {
-          POTENSI_PASAR: 7,
-          KEPADATAN_LALULINTAS: 5,
-          JUMLAH_KOMPETITOR: 4,
-          KONDISI_CUACA: 3,
-          JARAK_HUB: 1,
+        worst_to_others: {
+          '1': 7,
+          '2': 5,
+          '3': 4,
+          '4': 3,
+          '5': 1,
+          '6': 2,
         },
       });
 

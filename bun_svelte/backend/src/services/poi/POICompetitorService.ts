@@ -51,6 +51,13 @@ export class POICompetitorService {
   }
 
   /**
+   * Fetch all survey competitors (optionally filtered by zoneId)
+   */
+  public async getAllCompetitors(zoneId?: number | string | null): Promise<any[]> {
+    return await this.repo.findAll(zoneId);
+  }
+
+  /**
    * Fetch survey competitors list by Zone ID
    */
   public async getCompetitorsByZone(zoneId: number | string): Promise<any[]> {

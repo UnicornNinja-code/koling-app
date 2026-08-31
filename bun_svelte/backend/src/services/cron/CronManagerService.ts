@@ -271,6 +271,34 @@ export class CronManagerService {
   }
 
   /**
+   * Initialize Native Bun 1.4 Cron Schedulers
+   */
+  public initBunCronScheduler(): void {
+    if (typeof Bun !== "undefined" && typeof (Bun as any).cron === "function") {
+      try {
+        // Schedule Armada Release every 1 minute
+        (Bun as any).cron("ARMADA_RELEASE", "*/1 * * * *", async () => {
+          await this.executeCronTask("ARMADA_RELEASE");
+        });
+
+        // Schedule Weather Sync every 30 minutes
+        (Bun as any).cron("WEATHER_SYNC", "*/30 * * * *", async () => {
+          await this.executeCronTask("WEATHER_SYNC");
+        });
+
+        // Schedule Daily Cleanup every midnight
+        (Bun as any).cron("DAILY_CLEANUP", "0 0 * * *", async () => {
+          await this.executeCronTask("DAILY_CLEANUP");
+        });
+
+        console.log("⏰ [BUN 1.4 NATIVE CRON] Native Bun.cron schedulers active (Armada Release, Weather Sync, Daily Cleanup).");
+      } catch (err: any) {
+        console.warn("⚠️ Bun.cron initialization note:", err.message);
+      }
+    }
+  }
+
+  /**
    * Trigger Cron Job Manually On-Demand
    */
   public async triggerCronManually(cronKey: string): Promise<any> {
@@ -279,3 +307,4 @@ export class CronManagerService {
 }
 
 export const cronManagerService = CronManagerService.getInstance();
+

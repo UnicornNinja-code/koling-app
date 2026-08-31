@@ -169,6 +169,38 @@ export class DistributionRepository {
   }
 
   /**
+   * Fetch all zone assignments for today across all riders
+   */
+  public async getAllTodayAssignments(): Promise<any[]> {
+    const query = `
+      SELECT 
+        za.id AS id,
+        za.rider_id,
+        u.name AS rider_name,
+        u.email AS rider_email,
+        za.zone_id,
+        z.name AS zone_name,
+        za.armada_id,
+        a.code AS armada_code,
+        a.type AS armada_type,
+        za.assignment_type,
+        za.assignment_date,
+        za.status,
+        za.check_in_time,
+        za.check_out_time,
+        za.created_at
+      FROM zone_assignments za
+      JOIN users u ON za.rider_id = u.id
+      JOIN zones z ON za.zone_id = z.id
+      LEFT JOIN armadas a ON za.armada_id = a.id
+      WHERE za.assignment_date = CURRENT_DATE
+      ORDER BY za.created_at DESC;
+    `;
+    const { rows } = await this.pool.query(query);
+    return rows;
+  }
+
+  /**
    * Reset today's distribution assignments and duty queue for testing
    */
   public async resetTodayDistribution(): Promise<void> {

@@ -74,6 +74,16 @@ export const getActiveDssConfig = async (req: Request, res: Response): Promise<a
   }
 };
 
+export const getAllDssConfigs = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const configs = await bwmRepository.findAllConfigs();
+    return res.status(200).json({ configs });
+  } catch (error: any) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Internal server error" });
+  }
+};
+
 export const getZoneRawEvaluation = async (req: Request, res: Response): Promise<any> => {
   try {
     const id = req.params.id as string;

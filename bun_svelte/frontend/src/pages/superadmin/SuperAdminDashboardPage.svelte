@@ -16,6 +16,7 @@
   import DashboardMiniMap from '../../components/dashboard/DashboardMiniMap.svelte';
   import DssStatusCard from '../../components/dashboard/DssStatusCard.svelte';
   import ActivityFeed, { type ActivityItem } from '../../components/dashboard/ActivityFeed.svelte';
+  import HubAtmosphericRadarCard from '../../components/dashboard/HubAtmosphericRadarCard.svelte';
 
   import SyncWeatherModal from '../../components/dashboard/SyncWeatherModal.svelte';
   import RecalculateDssModal from '../../components/dashboard/RecalculateDssModal.svelte';
@@ -72,37 +73,7 @@
           details: log.details ? (typeof log.details === 'string' ? log.details : JSON.stringify(log.details)) : log.status,
         }));
       } else {
-        // Default realistic simulation activities with clear [Simulasi] tag
-        activities = [
-          {
-            id: 'act-1',
-            timestamp: '09:45',
-            type: 'RIDER',
-            title: 'Rider Ahmad Rifai Check-in',
-            details: 'Terkonfirmasi aktif di Zona Sudirman Central (JKT-SDR-01)',
-          },
-          {
-            id: 'act-2',
-            timestamp: '09:32',
-            type: 'SALES',
-            title: 'Penjualan Kopi Susu Gula Aren (3 Cup)',
-            details: 'Total Transaksi Rp 36.000 via Rider Budi Santoso',
-          },
-          {
-            id: 'act-3',
-            timestamp: '09:15',
-            type: 'ZONE',
-            title: 'Evaluasi Geofence Selesai',
-            details: '4 Zona operasional PostGIS aktif tanpa pelanggaran jalan tol',
-          },
-          {
-            id: 'act-4',
-            timestamp: '08:50',
-            type: 'CRON',
-            title: 'Sinkronisasi Cuaca & Overpass POI',
-            details: 'Update matriks kriteria C3 & C4 selesai dalam 14 ms',
-          },
-        ];
+        activities = [];
       }
     } catch (err) {
       console.warn('Gagal memuat dashboard:', err);
@@ -268,6 +239,11 @@
       {loading}
     />
   </div>
+
+  <!-- SECTION 1.5: HUB ATMOSPHERIC WEATHER RADAR WIDGET -->
+  <HubAtmosphericRadarCard
+    onSyncRequest={loadDashboardData}
+  />
 
   <!-- SECTION 2: GRID ROW 1 (Sales Trend Chart + Produk Terlaris Leaderboard) -->
   <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">

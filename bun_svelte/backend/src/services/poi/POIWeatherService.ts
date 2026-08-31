@@ -230,6 +230,11 @@ export class POIWeatherService {
         skor_c4_cost: evaluation.skor_c4,
         rain_probability_percent: rainProb,
         temperature_c: temp,
+        apparent_temperature_c: supporting.temperature || temp,
+        relative_humidity_2m: supporting.humidity || 0,
+        dew_point_2m: supporting.dew_point || 0,
+        precipitation_rain_mm: supporting.rain || 0,
+        wind_speed_kmh: supporting.wind_speed || 0,
         weather_code: supporting.weather_code || 0,
         weather_condition: this.getWmoWeatherLabel(supporting.weather_code),
         risk_level: rainProb > 60 ? "HIGH" : rainProb > 30 ? "MEDIUM" : "LOW",
@@ -237,6 +242,15 @@ export class POIWeatherService {
     }
 
     const avgTemp = Math.round((sumTemp / filteredCentroids.length) * 10) / 10;
+    const avgHumidity = Math.round(
+      zonesWeatherList.reduce((acc, z) => acc + (z.relative_humidity_2m || 0), 0) / (zonesWeatherList.length || 1)
+    );
+    const avgDewPoint = Math.round(
+      (zonesWeatherList.reduce((acc, z) => acc + (z.dew_point_2m || 0), 0) / (zonesWeatherList.length || 1)) * 10
+    ) / 10;
+    const totalRain = Math.round(
+      zonesWeatherList.reduce((acc, z) => acc + (z.precipitation_rain_mm || 0), 0) * 10
+    ) / 10;
 
     return {
       status: "success",
@@ -244,6 +258,10 @@ export class POIWeatherService {
       total_zones: filteredCentroids.length,
       hub_overview: {
         avg_temperature_c: avgTemp,
+        apparent_temperature_c: avgTemp,
+        relative_humidity_2m: avgHumidity,
+        dew_point_2m: avgDewPoint,
+        precipitation_rain_mm: totalRain,
         max_rain_probability_percent: maxRainProb,
         weather_condition: this.getWmoWeatherLabel(mainWeatherCode),
         weather_code: mainWeatherCode,

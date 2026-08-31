@@ -11,6 +11,8 @@ import { TimeSlotEvaluator } from "../../utils/TimeSlotEvaluator.js";
 import { addRiderAssignedNotifJob } from "../../queues/notificationQueue.js";
 import { eventPublisher } from "../../events/eventPublisher.js";
 
+import { armadaRepository } from "../../repositories/armadaRepository.js";
+
 export class DistributionService {
   private static instance: DistributionService | null = null;
   private repo: DistributionRepository;
@@ -89,13 +91,27 @@ export class DistributionService {
     const totalWaitingRiders = waitingQueue.length;
     const totalRemainingCapacity = fullZonesOverview.reduce((acc: number, z: any) => acc + z.remaining_capacity, 0);
 
+    const [todayAssignments, allArmadas] = await Promise.all([
+      this.repo.getAllTodayAssignments(),
+      armadaRepository.findAll(),
+    ]);
+
+    const availableArmadas = allArmadas.filter((a: any) => a.status === "ACTIVE" && !a.current_rider_id);
+
     return {
+      duty_date: new Date().toISOString().split("T")[0],
       time_slot: currentSlot,
-      total_waiting_riders: totalWaitingRiders,
-      total_remaining_capacity: totalRemainingCapacity,
-      is_capacity_sufficient: totalRemainingCapacity >= totalWaitingRiders,
-      waiting_queue: waitingQueue,
-      zones_overview: fullZonesOverview,
+      summary: {
+        total_waiting: totalWaitingRiders,
+        total_plotted: todayAssignments.length,
+        total_capacity: fullZonesOverview.reduce((acc: number, z: any) => acc + z.max_capacity, 0),
+        total_assigned: todayAssignments.filter((a: any) => a.status !== "CANCELLED").length,
+        available_armadas_count: availableArmadas.length,
+      },
+      duty_queue: waitingQueue,
+      zones: fullZonesOverview,
+      assignments: todayAssignments,
+      available_armadas: availableArmadas,
     };
   }
 

@@ -13,12 +13,16 @@ import {
   refreshToken,
   logout,
   getMe,
+  getCaptcha,
+  googleLogin,
 } from "../controllers/authController.js";
 import { authenticateToken } from "../middlewares/authMiddleware.js";
 import { loginLimiter, registerLimiter, forgotPasswordLimiter } from "../middlewares/rateLimiterMiddleware.js";
 
 const router = express.Router();
 
+router.get("/captcha", getCaptcha);
+router.post("/google", googleLogin);
 router.post("/register", registerLimiter, register);
 router.post("/login", loginLimiter, login);
 router.post("/forgot-password", forgotPasswordLimiter, forgotPassword);

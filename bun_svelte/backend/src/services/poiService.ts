@@ -320,6 +320,7 @@ export const syncAllZonesWeatherService = () => poiWeatherService.syncAllZonesWe
 export const getZoneC5ScoreService = (zoneId: number | string, lat: number, lon: number) => poiDistanceService.calculateZoneC5Score(zoneId, lat, lon);
 
 export const getZoneC6ScoreService = (zoneId: number | string) => poiCompetitorService.getZoneC6Score(zoneId);
+export const getAllCompetitorsService = (zoneId?: number | string | null) => poiCompetitorService.getAllCompetitors(zoneId);
 export const getCompetitorsByZoneService = (zoneId: number | string) => poiCompetitorService.getCompetitorsByZone(zoneId);
 export const createCompetitorService = (data: any) => poiCompetitorService.createCompetitor(data);
 export const deleteCompetitorService = (id: number | string) => poiCompetitorService.deleteCompetitor(id);

@@ -77,13 +77,40 @@ export class CompetitorRepository {
   }
 
   /**
+   * Fetch all field survey competitors (optionally by zone ID) with zone name join
+   */
+  public async findAll(zoneId?: number | string | null): Promise<any[]> {
+    if (zoneId) {
+      const query = `
+        SELECT c.*, z.name as zone_name 
+        FROM competitors c
+        LEFT JOIN zones z ON c.zone_id = z.id
+        WHERE c.zone_id = $1 
+        ORDER BY c.created_at DESC;
+      `;
+      const { rows } = await this.pool.query(query, [zoneId]);
+      return rows;
+    }
+    const query = `
+      SELECT c.*, z.name as zone_name 
+      FROM competitors c
+      LEFT JOIN zones z ON c.zone_id = z.id
+      ORDER BY c.created_at DESC;
+    `;
+    const { rows } = await this.pool.query(query);
+    return rows;
+  }
+
+  /**
    * Fetch field survey competitors by zone ID
    */
   public async findByZoneId(zoneId: number | string): Promise<any[]> {
     const query = `
-      SELECT * FROM competitors 
-      WHERE zone_id = $1 
-      ORDER BY created_at DESC;
+      SELECT c.*, z.name as zone_name 
+      FROM competitors c
+      LEFT JOIN zones z ON c.zone_id = z.id
+      WHERE c.zone_id = $1 
+      ORDER BY c.created_at DESC;
     `;
     const { rows } = await this.pool.query(query, [zoneId]);
     return rows;

@@ -12,6 +12,8 @@ import {
   verifyResetTokenService,
   refreshTokenService,
   logoutService,
+  generateCaptchaService,
+  googleLoginService,
 } from "../services/authService.js";
 
 const REFRESH_TOKEN_COOKIE_NAME = "refreshToken";
@@ -24,6 +26,16 @@ const getRefreshCookieOptions = (): any => ({
   maxAge: REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000,
   path: "/api/auth",
 });
+
+export const getCaptcha = async (_req: Request, res: Response): Promise<any> => {
+  try {
+    const challenge = generateCaptchaService();
+    return res.status(200).json(challenge);
+  } catch (error: any) {
+    console.error("💥 Error in getCaptcha:", error);
+    return res.status(500).json({ msg: "Gagal membuat CAPTCHA.", error: error.message });
+  }
+};
 
 export const register = async (req: Request, res: Response): Promise<any> => {
   try {
@@ -43,13 +55,33 @@ export const login = async (req: Request, res: Response): Promise<any> => {
   try {
     const identifier = req.body.identifier || req.body.username || req.body.email;
     const password = req.body.password;
+    const captcha_id = req.body.captcha_id;
+    const captcha_answer = req.body.captcha_answer;
 
-    const result = await loginService({ identifier, password });
+    const result = await loginService({ identifier, password, captcha_id, captcha_answer });
 
     res.cookie(REFRESH_TOKEN_COOKIE_NAME, result.refreshToken, getRefreshCookieOptions());
 
     return res.status(200).json({
       msg: "Login successful",
+      token: result.token,
+      user: result.user,
+    });
+  } catch (error: any) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Internal server error" });
+  }
+};
+
+export const googleLogin = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { email, name, google_id, avatar_url } = req.body;
+    const result = await googleLoginService({ email, name, google_id, avatar_url });
+
+    res.cookie(REFRESH_TOKEN_COOKIE_NAME, result.refreshToken, getRefreshCookieOptions());
+
+    return res.status(200).json({
+      msg: "Google Login successful",
       token: result.token,
       user: result.user,
     });
@@ -72,8 +104,8 @@ export const forgotPassword = async (req: Request, res: Response): Promise<any> 
 
 export const resetPassword = async (req: Request, res: Response): Promise<any> => {
   try {
-    const { token, password } = req.body;
-    const result = await resetPasswordService({ token, password });
+    const { token, password, birth_date } = req.body;
+    const result = await resetPasswordService({ token, password, birth_date });
     return res.status(200).json(result);
   } catch (error: any) {
     const statusCode = error.statusCode || 500;

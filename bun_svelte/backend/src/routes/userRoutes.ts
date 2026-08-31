@@ -13,6 +13,7 @@ import {
   deleteUser,
   getProfile,
   changePassword,
+  adminResetPassword,
 } from "../controllers/userController.js";
 import { authenticateToken } from "../middlewares/authMiddleware.js";
 import { checkRole } from "../middlewares/roleMiddleware.js";
@@ -35,6 +36,9 @@ router.get("/:id", checkRole(["SUPERADMIN", "MANAGEMENT"]), getUserById);
 
 // Update user profile/role
 router.put("/:id", updateUser);
+
+// Administrative password reset
+router.post("/:id/reset-password", checkRole(["SUPERADMIN", "MANAGEMENT"]), adminResetPassword);
 
 // Activate / Deactivate user account
 router.patch("/:id/status", checkRole(["SUPERADMIN", "MANAGEMENT"]), setUserStatus);

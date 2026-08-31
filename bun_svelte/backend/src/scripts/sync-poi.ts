@@ -51,7 +51,7 @@ async function runSyncPoi() {
     console.log("\n🌤️  Menjalankan sinkronisasi cuaca Open-Meteo untuk seluruh zona...");
     try {
       const weatherRes = await syncAllZonesWeatherService();
-      console.log(`✅ Weather Sync Selesai: ${weatherRes?.msg || "OK"}`);
+      console.log(`✅ Weather Sync Selesai: ${Array.isArray(weatherRes) ? `${weatherRes.length} zona` : "OK"}`);
     } catch (wErr: any) {
       console.warn("⚠️ Weather Sync warning:", wErr.message);
     }

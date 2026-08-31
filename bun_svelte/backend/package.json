@@ -20,7 +20,8 @@
     "test:unit": "bun src/scripts/test-runner.ts unit",
     "test:integration": "bun src/scripts/test-runner.ts integration",
     "test:e2e": "bun src/scripts/test-runner.ts e2e",
-    "test:smoke": "bun src/scripts/test-runner.ts smoke"
+    "test:smoke": "bun src/scripts/test-runner.ts smoke",
+    "test:benchmark": "bun src/scripts/benchmark-comparison.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

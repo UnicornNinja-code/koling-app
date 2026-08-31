@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { authService } from "../../services/authService";
-  import { Coffee, User, Lock, CheckCircle2, ArrowLeft, ArrowRight, ShieldCheck, KeyRound } from "lucide-svelte";
+  import { authStore, getRoleLandingPath } from "../../lib/stores/auth.svelte";
+  import { Coffee, User, Lock, CheckCircle2, ArrowLeft, ArrowRight, ShieldCheck, KeyRound, Check, Sparkles, MailCheck, Shield } from "lucide-svelte";
   import Button from "../../components/ui/Button.svelte";
   import Input from "../../components/ui/Input.svelte";
   import Alert from "../../components/ui/Alert.svelte";
@@ -17,10 +18,15 @@
   let verifyingToken = $state(false);
   let tokenValid = $state(false);
 
-  let step = $state(1); // 1: Request Link, 2: Set Password, 3: Success
+  let verifiedEmail = $state<string>("");
+  let verifiedName = $state<string>("");
+  let verifiedRole = $state<string>("RIDER");
+
+  let step = $state(1); // 1: Request Link, 2: Set Password & Birth Date, 3: Success
   let emailOrUsername = $state("");
   let newPassword = $state("");
   let confirmPassword = $state("");
+  let birthDate = $state("");
 
   let successMsg = $state<string | null>(null);
   let errorMsg = $state<string | null>(null);
@@ -29,20 +35,58 @@
   let requestError = $state<string | null>(null);
   let passwordError = $state<string | null>(null);
   let confirmError = $state<string | null>(null);
+  let birthDateError = $state<string | null>(null);
+
+  let redirectCountdown = $state(3);
+
+  // Real-time password validation indicators
+  let hasMinLength = $derived(newPassword.length >= 8);
+  let hasUppercase = $derived(/[A-Z]/.test(newPassword));
+  let hasNumber = $derived(/[0-9]/.test(newPassword));
+  let isMatching = $derived(newPassword.length > 0 && newPassword === confirmPassword);
+
+  $effect(() => {
+    if (step === 3) {
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      const interval = setInterval(() => {
+        if (redirectCountdown > 1) {
+          redirectCountdown -= 1;
+        } else {
+          clearInterval(interval);
+          onNavigate("/login");
+        }
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  });
 
   onMount(async () => {
     let currentToken = tokenParam;
+    const urlParams = new URLSearchParams(window.location.search);
     if (!currentToken) {
-      const urlParams = new URLSearchParams(window.location.search);
       currentToken = urlParams.get("token");
+    }
+    const emailInUrl = urlParams.get("email");
+    if (emailInUrl) {
+      verifiedEmail = emailInUrl;
+      emailOrUsername = emailInUrl;
     }
 
     if (currentToken) {
       token = currentToken;
       verifyingToken = true;
       try {
-        await authService.verifyResetToken(currentToken);
+        const verifyRes = await authService.verifyResetToken(currentToken);
         tokenValid = true;
+        if (verifyRes?.email) verifiedEmail = verifyRes.email;
+        if (verifyRes?.name) verifiedName = verifyRes.name;
+        if (verifyRes?.role) verifiedRole = verifyRes.role;
+        if (verifyRes?.birth_date) {
+          const rawDate = String(verifyRes.birth_date);
+          birthDate = rawDate.split("T")[0];
+        }
         step = 2;
       } catch (err: any) {
         errorMsg =
@@ -88,6 +132,12 @@
     if (e) e.preventDefault();
     passwordError = null;
     confirmError = null;
+    birthDateError = null;
+
+    if (!birthDate) {
+      birthDateError = "Tanggal lahir wajib diisi untuk verifikasi identitas personel";
+      return;
+    }
 
     if (!newPassword || newPassword.length < 8) {
       passwordError = "Password minimal 8 karakter";
@@ -118,6 +168,7 @@
       await authService.resetPassword({
         token,
         password: newPassword,
+        birth_date: birthDate,
       });
       successMsg = "Akun berhasil diaktifkan! Silakan masuk menggunakan kata sandi baru.";
       step = 3;
@@ -133,27 +184,52 @@
   };
 </script>
 
-<div class="min-h-screen bg-[#F4F4F6] flex flex-col justify-center py-10 sm:px-6 lg:px-8 px-4 font-sans">
-  <div class="sm:mx-auto sm:w-full sm:max-w-md">
+<div class="min-h-screen bg-[#09090B] pattern-dots-dark relative flex flex-col justify-center py-10 sm:py-14 px-4 sm:px-6 lg:px-8 font-outfit-400 select-none overflow-x-hidden">
+  <!-- Ambient Lighting Effects -->
+  <div class="fixed top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#FF634A]/10 rounded-full blur-[120px] pointer-events-none"></div>
+  <div class="fixed bottom-10 right-10 w-72 h-72 bg-blue-950/20 rounded-full blur-[90px] pointer-events-none"></div>
+
+  <div class="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
     <!-- Brand Header -->
-    <div class="text-center space-y-2 mb-6">
-      <div class="w-14 h-14 bg-[#FF634A] rounded-2xl flex items-center justify-center text-white mx-auto shadow-lg shadow-[#FF634A]/30 shrink-0">
-        <Coffee class="w-7 h-7" />
+    <div class="text-center space-y-3 mb-7">
+      <div class="w-14 h-14 bg-gradient-to-tr from-[#FF634A] to-[#FF8573] rounded-2xl flex items-center justify-center text-[#09090B] mx-auto shadow-xl shadow-[#FF634A]/25 shrink-0 border border-white/20">
+        <Coffee class="w-7 h-7 stroke-[2.5]" />
       </div>
-      <h1 class="text-2xl font-extrabold text-[#18181B] tracking-tight">
-        Aktivasi Akun Internal
-      </h1>
-      <p class="text-xs text-[#52525B] font-medium">
-        Verifikasi identitas & setup kata sandi awal personel COZIS
-      </p>
+      <div>
+        <span class="text-[10px] font-outfit-600 uppercase tracking-widest text-[#71717A] block">Registrasi & Onboarding</span>
+        <h1 class="text-2xl sm:text-3xl font-outfit-600 text-white tracking-tight mt-0.5">
+          Aktivasi Akun Internal
+        </h1>
+        <p class="text-xs text-[#A1A1AA] mt-1 max-w-xs mx-auto">
+          Verifikasi identitas & setup kata sandi awal personel COZIS
+        </p>
+      </div>
     </div>
 
-    <!-- Card Container -->
-    <div class="bg-white py-8 px-6 sm:px-8 rounded-2xl border border-[#D2D2D4] shadow-xl space-y-5">
+    <!-- Main Card Container -->
+    <div class="bg-[#131316]/95 backdrop-blur-xl py-7 px-6 sm:px-8 rounded-3xl border border-[#24242A] shadow-2xl space-y-5">
+      <!-- Step Flow Indicators -->
+      <div class="flex items-center justify-between gap-1 pb-3 border-b border-[#24242A]">
+        <div class="flex items-center gap-1.5 {step >= 1 ? 'text-[#FF634A]' : 'text-[#52525B]'} text-xs font-outfit-600">
+          <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] border {step >= 1 ? 'border-[#FF634A] bg-[#FF634A]/20' : 'border-[#383842] bg-[#1A1A1F]'}">1</span>
+          <span>Tautan</span>
+        </div>
+        <div class="flex-1 h-[1px] mx-1 {step >= 2 ? 'bg-[#FF634A]' : 'bg-[#272730]'}"></div>
+        <div class="flex items-center gap-1.5 {step >= 2 ? 'text-[#FF634A]' : 'text-[#52525B]'} text-xs font-outfit-600">
+          <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] border {step >= 2 ? 'border-[#FF634A] bg-[#FF634A]/20' : 'border-[#383842] bg-[#1A1A1F]'}">2</span>
+          <span>Sandi</span>
+        </div>
+        <div class="flex-1 h-[1px] mx-1 {step >= 3 ? 'bg-[#FF634A]' : 'bg-[#272730]'}"></div>
+        <div class="flex items-center gap-1.5 {step >= 3 ? 'text-emerald-400' : 'text-[#52525B]'} text-xs font-outfit-600">
+          <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] border {step >= 3 ? 'border-emerald-400 bg-emerald-950/40 text-emerald-400' : 'border-[#383842] bg-[#1A1A1F]'}">3</span>
+          <span>Selesai</span>
+        </div>
+      </div>
+
       {#if verifyingToken}
-        <div class="py-8 flex flex-col items-center justify-center space-y-3">
-          <div class="w-8 h-8 border-4 border-[#FF634A] border-t-transparent rounded-full animate-spin"></div>
-          <span class="text-xs text-[#52525B]">Memverifikasi tautan aktivasi...</span>
+        <div class="py-10 flex flex-col items-center justify-center space-y-3">
+          <div class="w-9 h-9 border-3 border-[#FF634A] border-t-transparent rounded-full animate-spin"></div>
+          <span class="text-xs text-[#A1A1AA] font-outfit-600">Memverifikasi tautan aktivasi...</span>
         </div>
       {:else}
         {#if errorMsg}
@@ -171,10 +247,10 @@
         <!-- STEP 1: REQUEST ACTIVATION LINK -->
         {#if step === 1 && !successMsg}
           <form onsubmit={handleRequestActivation} class="space-y-4">
-            <div class="p-3 bg-blue-50/80 rounded-xl border border-blue-200 text-xs text-blue-900 flex items-start gap-2.5">
-              <ShieldCheck class="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-              <p class="leading-relaxed">
-                Akun Anda telah diterbitkan oleh Administrator. Masukkan email terdaftar untuk menerima tautan aktivasi akun.
+            <div class="p-3.5 bg-blue-950/30 rounded-2xl border border-blue-800/40 text-xs text-blue-200 flex items-start gap-2.5">
+              <ShieldCheck class="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+              <p class="leading-relaxed text-[11px]">
+                Akun pengguna telah diterbitkan oleh Administrator. Masukkan email terdaftar untuk menerima tautan aktivasi akun Anda.
               </p>
             </div>
 
@@ -192,7 +268,7 @@
               variant="primary"
               size="md"
               isPending={loading}
-              class="w-full py-3 shadow-xs font-bold"
+              class="w-full py-3.5 font-outfit-600"
               rightIcon={ArrowRight}
             >
               {loading ? "Memproses Permintaan..." : "Kirim Tautan Aktivasi"}
@@ -200,63 +276,121 @@
           </form>
         {/if}
 
-        <!-- STEP 2: SET PASSWORD (VALID TOKEN) -->
+        <!-- STEP 2: SET PASSWORD / GOOGLE ACTIVATION (VALID TOKEN) -->
         {#if step === 2}
-          <form onsubmit={handleSetPassword} class="space-y-4">
-            <div class="p-3 bg-emerald-50/80 rounded-xl border border-emerald-200 text-xs text-emerald-900 flex items-start gap-2.5">
-              <ShieldCheck class="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-              <p class="leading-relaxed">
-                Tautan aktivasi terverifikasi. Silakan buat kata sandi baru untuk mengamankan akun Anda.
-              </p>
+          <div class="space-y-4">
+            <!-- Verified Email Identity Card -->
+            <div class="p-4 bg-[#18181D] rounded-2xl border border-emerald-500/30 text-xs text-emerald-200 space-y-2">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="w-7 h-7 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                    <ShieldCheck class="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span class="text-[10px] uppercase tracking-wider text-emerald-400 font-bold block">Email Terverifikasi</span>
+                    <span class="text-xs font-semibold text-white font-mono">{verifiedEmail || 'Akun Internal'}</span>
+                  </div>
+                </div>
+                <span class="px-2 py-0.5 rounded-lg bg-[#272730] text-[10px] font-bold text-zinc-300 uppercase tracking-wider border border-[#383842]">
+                  {verifiedRole}
+                </span>
+              </div>
+              {#if verifiedName}
+                <p class="text-[11px] text-zinc-400 pl-9">
+                  Nama Personel: <strong class="text-zinc-200">{verifiedName}</strong>
+                </p>
+              {/if}
             </div>
 
-            <Input
-              label="Kata Sandi Baru (Min. 8 Karakter)"
-              type="password"
-              leftIcon={Lock}
-              placeholder="••••••••"
-              required
-              helperText="Mengandung huruf besar (A-Z) dan angka (0-9)"
-              error={passwordError}
-              bind:value={newPassword}
-            />
+            <form onsubmit={handleSetPassword} class="space-y-4">
+              <!-- Tanggal Lahir -->
+              <div class="space-y-1.5">
+                <label for="reg-birthdate" class="block font-outfit-600 text-zinc-300 text-xs flex items-center justify-between">
+                  <span>Tanggal Lahir Personel <span class="text-[#FF634A] font-bold">*</span></span>
+                  <span class="text-[10px] text-zinc-500 font-normal">Identifikasi data personel</span>
+                </label>
+                <input
+                  id="reg-birthdate"
+                  type="date"
+                  bind:value={birthDate}
+                  required
+                  class="w-full px-3.5 py-2.5 rounded-2xl bg-[#1A1A1F] border {birthDateError ? 'border-rose-500' : 'border-[#2E2E38]'} text-white text-xs font-outfit-400 focus:border-[#FF634A] focus:outline-none cursor-pointer"
+                />
+                {#if birthDateError}
+                  <p class="text-[11px] text-rose-400 font-medium">{birthDateError}</p>
+                {/if}
+              </div>
 
-            <Input
-              label="Konfirmasi Kata Sandi Baru"
-              type="password"
-              leftIcon={KeyRound}
-              placeholder="••••••••"
-              required
-              error={confirmError}
-              bind:value={confirmPassword}
-            />
+              <Input
+                label="Kata Sandi Baru"
+                type="password"
+                leftIcon={Lock}
+                placeholder="••••••••"
+                required
+                error={passwordError}
+                bind:value={newPassword}
+              />
 
-            <Button
-              type="submit"
-              variant="primary"
-              size="md"
-              isPending={loading}
-              class="w-full py-3 shadow-xs font-bold"
-              rightIcon={ArrowRight}
-            >
-              {loading ? "Menyimpan Sandi..." : "Aktifkan Akun Saya"}
-            </Button>
-          </form>
+              <Input
+                label="Konfirmasi Kata Sandi Baru"
+                type="password"
+                leftIcon={KeyRound}
+                placeholder="••••••••"
+                required
+                error={confirmError}
+                bind:value={confirmPassword}
+              />
+
+              <!-- Real-time Password Strength Requirements Checklist -->
+              <div class="p-3 bg-[#1A1A1F] rounded-2xl border border-[#272730] space-y-1.5 text-[11px]">
+                <div class="font-outfit-600 text-[#A1A1AA] mb-1">Ketentuan Keamanan Sandi:</div>
+                <div class="grid grid-cols-2 gap-1.5">
+                  <div class="flex items-center gap-1.5 {hasMinLength ? 'text-emerald-400 font-semibold' : 'text-[#71717A]'}">
+                    {#if hasMinLength}<Check class="w-3.5 h-3.5" />{:else}<span class="w-1.5 h-1.5 rounded-full bg-[#52525B]"></span>{/if}
+                    <span>Minimal 8 Karakter</span>
+                  </div>
+                  <div class="flex items-center gap-1.5 {hasUppercase ? 'text-emerald-400 font-semibold' : 'text-[#71717A]'}">
+                    {#if hasUppercase}<Check class="w-3.5 h-3.5" />{:else}<span class="w-1.5 h-1.5 rounded-full bg-[#52525B]"></span>{/if}
+                    <span>Huruf Besar (A-Z)</span>
+                  </div>
+                  <div class="flex items-center gap-1.5 {hasNumber ? 'text-emerald-400 font-semibold' : 'text-[#71717A]'}">
+                    {#if hasNumber}<Check class="w-3.5 h-3.5" />{:else}<span class="w-1.5 h-1.5 rounded-full bg-[#52525B]"></span>{/if}
+                    <span>Mengandung Angka</span>
+                  </div>
+                  <div class="flex items-center gap-1.5 {isMatching ? 'text-emerald-400 font-semibold' : 'text-[#71717A]'}">
+                    {#if isMatching}<Check class="w-3.5 h-3.5" />{:else}<span class="w-1.5 h-1.5 rounded-full bg-[#52525B]"></span>{/if}
+                    <span>Sandi Cocok</span>
+                  </div>
+                </div>
+              </div>
+
+              <Button
+                type="submit"
+                variant="primary"
+                size="md"
+                isPending={loading}
+                class="w-full py-3.5 font-outfit-600"
+                rightIcon={ArrowRight}
+              >
+                {loading ? "Menyimpan Sandi..." : "Aktifkan Akun Saya"}
+              </Button>
+            </form>
+          </div>
         {/if}
 
         <!-- STEP 3: ACTIVATION SUCCESS -->
         {#if step === 3}
           <div class="text-center py-4 space-y-4">
-            <div class="w-16 h-16 bg-emerald-50 border-2 border-emerald-200 rounded-full flex items-center justify-center text-emerald-600 mx-auto shadow-xs">
-              <CheckCircle2 class="w-8 h-8" />
+            <div class="w-16 h-16 bg-emerald-950/40 border border-emerald-800/40 rounded-3xl flex items-center justify-center text-emerald-400 mx-auto shadow-lg shadow-emerald-950/50">
+              <CheckCircle2 class="w-8 h-8 stroke-[2.5]" />
             </div>
 
             <div class="space-y-1">
-              <h3 class="font-bold text-lg text-[#18181B]">
+              <h3 class="font-outfit-600 text-lg text-white">
                 Akun Berhasil Diaktifkan!
               </h3>
-              <p class="text-xs text-[#52525B] max-w-xs mx-auto">
-                Kata sandi baru Anda telah aktif. Silakan masuk ke aplikasi COZIS.
+              <p class="text-xs text-[#A1A1AA] max-w-xs mx-auto">
+                Kata sandi baru & tanggal lahir Anda telah tersimpan. Mengalihkan ke halaman login dalam <strong class="text-[#FF634A] font-bold">{redirectCountdown}s</strong>...
               </p>
             </div>
 
@@ -265,21 +399,21 @@
               onclick={() => onNavigate("/login")}
               variant="primary"
               size="md"
-              class="w-full py-3 shadow-xs font-bold"
+              class="w-full py-3.5 font-outfit-600"
               rightIcon={ArrowRight}
             >
-              Masuk ke Halaman Login
+              Masuk ke Halaman Login Sekarang
             </Button>
           </div>
         {/if}
 
-        <div class="pt-3 border-t border-[#D2D2D4]/50 text-center">
+        <div class="pt-2 border-t border-[#24242A] text-center">
           <button
             type="button"
             onclick={() => onNavigate("/login")}
-            class="inline-flex items-center gap-1.5 text-xs text-[#52525B] hover:text-[#FF634A] font-bold cursor-pointer"
+            class="inline-flex items-center gap-1.5 text-xs text-[#A1A1AA] hover:text-white font-outfit-600 transition-colors cursor-pointer py-1"
           >
-            <ArrowLeft class="w-3.5 h-3.5" /> Kembali ke Halaman Masuk
+            <ArrowLeft class="w-3.5 h-3.5 text-[#FF634A]" /> Kembali ke Halaman Masuk
           </button>
         </div>
       {/if}

@@ -30,7 +30,7 @@ export class UserRepository {
 
   public async findAll(): Promise<UserSanitized[]> {
     const query = `
-      SELECT id, email, username, name, role, is_active, created_at, updated_at
+      SELECT id, email, username, name, role, birth_date, is_active, created_at, updated_at
       FROM users
       ORDER BY created_at DESC;
     `;
@@ -40,7 +40,7 @@ export class UserRepository {
 
   public async findById(id: number | string): Promise<UserSanitized | null> {
     const query = `
-      SELECT id, email, username, name, role, is_active, created_at, updated_at
+      SELECT id, email, username, name, role, birth_date, is_active, created_at, updated_at
       FROM users
       WHERE id = $1;
     `;
@@ -50,7 +50,7 @@ export class UserRepository {
 
   public async findByIdWithPassword(id: number | string): Promise<User | null> {
     const query = `
-      SELECT id, email, username, password, name, role, is_active, created_at, updated_at
+      SELECT id, email, username, password, name, role, birth_date, is_active, created_at, updated_at
       FROM users
       WHERE id = $1;
     `;
@@ -132,6 +132,17 @@ export class UserRepository {
     return rows[0];
   }
 
+  public async updateGoogleInfo(userId: number | string, googleId: string, avatarUrl?: string): Promise<void> {
+    const query = `
+      UPDATE users
+      SET google_id = COALESCE(google_id, $1),
+          avatar_url = COALESCE(avatar_url, $2),
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $3;
+    `;
+    await this.pool.query(query, [googleId, avatarUrl || null, userId]);
+  }
+
   public async findRefreshToken(token: string): Promise<any> {
     const query = `SELECT * FROM refresh_tokens WHERE token = $1 AND revoked = false;`;
     const { rows } = await this.pool.query(query, [token]);
@@ -160,14 +171,21 @@ export class UserRepository {
     return rows[0] || null;
   }
 
-  public async updatePassword(userId: number | string, hashedPassword: string): Promise<UserSanitized | null> {
+  public async updatePassword(
+    userId: number | string,
+    hashedPassword: string,
+    birthDate?: string | Date | null
+  ): Promise<UserSanitized | null> {
     const query = `
       UPDATE users
-      SET password = $1, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $2
-      RETURNING id, email, username, name, role, is_active, updated_at;
+      SET password = $1,
+          birth_date = COALESCE($2, birth_date),
+          is_active = TRUE,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $3
+      RETURNING id, email, username, name, role, birth_date, is_active, updated_at;
     `;
-    const { rows } = await this.pool.query(query, [hashedPassword, userId]);
+    const { rows } = await this.pool.query(query, [hashedPassword, birthDate || null, userId]);
     return rows[0] || null;
   }
 

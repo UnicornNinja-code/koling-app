@@ -13,6 +13,7 @@ import {
   setUserStatusService,
   deleteUserService,
   changePasswordService,
+  adminResetPasswordService,
 } from "../services/userService.js";
 
 const sanitizeUser = (userObj: any) => {
@@ -125,5 +126,17 @@ export const changePassword = async (req: Request, res: Response): Promise<any> 
   } catch (error: any) {
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({ msg: error.message || "Gagal memperbarui password." });
+  }
+};
+
+export const adminResetPassword = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const id = req.params.id as string;
+    const { password } = req.body;
+    const result = await adminResetPasswordService(id, password, req.user);
+    return res.status(200).json(result);
+  } catch (error: any) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Gagal mereset password." });
   }
 };

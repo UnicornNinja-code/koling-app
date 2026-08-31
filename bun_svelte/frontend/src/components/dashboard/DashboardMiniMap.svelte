@@ -17,6 +17,7 @@
   let activeRiders = $state<NearbyRider[]>([]);
   let protocolRoadsGeoJson = $state<any>(null);
   let tollRoadsGeoJson = $state<any>(null);
+  let zoneConfig = $state<any>(null);
   let loading = $state(true);
 
   function parsePolygonToLatLngs(polygon: any): [number, number][] {
@@ -34,6 +35,37 @@
     if (!mapInstance || !L) return;
 
     const layerGroup = L.featureGroup();
+
+    // 0. Render Central HUB Location (Golden Radiant Beacon Marker)
+    if (zoneConfig) {
+      const hubLat = zoneConfig.hub_latitude || -7.397402;
+      const hubLng = zoneConfig.hub_longitude || 112.711958;
+      const hubName = zoneConfig.hub_city_name || "Sidoarjo";
+
+      const hubIconHtml = `
+        <div style="position: relative; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px;">
+          <div style="position: absolute; width: 26px; height: 26px; border-radius: 50%; background: rgba(255, 99, 74, 0.4); animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+          <div style="position: relative; width: 20px; height: 20px; border-radius: 50%; background: linear-gradient(135deg, #FF634A, #FF8573); border: 2px solid #FFFFFF; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 10px rgba(255, 99, 74, 0.9);">
+            <span style="font-size: 10px; font-weight: bold; color: #09090B;">🏢</span>
+          </div>
+        </div>
+      `;
+      const hubCustomIcon = L.divIcon({
+        html: hubIconHtml,
+        className: 'custom-hub-marker',
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
+      });
+
+      L.marker([hubLat, hubLng], { icon: hubCustomIcon })
+        .bindPopup(`
+          <div style="font-family: Outfit, sans-serif; min-width: 140px;">
+            <strong style="font-size: 11px; color: #FF634A;">CENTRAL HUB ${hubName.toUpperCase()}</strong><br>
+            <span style="font-size: 10px; color: #71717A;">Gudang & Titik Distribusi Utama</span>
+          </div>
+        `)
+        .addTo(layerGroup);
+    }
 
     // 1. Render Protocol Roads (Oranye / Amber Dashed)
     if (protocolRoadsGeoJson?.features) {
@@ -124,17 +156,19 @@
       const { layer } = createBasemapLayer(L, 'openmaptiles-dark');
       layer.addTo(mapInstance);
 
-      const [zonesData, ridersData, protoRoads, tollRoads] = await Promise.allSettled([
+      const [zonesData, ridersData, protoRoads, tollRoads, configData] = await Promise.allSettled([
         mapService.getAllZones(),
         mapService.getNearbyRiders(),
         mapService.getProtocolRoads(),
         mapService.getTollRoads(),
+        mapService.getZoneConfig(),
       ]);
 
       if (zonesData.status === 'fulfilled') realZones = zonesData.value;
       if (ridersData.status === 'fulfilled') activeRiders = ridersData.value;
       if (protoRoads.status === 'fulfilled') protocolRoadsGeoJson = protoRoads.value;
       if (tollRoads.status === 'fulfilled') tollRoadsGeoJson = tollRoads.value;
+      if (configData.status === 'fulfilled') zoneConfig = configData.value;
 
       renderMapLayers();
     } catch (err) {

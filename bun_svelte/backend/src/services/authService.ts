@@ -3,9 +3,9 @@
  * Auth Service implementing business logic without Prisma in TypeScript
  */
 
-import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
+import { hashPassword, verifyPassword } from "../utils/crypto.js";
 import { UserModel } from "../models/userModel.js";
 import { RefreshTokenModel } from "../models/refreshTokenModel.js";
 import { PasswordResetTokenModel } from "../models/passwordResetTokenModel.js";
@@ -47,7 +47,7 @@ export const registerService = async ({
     throw error;
   }
 
-  const hashedPassword = await bcrypt.hash(password, 10);
+  const hashedPassword = await hashPassword(password);
 
   const newUser = await UserModel.create({
     username,
@@ -66,38 +66,62 @@ export const registerService = async ({
   };
 };
 
+import { CaptchaUtil, type CaptchaChallenge } from "../utils/captcha.js";
+import { userRepository } from "../repositories/userRepository.js";
+
 /**
- * Login user and issue Access Token + Refresh Token
+ * Generate a fresh SVG Captcha challenge
+ */
+export const generateCaptchaService = (): CaptchaChallenge => {
+  return CaptchaUtil.generate();
+};
+
+/**
+ * Login user and issue Access Token + Refresh Token (with CAPTCHA verification)
  */
 export const loginService = async ({
   identifier,
   password,
+  captcha_id,
+  captcha_answer,
 }: {
   identifier: string;
   password?: string;
+  captcha_id?: string;
+  captcha_answer?: string;
 }): Promise<any> => {
   if (!identifier || !password) {
-    const error: any = new Error("Please provide email/username and password");
+    const error: any = new Error("Harap isi username/email dan kata sandi.");
     error.statusCode = 400;
     throw error;
   }
 
+  // Verify CAPTCHA if provided
+  if (captcha_id && captcha_answer) {
+    const isValid = CaptchaUtil.verify(captcha_id, captcha_answer);
+    if (!isValid) {
+      const error: any = new Error("Kode CAPTCHA salah atau telah kadaluarsa. Silakan refresh CAPTCHA.");
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+
   const user = await UserModel.findByEmailOrUsername(identifier);
   if (!user) {
-    const error: any = new Error("Invalid credentials");
+    const error: any = new Error("Username/email atau kata sandi tidak valid.");
     error.statusCode = 400;
     throw error;
   }
 
   if (user.is_active === false) {
-    const error: any = new Error("Account is deactivated. Please contact administrator.");
+    const error: any = new Error("Akun Anda sedang dinonaktifkan. Silakan hubungi Administrator.");
     error.statusCode = 403;
     throw error;
   }
 
-  const isMatch = await bcrypt.compare(password, user.password || "");
+  const isMatch = await verifyPassword(password, user.password || "");
   if (!isMatch) {
-    const error: any = new Error("Invalid credentials");
+    const error: any = new Error("Username/email atau kata sandi tidak valid.");
     error.statusCode = 400;
     throw error;
   }
@@ -125,6 +149,78 @@ export const loginService = async ({
       email: user.email,
       name: user.name,
       role: user.role,
+    },
+  };
+};
+
+/**
+ * Google OAuth 2.0 Sign-In Service (Corporate Pre-Provisioned Whitelist Match)
+ */
+export const googleLoginService = async ({
+  email,
+  name,
+  google_id,
+  avatar_url,
+}: {
+  email: string;
+  name?: string;
+  google_id?: string;
+  avatar_url?: string;
+}): Promise<any> => {
+  if (!email) {
+    const error: any = new Error("Email Google tidak valid.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  // 1. Check if user already exists by email in corporate database
+  let user = await UserModel.findByEmailOrUsername(email);
+
+  if (!user) {
+    // If corporate whitelist: reject unauthorized external emails
+    const error: any = new Error(
+      `Email Google [${email}] belum terdaftar dalam sistem COZIS. Silakan hubungi Management untuk aktivasi akun internal.`
+    );
+    error.statusCode = 403;
+    throw error;
+  }
+
+  if (user.is_active === false) {
+    const error: any = new Error("Akun Anda sedang dinonaktifkan. Silakan hubungi Administrator.");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  // 2. Link Google ID & Avatar to user record
+  if (google_id) {
+    await userRepository.updateGoogleInfo(user.id, google_id, avatar_url);
+  }
+
+  // 3. Issue Session Tokens
+  const payload = { id: user.id, role: user.role };
+  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES });
+
+  const refreshTokenString = crypto.randomBytes(64).toString("hex");
+  const refreshId = crypto.randomUUID();
+  const expiresAt = new Date(Date.now() + REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000);
+
+  await RefreshTokenModel.create({
+    id: refreshId,
+    token: refreshTokenString,
+    userId: user.id,
+    expiresAt,
+  });
+
+  return {
+    token,
+    refreshToken: refreshTokenString,
+    user: {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      avatar_url: avatar_url || (user as any).avatar_url,
     },
   };
 };
@@ -211,12 +307,14 @@ export const forgotPasswordService = async (email: string): Promise<any> => {
 export const resetPasswordService = async ({
   token,
   password,
+  birth_date,
 }: {
   token: string;
   password?: string;
+  birth_date?: string | Date;
 }): Promise<any> => {
   if (!token || !password) {
-    const error: any = new Error("Token and new password are required");
+    const error: any = new Error("Token dan kata sandi baru wajib diisi.");
     error.statusCode = 400;
     throw error;
   }
@@ -224,7 +322,7 @@ export const resetPasswordService = async ({
   const resetRecord = await PasswordResetTokenModel.findByToken(token);
 
   if (!resetRecord || resetRecord.used) {
-    const error: any = new Error("Invalid or expired reset token");
+    const error: any = new Error("Tautan aktivasi tidak valid atau telah digunakan.");
     error.statusCode = 400;
     throw error;
   }
@@ -232,19 +330,19 @@ export const resetPasswordService = async ({
   const now = new Date();
   const expiresAt = new Date(resetRecord.expires_at || resetRecord.expiresAt);
   if (expiresAt < now) {
-    const error: any = new Error("Invalid or expired reset token");
+    const error: any = new Error("Tautan aktivasi telah kedaluwarsa.");
     error.statusCode = 400;
     throw error;
   }
 
-  const hashedPassword = await bcrypt.hash(password, 10);
+  const hashedPassword = await hashPassword(password);
   const userId = resetRecord.user_id || resetRecord.userId;
 
-  await UserModel.updatePassword(userId, hashedPassword);
+  await UserModel.updatePassword(userId, hashedPassword, birth_date);
   await PasswordResetTokenModel.markAsUsed(token);
   await RefreshTokenModel.revokeAllForUser(userId);
 
-  return { msg: "Password has been reset successfully" };
+  return { msg: "Akun berhasil diaktifkan dan kata sandi telah diperbarui." };
 };
 
 /**
@@ -270,7 +368,16 @@ export const verifyResetTokenService = async (token: string): Promise<any> => {
     return { valid: false, reason: "Token has expired" };
   }
 
-  return { valid: true };
+  const user = await UserModel.findById(resetRecord.user_id || resetRecord.userId);
+
+  return {
+    valid: true,
+    email: user?.email,
+    name: user?.name,
+    username: user?.username,
+    role: user?.role,
+    birth_date: user?.birth_date,
+  };
 };
 
 /**

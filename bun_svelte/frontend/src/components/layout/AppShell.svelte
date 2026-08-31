@@ -1,6 +1,8 @@
 <script lang="ts">
   import { authStore } from '../../lib/stores/auth.svelte';
   import type { Snippet } from 'svelte';
+  import { notificationService, type NotificationItem } from '../../services/notificationService';
+  import { onMount } from 'svelte';
 
   interface Props {
     currentRoute: string;
@@ -21,38 +23,44 @@
   let userDropdownOpen = $state(false);
   let notificationOpen = $state(false);
 
-  // Mock live alerts data
-  let alerts = $state([
-    {
-      id: 'alt-1',
-      type: 'WEATHER',
-      title: 'Peringatan Hujan Deras',
-      message: 'Potensi hujan sedang-lebat di Zona Merr & Rungkut.',
-      time: '10 mnt lalu',
-      unread: true,
-      iconClass: 'ri-cloud-windy-line text-amber-400 bg-amber-950/40 border border-amber-800/40',
-    },
-    {
-      id: 'alt-2',
-      type: 'BREACH',
-      title: 'Geofence Breach Rider',
-      message: 'Doni Pratama (Rider 01) terdeteksi keluar radius Zona Alun-Alun.',
-      time: '25 mnt lalu',
-      unread: true,
-      iconClass: 'ri-shield-cross-line text-rose-400 bg-rose-950/40 border border-rose-800/40',
-    },
-    {
-      id: 'alt-3',
-      type: 'FLEET',
-      title: 'Jadwal Servis Armada',
-      message: 'Unit Gerobak Listrik #04 mencapai batas 500 km.',
-      time: '1 jam lalu',
-      unread: false,
-      iconClass: 'ri-tools-line text-blue-400 bg-blue-950/40 border border-blue-800/40',
-    },
-  ]);
+  // Dynamic notifications from PostgreSQL
+  let notifications = $state<NotificationItem[]>([]);
+  let unreadAlertCount = $state(0);
+  let notifLoading = $state(false);
 
-  let unreadAlertCount = $derived(alerts.filter(a => a.unread).length);
+  const loadNotifications = async () => {
+    try {
+      const res = await notificationService.getNotifications(20);
+      notifications = res.notifications || [];
+      unreadAlertCount = res.unread_count || 0;
+    } catch (err) {
+      console.warn('Gagal memuat notifikasi:', err);
+    }
+  };
+
+  const markAllAlertsRead = async () => {
+    try {
+      await notificationService.markAllAsRead();
+      notifications = notifications.map(n => ({ ...n, is_read: true }));
+      unreadAlertCount = 0;
+    } catch (err) {
+      console.error('Gagal mark all as read:', err);
+    }
+  };
+
+  const markSingleRead = async (id: string) => {
+    try {
+      await notificationService.markAsRead(id);
+      notifications = notifications.map(n => n.id === id ? { ...n, is_read: true } : n);
+      unreadAlertCount = notifications.filter(n => !n.is_read).length;
+    } catch (err) {
+      console.error('Gagal mark as read:', err);
+    }
+  };
+
+  onMount(() => {
+    loadNotifications();
+  });
 
   $effect(() => {
     isCollapsed = compactSidebar;
@@ -64,7 +72,7 @@
     { label: 'User Admin', route: '/users', iconClass: 'ri-team-line', activeIconClass: 'ri-team-fill' },
     { label: 'Zona Wilayah', route: '/zones', iconClass: 'ri-road-map-line', activeIconClass: 'ri-road-map-fill' },
     { label: 'DSS TOPSIS', route: '/dss', iconClass: 'ri-calculator-line', activeIconClass: 'ri-calculator-fill' },
-    { label: 'Armada Gerobak', route: '/fleet', iconClass: 'ri-ebike-2-line', activeIconClass: 'ri-ebike-2-fill' },
+    { label: 'Armada Gerobak', route: '/fleet', iconClass: 'ri-e-bike-2-line', activeIconClass: 'ri-e-bike-2-fill' },
     { label: 'Katalog Menu', route: '/catalog', iconClass: 'ri-cup-line', activeIconClass: 'ri-cup-fill' },
     { label: 'Plotting Rute', route: '/distribution', iconClass: 'ri-layout-grid-line', activeIconClass: 'ri-layout-grid-fill' },
     { label: 'Laporan & Audit', route: '/reports', iconClass: 'ri-file-chart-line', activeIconClass: 'ri-file-chart-fill' },
@@ -82,10 +90,6 @@
     userDropdownOpen = false;
     await authStore.logout();
     onNavigate('/login');
-  };
-
-  const markAllAlertsRead = () => {
-    alerts = alerts.map(a => ({ ...a, unread: false }));
   };
 
   const closeDropdowns = () => {
@@ -189,22 +193,38 @@
               </button>
             </div>
 
-            <!-- Alert Items List -->
+            <!-- Notifications List -->
             <div class="space-y-2 max-h-72 overflow-y-auto pr-1">
-              {#each alerts as alt}
-                <div class="p-2.5 rounded-2xl bg-[#1D1D23] border border-[#272730] transition-all hover:border-[#3A3A46] flex items-start gap-3">
-                  <div class="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 {alt.iconClass}">
-                    <i class="{alt.type === 'WEATHER' ? 'ri-cloud-windy-line' : alt.type === 'BREACH' ? 'ri-shield-cross-line' : 'ri-tools-line'} text-lg"></i>
-                  </div>
-                  <div class="flex-1 min-w-0">
-                    <div class="flex items-center justify-between gap-1">
-                      <span class="text-xs font-outfit-600 text-white truncate">{alt.title}</span>
-                      <span class="text-[10px] text-[#71717A] shrink-0 font-mono">{alt.time}</span>
-                    </div>
-                    <p class="text-[11px] text-[#A1A1AA] mt-0.5 leading-snug">{alt.message}</p>
-                  </div>
+              {#if notifications.length === 0}
+                <div class="py-8 text-center text-xs text-[#71717A] space-y-1.5">
+                  <i class="ri-notification-off-line text-2xl text-zinc-600"></i>
+                  <p>Tidak ada notifikasi baru.</p>
                 </div>
-              {/each}
+              {:else}
+                {#each notifications as notif}
+                  <button
+                    type="button"
+                    onclick={() => markSingleRead(notif.id)}
+                    class="w-full text-left p-2.5 rounded-2xl border transition-all flex items-start gap-3 cursor-pointer
+                    {!notif.is_read 
+                      ? 'bg-[#1D1D23] border-[#383846] hover:border-[#FF634A]/50' 
+                      : 'bg-[#16161A] border-[#222228] opacity-70 hover:opacity-100'}"
+                  >
+                    <div class="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 {!notif.is_read ? 'bg-[#FF634A]/20 text-[#FF634A] border border-[#FF634A]/30' : 'bg-zinc-800 text-zinc-400'}">
+                      <i class="ri-information-line text-base"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center justify-between gap-1">
+                        <span class="text-xs font-outfit-600 text-white truncate">{notif.title}</span>
+                        <span class="text-[10px] text-[#71717A] shrink-0 font-mono">
+                          {notif.created_at ? new Date(notif.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : 'Baru'}
+                        </span>
+                      </div>
+                      <p class="text-[11px] text-[#A1A1AA] mt-0.5 leading-snug">{notif.message}</p>
+                    </div>
+                  </button>
+                {/each}
+              {/if}
             </div>
 
             <div class="pt-2 border-t border-[#24242A] text-center">
@@ -399,8 +419,14 @@
     {/if}
 
     <!-- MAIN SCROLLABLE WORKSPACE (Only this area scrolls!) -->
-    <main class="flex-1 h-full overflow-y-auto {currentRoute === '/map' ? 'p-0 overflow-hidden' : 'p-4 sm:p-6 lg:p-8'} bg-[#09090B]">
-      <div class="{currentRoute === '/map' ? 'w-full h-full' : 'max-w-7xl mx-auto'}">
+    <main class="flex-1 h-full overflow-y-auto relative pattern-dots-dark {currentRoute === '/map' ? 'p-0 overflow-hidden' : 'p-4 sm:p-6 lg:p-8'} bg-[#09090B] overflow-x-hidden">
+      {#if currentRoute !== '/map'}
+        <!-- Ambient Lighting Effects matching Auth Pages -->
+        <div class="fixed top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#FF634A]/8 rounded-full blur-[140px] pointer-events-none z-0"></div>
+        <div class="fixed bottom-10 right-10 w-80 h-80 bg-purple-950/20 rounded-full blur-[110px] pointer-events-none z-0"></div>
+      {/if}
+
+      <div class="relative z-10 {currentRoute === '/map' ? 'w-full h-full' : 'max-w-7xl mx-auto'}">
         {#if children}
           {@render children()}
         {/if}

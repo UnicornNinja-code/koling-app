@@ -56,6 +56,7 @@
   // Layer Group References
   let riderLayerGroup: any = null;
   let zoneLayerGroup: any = null;
+  let hubLayerGroup: any = null;
   let protocolRoadLayerGroup: any = null;
   let tollRoadLayerGroup: any = null;
   let poiLayerGroup: any = null;
@@ -68,9 +69,11 @@
   // State: Layers Checkboxes
   let layerRiders = $state(true);
   let layerZones = $state(true);
+  let layerHub = $state(true);
   let layerProtocolRoads = $state(true);
   let layerTollRoads = $state(true);
   let layerPoi = $state(true);
+  let zoneConfig = $state<any>(null);
 
   // Tabbed Vertical Panel State: Only 1 panel is active at a time (mutually exclusive)
   type ActivePanelType = 'search' | 'layers' | 'riders' | 'weather' | 'legend' | 'basemap' | null;
@@ -302,6 +305,7 @@
 
     // Initialize Layer Groups in correct z-order
     zoneLayerGroup = L.layerGroup().addTo(mapInstance);
+    hubLayerGroup = L.layerGroup().addTo(mapInstance);
     protocolRoadLayerGroup = L.layerGroup().addTo(mapInstance);
     tollRoadLayerGroup = L.layerGroup().addTo(mapInstance);
     poiLayerGroup = L.layerGroup().addTo(mapInstance);
@@ -310,6 +314,7 @@
 
     await loadAllSpatialData();
     await fetchWeatherData();
+    renderHub();
 
     // Socket.IO live updates
     const socket = getSocket();
@@ -369,6 +374,71 @@
         L.marker([centerLat, centerLng], { icon: labelIcon }).addTo(zoneLayerGroup);
       }
     });
+  };
+
+  const renderHub = () => {
+    if (!hubLayerGroup || !L) return;
+    hubLayerGroup.clearLayers();
+
+    if (!layerHub || !zoneConfig) return;
+
+    const hubLat = zoneConfig.hub_latitude || -7.397402;
+    const hubLng = zoneConfig.hub_longitude || 112.711958;
+    const hubName = zoneConfig.hub_city_name || 'Sidoarjo';
+
+    // 1. Buffer Coverage Circle (12km radius operasional)
+    L.circle([hubLat, hubLng], {
+      radius: 12000,
+      color: '#FF634A',
+      fillColor: '#FF634A',
+      fillOpacity: 0.04,
+      weight: 1.5,
+      dashArray: '6, 6',
+    }).addTo(hubLayerGroup);
+
+    // 2. Radiant Beacon Pin Icon
+    const hubIconHtml = `
+      <div style="position: relative; display: flex; align-items: center; justify-content: center; cursor: pointer; width: 36px; height: 36px;">
+        <div style="position: absolute; width: 34px; height: 34px; border-radius: 50%; background: rgba(255, 99, 74, 0.4); animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+        <div style="position: relative; width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, #FF634A, #FF8573); border: 2.5px solid #FFFFFF; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 14px rgba(255, 99, 74, 0.95); z-index: 10;">
+          <span style="font-size: 13px; font-weight: bold; color: #09090B;">🏢</span>
+        </div>
+        <span style="position: absolute; top: -20px; background: #131316; color: #FF634A; font-size: 9px; font-family: Outfit, sans-serif; font-weight: 800; padding: 1px 6px; border-radius: 6px; white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,0.5); border: 1px solid #FF634A;">
+          HUB ${hubName.toUpperCase()}
+        </span>
+      </div>
+    `;
+
+    const hubIcon = L.divIcon({
+      html: hubIconHtml,
+      className: 'custom-central-hub-marker',
+      iconSize: [36, 36],
+      iconAnchor: [18, 18],
+    });
+
+    const w = weatherData?.hub_overview;
+    const marker = L.marker([hubLat, hubLng], { icon: hubIcon });
+    marker.bindPopup(`
+      <div style="font-family: Outfit, sans-serif; min-width: 230px; color: #18181B;">
+        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #E4E4E7; padding-bottom: 4px; margin-bottom: 6px;">
+          <strong style="font-size: 12px; color: #FF634A;">🏢 CENTRAL HUB ${hubName.toUpperCase()}</strong>
+          <span style="font-size: 9px; background: #ECFDF5; color: #059669; font-weight: 700; padding: 2px 6px; border-radius: 9999px;">PUSAT</span>
+        </div>
+        <div style="font-size: 11px; color: #71717A; margin-bottom: 6px;">
+          Gudang Utama & Pusat Plotting Gerobak
+        </div>
+        <div style="background: #F4F4F5; border-radius: 8px; padding: 6px; font-size: 10px; line-height: 1.5; color: #27272A;">
+          <div>🌡️ Suhu: <strong>${w?.avg_temperature_c ?? 30.5}°C</strong> (Terasa: <strong>${(w as any)?.apparent_temperature_c ?? 32}°C</strong>)</div>
+          <div>💧 Kelembaban: <strong>${(w as any)?.relative_humidity_2m ?? 65}%</strong> | Titik Embun: <strong>${(w as any)?.dew_point_2m ?? 23.4}°C</strong></div>
+          <div>🌧️ Peluang Hujan (C4): <strong>${w?.max_rain_probability_percent ?? 0}%</strong> | Curah: <strong>${(w as any)?.precipitation_rain_mm ?? 0} mm</strong></div>
+          <div>☁️ Kondisi: <strong>${w?.weather_condition ?? 'Cerah Berawan'}</strong> (WMO ${w?.weather_code ?? 2})</div>
+        </div>
+        <div style="font-size: 9px; color: #A1A1AA; margin-top: 4px; text-align: right;">
+          Koordinat: ${Number(hubLat).toFixed(4)}, ${Number(hubLng).toFixed(4)}
+        </div>
+      </div>
+    `);
+    marker.addTo(hubLayerGroup);
   };
 
   const renderProtocolRoads = () => {
@@ -557,12 +627,13 @@
   const loadAllSpatialData = async () => {
     loading = true;
     try {
-      const [zonesRes, ridersRes, protoRoadsRes, tollRoadsRes, poisRes] = await Promise.all([
+      const [zonesRes, ridersRes, protoRoadsRes, tollRoadsRes, poisRes, configRes] = await Promise.all([
         mapService.getAllZones(),
         mapService.getNearbyRiders(-7.4450, 112.7150, 50000),
         mapService.getProtocolRoads(),
         mapService.getTollRoads(),
         mapService.getPOIs(),
+        mapService.getZoneConfig(),
       ]);
 
       realZones = zonesRes;
@@ -570,8 +641,10 @@
       protocolRoadsGeoJson = protoRoadsRes;
       tollRoadsGeoJson = tollRoadsRes;
       realPois = poisRes;
+      zoneConfig = configRes;
 
       renderZones();
+      renderHub();
       renderProtocolRoads();
       renderTollRoads();
       renderPois();
@@ -1057,7 +1130,17 @@
 
                 <label class="flex items-center justify-between p-2 rounded-xl bg-[#18181D] border border-[#24242A] cursor-pointer hover:text-white">
                   <span class="flex items-center gap-2">
-                    <input type="checkbox" bind:checked={layerRiders} class="accent-[#10B981] rounded cursor-pointer" />
+                    <input type="checkbox" bind:checked={layerHub} onchange={renderHub} class="accent-[#FF634A] rounded cursor-pointer" />
+                    <span class="text-[#FF634A] font-bold">Central HUB ({zoneConfig?.hub_city_name || 'Sidoarjo'})</span>
+                  </span>
+                  <span class="px-2 py-0.5 rounded bg-[#FF634A]/15 text-[#FF634A] text-[10px] font-bold border border-[#FF634A]/40">
+                    Pusat Ops
+                  </span>
+                </label>
+
+                <label class="flex items-center justify-between p-2 rounded-xl bg-[#18181D] border border-[#24242A] cursor-pointer hover:text-white">
+                  <span class="flex items-center gap-2">
+                    <input type="checkbox" bind:checked={layerRiders} onchange={() => renderRiders(activeRiders)} class="accent-[#10B981] rounded cursor-pointer" />
                     <span>Rider Bertugas</span>
                   </span>
                   <span class="px-2 py-0.5 rounded bg-emerald-950/60 text-emerald-400 text-[10px] font-bold border border-emerald-800/40">
@@ -1067,7 +1150,7 @@
 
                 <label class="flex items-center justify-between p-2 rounded-xl bg-[#18181D] border border-[#24242A] cursor-pointer hover:text-white">
                   <span class="flex items-center gap-2">
-                    <input type="checkbox" bind:checked={layerZones} class="accent-[#FF634A] rounded cursor-pointer" />
+                    <input type="checkbox" bind:checked={layerZones} onchange={renderZones} class="accent-[#FF634A] rounded cursor-pointer" />
                     <span>Poligon Zona</span>
                   </span>
                   <span class="px-2 py-0.5 rounded bg-[#FF634A]/15 text-[#FF634A] text-[10px] font-bold border border-[#FF634A]/40">
@@ -1077,7 +1160,7 @@
 
                 <label class="flex items-center justify-between p-2 rounded-xl bg-[#18181D] border border-[#24242A] cursor-pointer hover:text-white">
                   <span class="flex items-center gap-2">
-                    <input type="checkbox" bind:checked={layerProtocolRoads} class="accent-[#F59E0B] rounded cursor-pointer" />
+                    <input type="checkbox" bind:checked={layerProtocolRoads} onchange={renderProtocolRoads} class="accent-[#F59E0B] rounded cursor-pointer" />
                     <span class="text-amber-400">Jalan Protokol</span>
                   </span>
                   <span class="px-2 py-0.5 rounded bg-amber-950/60 text-amber-400 text-[10px] font-bold border border-amber-800/40">
@@ -1087,7 +1170,7 @@
 
                 <label class="flex items-center justify-between p-2 rounded-xl bg-[#18181D] border border-[#24242A] cursor-pointer hover:text-white">
                   <span class="flex items-center gap-2">
-                    <input type="checkbox" bind:checked={layerTollRoads} class="accent-[#EF4444] rounded cursor-pointer" />
+                    <input type="checkbox" bind:checked={layerTollRoads} onchange={renderTollRoads} class="accent-[#EF4444] rounded cursor-pointer" />
                     <span class="text-rose-400">Jalan Tol</span>
                   </span>
                   <span class="px-2 py-0.5 rounded bg-rose-950/60 text-rose-400 text-[10px] font-bold border border-rose-800/40">
@@ -1097,7 +1180,7 @@
 
                 <label class="flex items-center justify-between p-2 rounded-xl bg-[#18181D] border border-[#24242A] cursor-pointer hover:text-white">
                   <span class="flex items-center gap-2">
-                    <input type="checkbox" bind:checked={layerPoi} class="accent-purple-500 rounded cursor-pointer" />
+                    <input type="checkbox" bind:checked={layerPoi} onchange={renderPois} class="accent-purple-500 rounded cursor-pointer" />
                     <span>Titik POI Overpass</span>
                   </span>
                   <span class="px-2 py-0.5 rounded bg-purple-950/60 text-purple-400 text-[10px] font-bold border border-purple-800/40">
@@ -1111,14 +1194,14 @@
                 <span class="text-[10px] font-bold uppercase tracking-wider text-[#71717A] block">Filter Kategori POI C3</span>
                 <div class="grid grid-cols-2 gap-1">
                   <button
-                    onclick={() => poiFilterCategory = 'ALL'}
+                    onclick={() => { poiFilterCategory = 'ALL'; renderPois(); }}
                     class="p-1.5 rounded-xl text-[10px] font-outfit-600 text-left cursor-pointer border
                     {poiFilterCategory === 'ALL' ? 'bg-[#FF634A] text-white border-[#FF634A]' : 'bg-[#18181D] text-[#A1A1AA] border-[#24242A] hover:text-white'}"
                   >
                     Semua Kategori
                   </button>
                   <button
-                    onclick={() => poiFilterCategory = 'PEAK_ONLY'}
+                    onclick={() => { poiFilterCategory = 'PEAK_ONLY'; renderPois(); }}
                     class="p-1.5 rounded-xl text-[10px] font-outfit-600 text-left cursor-pointer border
                     {poiFilterCategory === 'PEAK_ONLY' ? 'bg-rose-950 text-rose-400 border-rose-800' : 'bg-[#18181D] text-[#A1A1AA] border-[#24242A] hover:text-white'}"
                   >
@@ -1126,7 +1209,7 @@
                   </button>
                   {#each Object.entries(categoryCrowdProfiles) as [key, prof]}
                     <button
-                      onclick={() => poiFilterCategory = (poiFilterCategory === key ? 'ALL' : key as any)}
+                      onclick={() => { poiFilterCategory = (poiFilterCategory === key ? 'ALL' : key as any); renderPois(); }}
                       class="p-1.5 rounded-xl text-[10px] font-outfit-600 text-left cursor-pointer border truncate flex items-center gap-1.5
                       {poiFilterCategory === key ? 'bg-[#2E2E38] text-white border-blue-500' : 'bg-[#18181D] text-[#A1A1AA] border-[#24242A] hover:text-white'}"
                     >
@@ -1239,56 +1322,104 @@
             </div>
           {/if}
 
-          <!-- SUB-PANEL: CUACA HUB SIDOARJO -->
+          <!-- SUB-PANEL: CUACA HUB SIDOARJO & ATRIBUT LENGKAP WEATHERS -->
           {#if activePanel === 'weather'}
             <div class="space-y-3">
               <div class="flex items-center justify-between border-b border-[#24242A] pb-2">
                 <div class="flex items-center gap-2">
                   <Cloud class="w-4 h-4 text-sky-400" />
-                  <h4 class="text-xs font-extrabold text-white">Cuaca Hub Sidoarjo</h4>
+                  <div>
+                    <h4 class="text-xs font-extrabold text-white">Radar Cuaca HUB {zoneConfig?.hub_city_name || 'Sidoarjo'}</h4>
+                    <span class="text-[10px] text-[#8E8E93]">Tabel Weathers Open-Meteo Satelit</span>
+                  </div>
                 </div>
                 <button onclick={() => activePanel = null} class="text-[#71717A] hover:text-white cursor-pointer p-0.5">
                   <X class="w-4 h-4" />
                 </button>
               </div>
 
-              <!-- Main Metric -->
-              <div class="p-3 bg-[#18181D] rounded-2xl border border-[#24242A] space-y-2">
-                <div class="flex items-center justify-between">
-                  <div>
-                    <span class="text-2xl font-extrabold text-white">
-                      {weatherData?.hub_overview?.avg_temperature_c ?? 31.2}°C
-                    </span>
-                    <span class="block text-[11px] text-sky-300 font-outfit-600">
-                      {weatherData?.hub_overview?.weather_condition ?? 'Cerah Berawan'}
-                    </span>
+              <!-- 4 Grid Parameter Atmosferik (from 'weathers' table) -->
+              <div class="grid grid-cols-2 gap-2 text-xs">
+                <!-- 1. Suhu & Apparent Temp -->
+                <div class="p-2.5 bg-[#18181D] rounded-xl border border-[#24242A] space-y-1">
+                  <span class="text-[10px] text-[#71717A] uppercase font-bold flex items-center justify-between">
+                    <span>Suhu Udara</span>
+                    <Sun class="w-3 h-3 text-amber-400" />
+                  </span>
+                  <div class="text-lg font-bold text-white font-mono">
+                    {weatherData?.hub_overview?.avg_temperature_c ?? 30.5}°C
                   </div>
-                  <span class="px-2 py-0.5 rounded-lg bg-emerald-950/50 text-emerald-400 text-[10px] font-bold border border-emerald-800/40">
-                    Aman Outdoor
+                  <span class="text-[9px] text-[#A1A1AA] block">
+                    Terasa: {(weatherData?.hub_overview as any)?.apparent_temperature_c ?? 32}°C
                   </span>
                 </div>
 
-                <div class="grid grid-cols-2 gap-2 pt-2 border-t border-[#24242A] text-[11px] text-[#A1A1AA]">
-                  <div class="flex items-center gap-1.5">
-                    <Droplets class="w-3.5 h-3.5 text-sky-400" />
-                    <span>Peluang Hujan: <strong class="text-white">{weatherData?.hub_overview?.max_rain_probability_percent ?? 12}%</strong></span>
+                <!-- 2. Peluang Hujan (C4 Cost) -->
+                <div class="p-2.5 bg-[#18181D] rounded-xl border border-[#24242A] space-y-1">
+                  <span class="text-[10px] text-[#71717A] uppercase font-bold flex items-center justify-between">
+                    <span>Peluang Hujan (C4)</span>
+                    <CloudRain class="w-3 h-3 text-blue-400" />
+                  </span>
+                  <div class="text-lg font-bold text-blue-400 font-mono">
+                    {weatherData?.hub_overview?.max_rain_probability_percent ?? 0}%
                   </div>
-                  <div class="flex items-center gap-1.5">
-                    <Wind class="w-3.5 h-3.5 text-teal-400" />
-                    <span>Angin: <strong class="text-white">8.5 km/h</strong></span>
+                  <span class="text-[9px] text-blue-400/80 block">
+                    Curah: {(weatherData?.hub_overview as any)?.precipitation_rain_mm ?? 0} mm
+                  </span>
+                </div>
+
+                <!-- 3. Kelembaban & Titik Embun -->
+                <div class="p-2.5 bg-[#18181D] rounded-xl border border-[#24242A] space-y-1">
+                  <span class="text-[10px] text-[#71717A] uppercase font-bold flex items-center justify-between">
+                    <span>Kelembaban Udara</span>
+                    <Droplets class="w-3 h-3 text-cyan-400" />
+                  </span>
+                  <div class="text-lg font-bold text-white font-mono">
+                    {(weatherData?.hub_overview as any)?.relative_humidity_2m ?? 65}%
                   </div>
+                  <span class="text-[9px] text-[#A1A1AA] block">
+                    Titik Embun: {(weatherData?.hub_overview as any)?.dew_point_2m ?? 23.4}°C
+                  </span>
+                </div>
+
+                <!-- 4. Kondisi Cuaca & WMO Code -->
+                <div class="p-2.5 bg-[#18181D] rounded-xl border border-[#24242A] space-y-1">
+                  <span class="text-[10px] text-[#71717A] uppercase font-bold flex items-center justify-between">
+                    <span>Kondisi WMO</span>
+                    <Cloud class="w-3 h-3 text-[#FF634A]" />
+                  </span>
+                  <div class="text-xs font-bold text-[#FF634A] truncate">
+                    {weatherData?.hub_overview?.weather_condition ?? 'Cerah Berawan'}
+                  </div>
+                  <span class="text-[9px] text-[#A1A1AA] block">
+                    Kode WMO: {weatherData?.hub_overview?.weather_code ?? 2}
+                  </span>
                 </div>
               </div>
 
-              <!-- Advisory -->
-              <div class="p-2.5 rounded-xl bg-[#1C1C22] border border-[#2A2A32] text-[11px] text-zinc-300 space-y-1">
-                <span class="text-[10px] font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1">
-                  <Sparkles class="w-3 h-3" /> Rekomendasi Kopi Keliling
-                </span>
-                <p class="text-[10px] text-[#A1A1AA] leading-relaxed m-0">
-                  Cuaca kondusif untuk keliling dan mangkal. Siapkan persediaan es kopi dingin untuk jam istirahat siang.
-                </p>
-              </div>
+              <!-- Daftar Cuaca per Zona Spasial -->
+              {#if weatherData?.zones_weather_list && weatherData.zones_weather_list.length > 0}
+                <div class="space-y-1.5 pt-2 border-t border-[#24242A]">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-[#71717A] block">
+                    Skor Cuaca C4 per Zona ({weatherData.zones_weather_list.length})
+                  </span>
+                  <div class="space-y-1 max-h-40 overflow-y-auto pr-1">
+                    {#each weatherData.zones_weather_list as zw}
+                      <div class="p-2 rounded-xl bg-[#18181D] border border-[#24242A] flex items-center justify-between text-xs">
+                        <div>
+                          <strong class="text-zinc-200 block text-[11px]">{zw.zone_name}</strong>
+                          <span class="text-[10px] text-[#71717A]">{zw.weather_condition} • {zw.temperature_c}°C</span>
+                        </div>
+                        <div class="text-right">
+                          <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold {zw.rain_probability_percent > 50 ? 'bg-rose-950 text-rose-400' : 'bg-blue-950 text-blue-400'}">
+                            C4: {zw.rain_probability_percent}%
+                          </span>
+                        </div>
+                      </div>
+                    {/each}
+                  </div>
+                </div>
+              {/if}
 
               <!-- Sync Button -->
               <button

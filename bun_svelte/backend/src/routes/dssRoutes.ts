@@ -7,6 +7,7 @@ import express from "express";
 import {
   calculateBwmWeights,
   getActiveDssConfig,
+  getAllDssConfigs,
   getZoneRawEvaluation,
   evaluateHybridBwmTopsis,
   getDssSnapshots,
@@ -30,6 +31,13 @@ router.get(
   authenticateToken,
   checkRole(["SUPERADMIN", "SUPERVISOR"]),
   getActiveDssConfig
+);
+
+router.get(
+  "/bwm/configs",
+  authenticateToken,
+  checkRole(["SUPERADMIN", "SUPERVISOR", "MANAGEMENT"]),
+  getAllDssConfigs
 );
 
 router.get(

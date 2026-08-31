@@ -42,6 +42,18 @@ export class BwmRepository {
   }
 
   /**
+   * Fetch all BWM Configurations history
+   */
+  public async findAllConfigs(): Promise<any[]> {
+    const query = `
+      SELECT * FROM dss_configurations 
+      ORDER BY updated_at DESC, id DESC;
+    `;
+    const { rows } = await this.pool.query(query);
+    return rows;
+  }
+
+  /**
    * Fetch BWM Configuration by ID
    */
   public async findConfigById(id: number | string): Promise<any | null> {

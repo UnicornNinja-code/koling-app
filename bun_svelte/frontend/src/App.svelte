@@ -10,9 +10,18 @@
   import SuperAdminMapPage from './pages/superadmin/SuperAdminMapPage.svelte';
   import SuperAdminCatalogPage from './pages/superadmin/SuperAdminCatalogPage.svelte';
   import SuperAdminZonesPage from './pages/superadmin/SuperAdminZonesPage.svelte';
+  import SuperAdminDssPage from './pages/superadmin/SuperAdminDssPage.svelte';
+  import SuperAdminReportsPage from './pages/superadmin/SuperAdminReportsPage.svelte';
+  import SuperAdminUsersPage from './pages/superadmin/SuperAdminUsersPage.svelte';
+  import SuperAdminFleetPage from './pages/superadmin/SuperAdminFleetPage.svelte';
+  import SuperAdminDistributionPage from './pages/superadmin/SuperAdminDistributionPage.svelte';
   import SupervisorCatalogPage from './pages/supervisor/SupervisorCatalogPage.svelte';
+  import NotFoundPage from './pages/error/NotFoundPage.svelte';
+  import ForbiddenPage from './pages/error/ForbiddenPage.svelte';
+  import ServerErrorPage from './pages/error/ServerErrorPage.svelte';
 
   let currentRoute = $state<string>('/login');
+  let globalError = $state<{ msg?: string; stack?: string } | null>(null);
 
   const navigate = (route: string) => {
     currentRoute = route;
@@ -32,6 +41,8 @@
       currentRoute = '/forgot-password';
     } else if (pathname === '/reset-password') {
       currentRoute = '/reset-password';
+    } else if (pathname === '/login') {
+      currentRoute = '/login';
     } else if (authStore.isAuthenticated) {
       if (pathname === '/map' || pathname === '/superadmin/map') {
         currentRoute = '/map';
@@ -39,6 +50,16 @@
         currentRoute = '/catalog';
       } else if (pathname === '/zones' || pathname === '/superadmin/zones') {
         currentRoute = '/zones';
+      } else if (pathname === '/users' || pathname === '/superadmin/users') {
+        currentRoute = '/users';
+      } else if (pathname === '/fleet' || pathname === '/superadmin/fleet') {
+        currentRoute = '/fleet';
+      } else if (pathname === '/distribution' || pathname === '/superadmin/distribution') {
+        currentRoute = '/distribution';
+      } else if (pathname === '/dss' || pathname === '/superadmin/dss') {
+        currentRoute = '/dss';
+      } else if (pathname === '/reports' || pathname === '/superadmin/reports') {
+        currentRoute = '/reports';
       } else {
         currentRoute = '/dashboard';
       }
@@ -48,27 +69,38 @@
 
     // Handle browser back/forward buttons
     window.addEventListener('popstate', () => {
-      currentRoute = window.location.pathname || '/login';
+      const p = window.location.pathname || '/login';
+      if (p === '/register' || p === '/activate') {
+        currentRoute = '/register';
+      } else if (p === '/forgot-password') {
+        currentRoute = '/forgot-password';
+      } else if (p === '/reset-password') {
+        currentRoute = '/reset-password';
+      } else {
+        currentRoute = p;
+      }
     });
   });
 </script>
 
 {#if authStore.loading}
-  <div class="min-h-screen bg-[#F4F4F6] flex flex-col items-center justify-center space-y-3">
-    <div class="w-10 h-10 border-4 border-[#FF634A] border-t-transparent rounded-full animate-spin"></div>
-    <span class="text-xs font-semibold text-[#52525B]">Memuat sesi COZIS...</span>
+  <div class="min-h-screen bg-[#09090B] pattern-dots-dark flex flex-col items-center justify-center space-y-4 font-outfit-400">
+    <div class="relative">
+      <div class="w-12 h-12 border-3 border-[#FF634A]/30 border-t-[#FF634A] rounded-full animate-spin"></div>
+      <div class="absolute inset-0 bg-[#FF634A]/20 blur-xl rounded-full"></div>
+    </div>
+    <span class="text-xs font-outfit-600 text-[#A1A1AA] tracking-wider uppercase">Memuat sesi COZIS...</span>
   </div>
-{:else if !authStore.isAuthenticated}
-  <!-- Unauthenticated Views: Auth Flow -->
-  {#if currentRoute === '/register'}
-    <RegisterPage onNavigate={navigate} />
-  {:else if currentRoute === '/forgot-password'}
-    <ForgotPasswordPage onNavigate={navigate} />
-  {:else if currentRoute === '/reset-password'}
-    <ResetPasswordPage onNavigate={navigate} />
-  {:else}
-    <LoginPage onNavigate={navigate} />
-  {/if}
+{:else if currentRoute === '/register' || currentRoute === '/activate'}
+  <!-- Activation & Registration View -->
+  <RegisterPage onNavigate={navigate} />
+{:else if currentRoute === '/forgot-password'}
+  <ForgotPasswordPage onNavigate={navigate} />
+{:else if currentRoute === '/reset-password'}
+  <ResetPasswordPage onNavigate={navigate} />
+{:else if !authStore.isAuthenticated || currentRoute === '/login'}
+  <!-- Login View -->
+  <LoginPage onNavigate={navigate} />
 {:else}
   <!-- Authenticated Views with AppShell -->
   <AppShell 
@@ -76,10 +108,51 @@
     onNavigate={navigate}
     compactSidebar={currentRoute === '/map'}
   >
-    {#if currentRoute === '/map' || currentRoute === '/superadmin/map'}
+    {#if globalError}
+      <ServerErrorPage 
+        errorMsg={globalError.msg} 
+        errorStack={globalError.stack} 
+        onNavigate={navigate}
+        onRetry={() => { globalError = null; window.location.reload(); }}
+      />
+    {:else if currentRoute === '/map' || currentRoute === '/superadmin/map'}
       <SuperAdminMapPage onNavigate={navigate} />
     {:else if currentRoute === '/zones' || currentRoute === '/superadmin/zones'}
       <SuperAdminZonesPage onNavigate={navigate} />
+    {:else if currentRoute === '/users' || currentRoute === '/superadmin/users'}
+      {#if authStore.user?.role === 'SUPERADMIN' || authStore.user?.role === 'MANAGEMENT'}
+        <SuperAdminUsersPage onNavigate={navigate} />
+      {:else}
+        <ForbiddenPage 
+          onNavigate={navigate} 
+          attemptedRoute={currentRoute}
+          requiredRole="SUPERADMIN / MANAGEMENT" 
+        />
+      {/if}
+    {:else if currentRoute === '/fleet' || currentRoute === '/superadmin/fleet'}
+      <SuperAdminFleetPage onNavigate={navigate} />
+    {:else if currentRoute === '/distribution' || currentRoute === '/superadmin/distribution'}
+      {#if authStore.user?.role === 'SUPERADMIN' || authStore.user?.role === 'MANAGEMENT' || authStore.user?.role === 'SUPERVISOR'}
+        <SuperAdminDistributionPage onNavigate={navigate} />
+      {:else}
+        <ForbiddenPage 
+          onNavigate={navigate} 
+          attemptedRoute={currentRoute}
+          requiredRole="SUPERADMIN / SUPERVISOR / MANAGEMENT" 
+        />
+      {/if}
+    {:else if currentRoute === '/dss' || currentRoute === '/superadmin/dss'}
+      {#if authStore.user?.role === 'SUPERADMIN' || authStore.user?.role === 'MANAGEMENT' || authStore.user?.role === 'SUPERVISOR'}
+        <SuperAdminDssPage onNavigate={navigate} />
+      {:else}
+        <ForbiddenPage 
+          onNavigate={navigate} 
+          attemptedRoute={currentRoute}
+          requiredRole="SUPERADMIN / SUPERVISOR" 
+        />
+      {/if}
+    {:else if currentRoute === '/reports' || currentRoute === '/superadmin/reports'}
+      <SuperAdminReportsPage onNavigate={navigate} />
     {:else if currentRoute === '/catalog' || currentRoute === '/superadmin/catalog'}
       {#if authStore.user?.role === 'SUPERVISOR'}
         <SupervisorCatalogPage onNavigate={navigate} />
@@ -88,23 +161,13 @@
       {/if}
     {:else if currentRoute === '/dashboard' || currentRoute === '/superadmin/dashboard' || currentRoute === '/'}
       <SuperAdminDashboardPage onNavigate={navigate} />
+    {:else if currentRoute === '/403' || currentRoute === '/forbidden'}
+      <ForbiddenPage onNavigate={navigate} attemptedRoute={currentRoute} />
+    {:else if currentRoute === '/500' || currentRoute === '/server-error'}
+      <ServerErrorPage onNavigate={navigate} />
     {:else}
-      <!-- Placeholder for upcoming modules -->
-      <div class="bg-white rounded-2xl border border-[#D2D2D4] p-8 text-center space-y-4 max-w-lg mx-auto my-12 shadow-xs">
-        <div class="w-12 h-12 rounded-2xl bg-[#FFF2EF] text-[#FF634A] flex items-center justify-center mx-auto">
-          <span class="text-xl font-bold">🚧</span>
-        </div>
-        <h3 class="text-base font-extrabold text-[#18181B]">Modul Sedang Dalam Persiapan</h3>
-        <p class="text-xs text-[#52525B]">
-          Halaman <code>{currentRoute}</code> sedang disiapkan untuk tahap implementasi berikutnya.
-        </p>
-        <button
-          onclick={() => navigate('/dashboard')}
-          class="px-4 py-2 rounded-xl bg-[#FF634A] text-white text-xs font-bold hover:bg-[#E54E36] transition-all cursor-pointer"
-        >
-          Kembali ke Dashboard
-        </button>
-      </div>
+      <!-- 404 Not Found Page for all unregistered routes -->
+      <NotFoundPage onNavigate={navigate} attemptedRoute={currentRoute} />
     {/if}
   </AppShell>
 {/if}

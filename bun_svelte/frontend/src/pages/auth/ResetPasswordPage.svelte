@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { authService } from "../../services/authService";
-  import { Coffee, Lock, CheckCircle2, ArrowRight, ArrowLeft, KeyRound } from "lucide-svelte";
+  import { Coffee, Lock, CheckCircle2, ArrowRight, ArrowLeft, KeyRound, Check, ShieldCheck } from "lucide-svelte";
   import Button from "../../components/ui/Button.svelte";
   import Input from "../../components/ui/Input.svelte";
   import Alert from "../../components/ui/Alert.svelte";
@@ -26,6 +26,12 @@
 
   let passwordError = $state<string | null>(null);
   let confirmError = $state<string | null>(null);
+
+  // Real-time password validation indicators
+  let hasMinLength = $derived(newPassword.length >= 8);
+  let hasUppercase = $derived(/[A-Z]/.test(newPassword));
+  let hasNumber = $derived(/[0-9]/.test(newPassword));
+  let isMatching = $derived(newPassword.length > 0 && newPassword === confirmPassword);
 
   onMount(async () => {
     let currentToken = tokenParam;
@@ -100,33 +106,51 @@
   };
 </script>
 
-<div class="min-h-screen bg-[#F4F4F6] flex flex-col justify-center py-10 sm:px-6 lg:px-8 px-4 font-sans">
-  <div class="sm:mx-auto sm:w-full sm:max-w-md">
+<div class="min-h-screen bg-[#09090B] pattern-dots-dark relative flex flex-col justify-center py-10 sm:py-14 px-4 sm:px-6 lg:px-8 font-outfit-400 select-none overflow-x-hidden">
+  <!-- Ambient Lighting Effects -->
+  <div class="fixed top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#FF634A]/10 rounded-full blur-[120px] pointer-events-none"></div>
+  <div class="fixed bottom-10 right-10 w-72 h-72 bg-emerald-950/20 rounded-full blur-[90px] pointer-events-none"></div>
+
+  <div class="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
     <!-- Brand Header -->
-    <div class="text-center space-y-2 mb-6">
-      <div class="w-14 h-14 bg-[#FF634A] rounded-2xl flex items-center justify-center text-white mx-auto shadow-lg shadow-[#FF634A]/30 shrink-0">
-        <Coffee class="w-7 h-7" />
+    <div class="text-center space-y-3 mb-7">
+      <div class="w-14 h-14 bg-gradient-to-tr from-[#FF634A] to-[#FF8573] rounded-2xl flex items-center justify-center text-[#09090B] mx-auto shadow-xl shadow-[#FF634A]/25 shrink-0 border border-white/20">
+        <Coffee class="w-7 h-7 stroke-[2.5]" />
       </div>
-      <h1 class="text-2xl font-extrabold text-[#18181B] tracking-tight">
-        Setel Ulang Kata Sandi
-      </h1>
-      <p class="text-xs text-[#52525B] font-medium">
-        Buat kata sandi baru yang kuat untuk mengamankan akun Anda
-      </p>
+      <div>
+        <span class="text-[10px] font-outfit-600 uppercase tracking-widest text-[#71717A] block">Keamanan Kredensial</span>
+        <h1 class="text-2xl sm:text-3xl font-outfit-600 text-white tracking-tight mt-0.5">
+          Setel Ulang Kata Sandi
+        </h1>
+        <p class="text-xs text-[#A1A1AA] mt-1 max-w-xs mx-auto">
+          Buat kata sandi baru yang kuat untuk mengamankan akun COZIS Anda
+        </p>
+      </div>
     </div>
 
-    <!-- Card Container -->
-    <div class="bg-white py-8 px-6 sm:px-8 rounded-2xl border border-[#D2D2D4] shadow-xl space-y-5">
+    <!-- Main Card Container -->
+    <div class="bg-[#131316]/95 backdrop-blur-xl py-7 px-6 sm:px-8 rounded-3xl border border-[#24242A] shadow-2xl space-y-5">
       {#if verifying}
-        <div class="py-8 flex flex-col items-center justify-center space-y-3">
-          <div class="w-8 h-8 border-4 border-[#FF634A] border-t-transparent rounded-full animate-spin"></div>
-          <span class="text-xs text-[#52525B]">Memvalidasi token reset kata sandi...</span>
+        <div class="py-10 flex flex-col items-center justify-center space-y-3">
+          <div class="w-9 h-9 border-3 border-[#FF634A] border-t-transparent rounded-full animate-spin"></div>
+          <span class="text-xs text-[#A1A1AA] font-outfit-600">Memvalidasi token reset kata sandi...</span>
         </div>
       {:else}
         {#if successMsg}
           <Alert variant="success" title="Pembaruan Berhasil">
             {successMsg}
           </Alert>
+
+          <Button
+            type="button"
+            onclick={() => onNavigate("/login")}
+            variant="primary"
+            size="md"
+            class="w-full py-3.5 font-outfit-600"
+            rightIcon={ArrowRight}
+          >
+            Masuk Sekarang
+          </Button>
         {/if}
 
         {#if errorMsg}
@@ -138,12 +162,11 @@
         {#if tokenValid && !successMsg}
           <form onsubmit={handleSubmit} class="space-y-4">
             <Input
-              label="Kata Sandi Baru (Min. 8 Karakter)"
+              label="Kata Sandi Baru"
               type="password"
               leftIcon={Lock}
               placeholder="••••••••"
               required
-              helperText="Mengandung huruf besar (A-Z) dan angka (0-9)"
               error={passwordError}
               bind:value={newPassword}
             />
@@ -158,12 +181,35 @@
               bind:value={confirmPassword}
             />
 
+            <!-- Real-time Password Strength Requirements Checklist -->
+            <div class="p-3 bg-[#1A1A1F] rounded-2xl border border-[#272730] space-y-1.5 text-[11px]">
+              <div class="font-outfit-600 text-[#A1A1AA] mb-1">Ketentuan Keamanan Sandi:</div>
+              <div class="grid grid-cols-2 gap-1.5">
+                <div class="flex items-center gap-1.5 {hasMinLength ? 'text-emerald-400 font-semibold' : 'text-[#71717A]'}">
+                  {#if hasMinLength}<Check class="w-3.5 h-3.5" />{:else}<span class="w-1.5 h-1.5 rounded-full bg-[#52525B]"></span>{/if}
+                  <span>Minimal 8 Karakter</span>
+                </div>
+                <div class="flex items-center gap-1.5 {hasUppercase ? 'text-emerald-400 font-semibold' : 'text-[#71717A]'}">
+                  {#if hasUppercase}<Check class="w-3.5 h-3.5" />{:else}<span class="w-1.5 h-1.5 rounded-full bg-[#52525B]"></span>{/if}
+                  <span>Huruf Besar (A-Z)</span>
+                </div>
+                <div class="flex items-center gap-1.5 {hasNumber ? 'text-emerald-400 font-semibold' : 'text-[#71717A]'}">
+                  {#if hasNumber}<Check class="w-3.5 h-3.5" />{:else}<span class="w-1.5 h-1.5 rounded-full bg-[#52525B]"></span>{/if}
+                  <span>Mengandung Angka</span>
+                </div>
+                <div class="flex items-center gap-1.5 {isMatching ? 'text-emerald-400 font-semibold' : 'text-[#71717A]'}">
+                  {#if isMatching}<Check class="w-3.5 h-3.5" />{:else}<span class="w-1.5 h-1.5 rounded-full bg-[#52525B]"></span>{/if}
+                  <span>Sandi Cocok</span>
+                </div>
+              </div>
+            </div>
+
             <Button
               type="submit"
               variant="primary"
               size="md"
               isPending={loading}
-              class="w-full py-3 shadow-xs font-bold"
+              class="w-full py-3.5 font-outfit-600"
               rightIcon={ArrowRight}
             >
               {loading ? "Menyimpan Kata Sandi..." : "Perbarui Kata Sandi"}
@@ -171,13 +217,13 @@
           </form>
         {/if}
 
-        <div class="pt-3 border-t border-[#D2D2D4]/50 text-center">
+        <div class="pt-2 border-t border-[#24242A] text-center">
           <button
             type="button"
             onclick={() => onNavigate("/login")}
-            class="inline-flex items-center gap-1.5 text-xs text-[#52525B] hover:text-[#FF634A] font-bold cursor-pointer"
+            class="inline-flex items-center gap-1.5 text-xs text-[#A1A1AA] hover:text-white font-outfit-600 transition-colors cursor-pointer py-1"
           >
-            <ArrowLeft class="w-3.5 h-3.5" /> Kembali ke Halaman Masuk
+            <ArrowLeft class="w-3.5 h-3.5 text-[#FF634A]" /> Kembali ke Halaman Masuk
           </button>
         </div>
       {/if}
