@@ -1,0 +1,142 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+@layer base {
+  :root {
+    /* Brand Accent Colors (Opaline Palette - Cinnabar Red) */
+    --color-primary: #FF634A;
+    --color-primary-dark: #B82814;
+    --color-primary-hover: #E54E36;
+    --color-primary-soft: #FFF2EF;
+
+    /* Canvas & Surface Colors (Opaline Palette - #F4F4F6 & #E7E7E7) */
+    --color-background: #F4F4F6;
+    --color-surface: #FFFFFF;
+    --color-surface-hover: #E7E7E7;
+    --color-surface-soft: #E7E7E7;
+
+    /* Border & Separator Colors (Opaline Palette - #D2D2D4) */
+    --color-border: #D2D2D4;
+    --color-border-hover: #B8B8BA;
+
+    /* Text & Content Hierarchy */
+    --color-foreground: #18181B;
+    --color-muted-foreground: #52525B;
+    --color-subtle: #8E8E93;
+
+    /* Semantic Status - Success (Emerald) */
+    --color-success: #10B981;
+    --color-success-bg: #ECFDF5;
+    --color-success-border: #A7F3D0;
+
+    /* Semantic Status - Warning (Amber) */
+    --color-warning: #F59E0B;
+    --color-warning-bg: #FFFBEB;
+    --color-warning-border: #FDE68A;
+
+    /* Semantic Status - Danger / Breach (Crimson / Cinnabar) */
+    --color-danger: #EF4444;
+    --color-danger-bg: #FEF2F2;
+    --color-danger-border: #FECACA;
+
+    /* Semantic Status - Info (Blue) */
+    --color-info: #3B82F6;
+    --color-info-bg: #EFF6FF;
+    --color-info-border: #BFDBFE;
+
+    /* Semantic Status - Neutral (Opaline Tonal) */
+    --color-neutral: #52525B;
+    --color-neutral-bg: #E7E7E7;
+    --color-neutral-border: #D2D2D4;
+
+    /* Typography Families - Inter font */
+    --font-heading: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+    /* Spacing & Geometry */
+    --radius-sm: 0.25rem;  /* 4px for inputs, small controls */
+    --radius-md: 0.5rem;   /* 8px for buttons, standard cards */
+    --radius-lg: 0.75rem;  /* 12px for larger containers, modals */
+    --radius-xl: 1rem;     /* 16px for highlighted cards */
+    --radius-full: 9999px; /* pills and badges */
+
+    /* Mobile Safe Area Insets */
+    --safe-area-top: env(safe-area-inset-top, 0px);
+    --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-left: env(safe-area-inset-left, 0px);
+    --safe-area-right: env(safe-area-inset-right, 0px);
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html, body {
+    font-family: var(--font-body);
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+    touch-action: manipulation;
+  }
+
+  h1, h2, h3, h4, h5, h6, .font-heading {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    letter-spacing: -0.025em;
+  }
+
+  code, kbd, samp, pre, .font-mono {
+    font-family: var(--font-mono);
+  }
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F4F4F6;
+}
+::-webkit-scrollbar-thumb {
+  background: #D2D2D4;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #B8B8BA;
+}
+
+/* Reduced Motion Respect */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Mobile Safe Area Support Utilities */
+.safe-bottom-padding {
+  padding-bottom: calc(1rem + var(--safe-area-bottom));
+}
+
+.safe-top-padding {
+  padding-top: calc(0.5rem + var(--safe-area-top));
+}
+
+/* Custom Focus Ring Helper */
+.focus-ring-primary {
+  outline: none;
+}
+.focus-ring-primary:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}

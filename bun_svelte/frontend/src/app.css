@@ -1,0 +1,264 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+@layer base {
+  :root {
+    /* Brand Accent Colors (Vibrant Orange) */
+    --color-primary: #FF634A;
+    --color-primary-dark: #D9442C;
+    --color-primary-hover: #FF755E;
+    --color-primary-soft: rgba(255, 99, 74, 0.12);
+    --color-primary-gradient: linear-gradient(135deg, #FF634A 0%, #FF8573 100%);
+
+    /* Dark Aesthetic Palette (As shown in screenshot) */
+    --color-background: #09090B;
+    --color-surface: #131316;
+    --color-surface-elevated: #1A1A1F;
+    --color-surface-hover: #222228;
+    --color-border: #24242A;
+    --color-border-subtle: #1C1C22;
+
+    /* Text & Content Hierarchy */
+    --color-foreground: #FFFFFF;
+    --color-muted-foreground: #A1A1AA;
+    --color-subtle: #71717A;
+
+    /* Semantic Status */
+    --color-success: #10B981;
+    --color-success-bg: rgba(16, 185, 129, 0.12);
+    --color-success-border: rgba(16, 185, 129, 0.25);
+
+    --color-warning: #F59E0B;
+    --color-warning-bg: rgba(245, 158, 11, 0.12);
+    --color-warning-border: rgba(245, 158, 11, 0.25);
+
+    --color-danger: #EF4444;
+    --color-danger-bg: rgba(239, 68, 68, 0.12);
+    --color-danger-border: rgba(239, 68, 68, 0.25);
+
+    --color-info: #3B82F6;
+    --color-info-bg: rgba(59, 130, 246, 0.12);
+    --color-info-border: rgba(59, 130, 246, 0.25);
+
+    /* Typography Families - Outfit */
+    --font-heading: 'Outfit', 'Outfit Fallback', system-ui, arial, sans-serif;
+    --font-body: 'Outfit', 'Outfit Fallback', system-ui, arial, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+    /* Mobile Safe Area Insets */
+    --safe-area-top: env(safe-area-inset-top, 0px);
+    --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-left: env(safe-area-inset-left, 0px);
+    --safe-area-right: env(safe-area-inset-right, 0px);
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html, body {
+    font-family: var(--font-body);
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+    touch-action: manipulation;
+  }
+
+  h1, h2, h3, h4, h5, h6, .font-heading {
+    font-family: var(--font-heading);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: #FFFFFF;
+  }
+}
+
+/* Typography Specifications based on User Prompt */
+.font-outfit-600 {
+  font-family: 'Outfit', 'Outfit Fallback', system-ui, arial, sans-serif;
+  font-weight: 600;
+}
+
+.font-outfit-400 {
+  font-family: 'Outfit', 'Outfit Fallback', system-ui, arial, sans-serif;
+  font-weight: 400;
+}
+
+/* 48px Header Style from Screenshot */
+.text-display-48 {
+  font-family: 'Outfit', 'Outfit Fallback', system-ui, arial, sans-serif;
+  font-weight: 600;
+  font-size: 48px;
+  line-height: 60px;
+  color: #FFFFFF;
+  letter-spacing: -0.03em;
+}
+
+/* 18px Title Style from Screenshot */
+.text-title-18 {
+  font-family: 'Outfit', 'Outfit Fallback', system-ui, arial, sans-serif;
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 28px;
+  letter-spacing: -0.01em;
+}
+
+/* 14px Body Style from Screenshot */
+.text-body-14 {
+  font-family: 'Outfit', 'Outfit Fallback', system-ui, arial, sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 20px;
+  color: #A1A1AA;
+}
+
+/* Dotted Grid Pattern from Screenshot */
+.pattern-dots-dark {
+  background-color: #121215;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.12) 1.2px, transparent 1.2px);
+  background-size: 16px 16px;
+}
+
+/* Modern Dark Card Container */
+.card-dark {
+  background-color: #131316;
+  border: 1px solid #24242A;
+  border-radius: 24px;
+  color: #FFFFFF;
+  transition: all 0.2s ease;
+}
+
+.card-dark:hover {
+  border-color: #32323A;
+}
+
+/* Split-Pill White Button (From Screenshot: [ ❐ SVG CODE | v ]) */
+.pill-btn-white {
+  display: inline-flex;
+  align-items: stretch;
+  background-color: #FFFFFF;
+  color: #0A0A0C;
+  border-radius: 9999px;
+  font-family: 'Outfit', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
+  overflow: hidden;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+}
+
+.pill-btn-white:hover {
+  background-color: #EDEDF0;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(255, 255, 255, 0.15);
+}
+
+/* Split-Pill Accent Orange Button (From Screenshot: [ 📥 SVG | v ]) */
+.pill-btn-orange {
+  display: inline-flex;
+  align-items: stretch;
+  background: linear-gradient(135deg, #FF634A 0%, #FF8573 100%);
+  color: #0A0A0C;
+  border-radius: 9999px;
+  font-family: 'Outfit', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  box-shadow: 0 4px 16px rgba(255, 99, 74, 0.35);
+  transition: all 0.2s ease;
+  overflow: hidden;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.pill-btn-orange:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 22px rgba(255, 99, 74, 0.5);
+}
+
+/* Split-Pill Dark Button */
+.pill-btn-dark {
+  display: inline-flex;
+  align-items: stretch;
+  background-color: #1F1F24;
+  color: #FFFFFF;
+  border-radius: 9999px;
+  font-family: 'Outfit', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
+  overflow: hidden;
+  cursor: pointer;
+  border: 1px solid #2C2C34;
+}
+
+.pill-btn-dark:hover {
+  background-color: #27272F;
+  border-color: #383842;
+  transform: translateY(-1px);
+}
+
+/* Pill Divider Line */
+.pill-divider {
+  width: 1px;
+  background-color: rgba(0, 0, 0, 0.15);
+  margin: 6px 0;
+}
+
+.pill-divider-dark {
+  width: 1px;
+  background-color: rgba(255, 255, 255, 0.15);
+  margin: 6px 0;
+}
+
+/* Pill Filter Tag */
+.pill-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  background-color: #1F1F24;
+  color: #A1A1AA;
+  border: 1px solid #2C2C34;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pill-tag:hover, .pill-tag.active {
+  background-color: #FFFFFF;
+  color: #0A0A0C;
+  border-color: #FFFFFF;
+  font-weight: 600;
+}
+
+/* Custom Scrollbars in Dark Theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #121215;
+}
+::-webkit-scrollbar-thumb {
+  background: #282830;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3E3E48;
+}
+
+/* Leaflet Dark Map Tiles Inversion Filter Helper */
+.dark-tiles {
+  filter: brightness(0.85) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7);
+}

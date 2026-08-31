@@ -1,0 +1,502 @@
+/*
+ * riderOperationalRepository.ts
+ * Data Access Layer for Use Case 6: Rider Daily Operations in TypeScript
+ */
+
+import { pool } from "../config/database.js";
+import type { Pool } from "pg";
+
+export class RiderOperationalRepository {
+  private static instance: RiderOperationalRepository | null = null;
+  private pool: Pool;
+
+  constructor(dbPool: Pool = pool) {
+    if (RiderOperationalRepository.instance && dbPool === pool) {
+      return RiderOperationalRepository.instance;
+    }
+    this.pool = dbPool;
+    if (dbPool === pool) {
+      RiderOperationalRepository.instance = this;
+    }
+  }
+
+  public static getInstance(dbPool: Pool = pool): RiderOperationalRepository {
+    if (!RiderOperationalRepository.instance) {
+      RiderOperationalRepository.instance = new RiderOperationalRepository(dbPool);
+    }
+    return RiderOperationalRepository.instance;
+  }
+
+  /**
+   * Fetch active assignment session for a rider today
+   */
+  public async findActiveRiderSession(riderId: number | string): Promise<any | null> {
+    const query = `
+      SELECT 
+        za.id AS assignment_id,
+        za.rider_id,
+        za.zone_id,
+        za.armada_id,
+        za.assignment_date,
+        za.status AS assignment_status,
+        z.name AS zone_name,
+        z.polygon AS zone_polygon,
+        a.code AS armada_code,
+        a.type AS armada_type,
+        a.status AS armada_status
+      FROM zone_assignments za
+      JOIN zones z ON za.zone_id = z.id
+      LEFT JOIN armadas a ON za.armada_id = a.id
+      WHERE za.rider_id = $1 
+        AND za.assignment_date = CURRENT_DATE
+        AND za.status IN ('ASSIGNED', 'CHECKED_IN')
+      LIMIT 1;
+    `;
+    const { rows } = await this.pool.query(query, [riderId]);
+    return rows[0] || null;
+  }
+
+  /**
+   * Fetch all armadas in Hub with reservation availability status for UI rendering
+   */
+  public async getAvailableArmadasForHub(riderId: number | string): Promise<any[]> {
+    const query = `
+      SELECT 
+        a.id,
+        a.code,
+        a.type,
+        a.status,
+        a.reserved_by_rider_id,
+        a.reserved_until,
+        CASE 
+          WHEN a.status = 'ACTIVE' AND (a.reserved_until IS NULL OR a.reserved_until < NOW() OR a.reserved_by_rider_id = $1) THEN true
+          ELSE false
+        END AS is_claimable,
+        CASE 
+          WHEN a.status = 'IN_USE' OR (a.status = 'RESERVED' AND a.reserved_by_rider_id != $1 AND a.reserved_until >= NOW()) THEN true
+          ELSE false
+        END AS is_faded_out
+      FROM armadas a
+      ORDER BY a.code ASC;
+    `;
+    const { rows } = await this.pool.query(query, [riderId]);
+    return rows;
+  }
+
+  /**
+   * Temporary hold reservation on armada unit when rider inspects detail page (Ticket-Booking Lock)
+   */
+  public async holdArmadaUnit({
+    riderId,
+    armadaId,
+    holdMinutes = 5,
+  }: {
+    riderId: number | string;
+    armadaId: number | string;
+    holdMinutes?: number;
+  }): Promise<any> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      const checkQuery = `
+        SELECT * FROM armadas 
+        WHERE id = $1 FOR UPDATE;
+      `;
+      const { rows } = await client.query(checkQuery, [armadaId]);
+      const armada = rows[0];
+
+      if (!armada) {
+        const error: any = new Error("Unit armada tidak ditemukan.");
+        error.statusCode = 404;
+        throw error;
+      }
+
+      const isHeldByOther =
+        armada.status === "RESERVED" &&
+        armada.reserved_by_rider_id !== riderId &&
+        armada.reserved_until &&
+        new Date(armada.reserved_until) > new Date();
+
+      if (armada.status === "IN_USE" || isHeldByOther || armada.status === "MAINTENANCE") {
+        const error: any = new Error(`Unit ${armada.code} sedang diulas / diklaim oleh Rider lain dan tidak tersedia.`);
+        error.statusCode = 400;
+        throw error;
+      }
+
+      const holdQuery = `
+        UPDATE armadas 
+        SET 
+          status = 'RESERVED',
+          reserved_by_rider_id = $2,
+          reserved_until = NOW() + ($3 || ' minutes')::interval,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+        RETURNING *;
+      `;
+      const { rows: updatedRows } = await client.query(holdQuery, [
+        armadaId,
+        riderId,
+        holdMinutes,
+      ]);
+
+      await client.query("COMMIT");
+      return updatedRows[0];
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Cancel temporary reservation hold
+   */
+  public async cancelArmadaHold({
+    riderId,
+    armadaId,
+  }: {
+    riderId: number | string;
+    armadaId: number | string;
+  }): Promise<any | null> {
+    const query = `
+      UPDATE armadas 
+      SET 
+        status = 'ACTIVE',
+        reserved_by_rider_id = NULL,
+        reserved_until = NULL,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1 
+        AND reserved_by_rider_id = $2
+      RETURNING *;
+    `;
+    const { rows } = await this.pool.query(query, [armadaId, riderId]);
+    return rows[0] || null;
+  }
+
+  /**
+   * Confirm final claim on armada unit (Converts status to IN_USE permanently)
+   */
+  public async confirmArmadaClaim({
+    riderId,
+    armadaId,
+    assignmentId,
+  }: {
+    riderId: number | string;
+    armadaId: number | string;
+    assignmentId?: number | string;
+  }): Promise<any> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      const checkQuery = `SELECT * FROM armadas WHERE id = $1 FOR UPDATE;`;
+      const { rows } = await client.query(checkQuery, [armadaId]);
+      const armada = rows[0];
+
+      if (!armada) {
+        const error: any = new Error("Unit armada tidak ditemukan.");
+        error.statusCode = 404;
+        throw error;
+      }
+
+      const isHeldByOther =
+        armada.status === "RESERVED" &&
+        armada.reserved_by_rider_id !== riderId &&
+        armada.reserved_until &&
+        new Date(armada.reserved_until) > new Date();
+
+      if (armada.status === "IN_USE" || isHeldByOther) {
+        const error: any = new Error(`Unit ${armada.code} baru saja diklaim oleh Rider lain. Silakan pilih unit lain.`);
+        error.statusCode = 400;
+        throw error;
+      }
+
+      const updateArmadaQuery = `
+        UPDATE armadas
+        SET 
+          status = 'IN_USE',
+          current_rider_id = $2,
+          reserved_by_rider_id = NULL,
+          reserved_until = NULL,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+        RETURNING *;
+      `;
+      const { rows: updatedArmadas } = await client.query(updateArmadaQuery, [armadaId, riderId]);
+
+      if (assignmentId) {
+        await client.query(
+          `UPDATE zone_assignments SET armada_id = $2 WHERE id = $1;`,
+          [assignmentId, armadaId]
+        );
+      }
+
+      await client.query("COMMIT");
+      return updatedArmadas[0];
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Validate rider GPS coordinates against assigned zone polygon via PostGIS ST_Contains
+   */
+  public async validateAndCheckInRider({
+    riderId,
+    assignmentId,
+    zoneId,
+    lat,
+    lon,
+  }: {
+    riderId?: number | string;
+    assignmentId: number | string;
+    zoneId: number | string;
+    lat: number | string;
+    lon: number | string;
+  }): Promise<any> {
+    const zoneQuery = `SELECT id, name, polygon FROM zones WHERE id = $1;`;
+    const { rows: zoneRows } = await this.pool.query(zoneQuery, [zoneId]);
+    const zone = zoneRows[0];
+
+    if (!zone) {
+      const error: any = new Error("Zona tugas tidak ditemukan di database.");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    let geoJsonObj: any = zone.polygon;
+    if (typeof geoJsonObj === "string") {
+      try {
+        geoJsonObj = JSON.parse(geoJsonObj);
+      } catch (e) {}
+    }
+
+    if (Array.isArray(geoJsonObj)) {
+      const coords = [...geoJsonObj];
+      const first = coords[0];
+      const last = coords[coords.length - 1];
+      if (first[0] !== last[0] || first[1] !== last[1]) {
+        coords.push(first);
+      }
+      geoJsonObj = {
+        type: "Polygon",
+        coordinates: [coords],
+      };
+    } else if (geoJsonObj && geoJsonObj.geometry) {
+      geoJsonObj = geoJsonObj.geometry;
+    }
+
+    const spatialCheckQuery = `
+      SELECT ST_Contains(
+        ST_GeomFromGeoJSON($1),
+        ST_SetSRID(ST_MakePoint($2, $3), 4326)
+      ) AS is_inside;
+    `;
+    const { rows: spatialRows } = await this.pool.query(spatialCheckQuery, [
+      JSON.stringify(geoJsonObj),
+      parseFloat(String(lon)),
+      parseFloat(String(lat)),
+    ]);
+
+    const isInside = spatialRows[0]?.is_inside || false;
+
+    if (!isInside) {
+      const error: any = new Error(`Anda berada di luar batas polygon ${zone.name}! Harap menuju ke dalam zona tugas untuk Check-in.`);
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const checkInQuery = `
+      UPDATE zone_assignments 
+      SET 
+        status = 'CHECKED_IN',
+        created_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING *;
+    `;
+    const { rows: updatedAssignment } = await this.pool.query(checkInQuery, [assignmentId]);
+
+    return {
+      assignment: updatedAssignment[0],
+      zone_name: zone.name,
+      check_in_lat: parseFloat(String(lat)),
+      check_in_lon: parseFloat(String(lon)),
+      checked_in_at: new Date(),
+    };
+  }
+
+  /**
+   * Insert product sales log with monetary snapshot and assignment binding
+   */
+  public async insertSalesLog({
+    riderId,
+    zoneId,
+    assignmentId,
+    productId,
+    quantity,
+    unitPrice,
+    totalPrice,
+    lat = -7.4478,
+    lon = 112.7183,
+  }: {
+    riderId: number | string;
+    zoneId?: number | string | null;
+    assignmentId?: number | string | null;
+    productId: number | string;
+    quantity: number;
+    unitPrice: number;
+    totalPrice: number;
+    lat?: number;
+    lon?: number;
+  }): Promise<any> {
+    const finalLat = lat !== null && lat !== undefined ? lat : -7.4478;
+    const finalLon = lon !== null && lon !== undefined ? lon : 112.7183;
+
+    const query = `
+      INSERT INTO sales_logs (rider_id, zone_id, assignment_id, product_id, qty, unit_price, total_price, latitude, longitude)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING *;
+    `;
+    const { rows } = await this.pool.query(query, [
+      riderId,
+      zoneId || null,
+      assignmentId || null,
+      productId,
+      quantity,
+      unitPrice,
+      totalPrice,
+      finalLat,
+      finalLon,
+    ]);
+    return rows[0];
+  }
+
+  /**
+   * Fetch paginated sales history for a specific rider
+   */
+  public async getRiderSalesHistory({
+    riderId,
+    date = null,
+    page = 1,
+    limit = 20,
+  }: {
+    riderId: number | string;
+    date?: string | null;
+    page?: number;
+    limit?: number;
+  }): Promise<any> {
+    const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 20));
+    const offset = (pageNum - 1) * limitNum;
+
+    let whereClause = `WHERE sl.rider_id = $1`;
+    const values: any[] = [riderId];
+    let paramIndex = 2;
+
+    if (date) {
+      whereClause += ` AND sl.created_at::date = $${paramIndex}::date`;
+      values.push(date);
+      paramIndex++;
+    }
+
+    const query = `
+      SELECT 
+        sl.id AS sale_id,
+        sl.rider_id,
+        sl.zone_id,
+        sl.assignment_id,
+        sl.product_id,
+        sl.qty,
+        sl.unit_price,
+        sl.total_price,
+        sl.latitude,
+        sl.longitude,
+        sl.created_at,
+        p.name AS product_name,
+        p.description AS product_description,
+        z.name AS zone_name
+      FROM sales_logs sl
+      JOIN products p ON sl.product_id = p.id
+      LEFT JOIN zones z ON sl.zone_id = z.id
+      ${whereClause}
+      ORDER BY sl.created_at DESC
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1};
+    `;
+    values.push(limitNum, offset);
+
+    const countQuery = `
+      SELECT COUNT(*)::int AS total, COALESCE(SUM(total_price), 0)::numeric(14,2) AS total_revenue
+      FROM sales_logs sl
+      ${whereClause};
+    `;
+    const countValues = values.slice(0, paramIndex - 1);
+
+    const [{ rows: sales }, { rows: countRows }] = await Promise.all([
+      this.pool.query(query, values),
+      this.pool.query(countQuery, countValues),
+    ]);
+
+    const total = countRows[0]?.total || 0;
+    const totalRevenue = parseFloat(countRows[0]?.total_revenue || 0);
+
+    return {
+      sales,
+      total_revenue: totalRevenue,
+      pagination: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        total_pages: Math.ceil(total / limitNum) || 1,
+      },
+    };
+  }
+
+  /**
+   * Checkout rider session & return armada unit to Hub
+   */
+  public async checkoutRiderSession({
+    assignmentId,
+    armadaId,
+    returnStatus = "ACTIVE",
+  }: {
+    assignmentId: number | string;
+    armadaId?: number | string | null;
+    returnStatus?: string;
+  }): Promise<any> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      const updateAssignQuery = `
+        UPDATE zone_assignments 
+        SET status = 'COMPLETED' 
+        WHERE id = $1 
+        RETURNING *;
+      `;
+      const { rows: assignRows } = await client.query(updateAssignQuery, [assignmentId]);
+
+      if (armadaId) {
+        const validReturnStatus = ["ACTIVE", "MAINTENANCE"].includes(returnStatus) ? returnStatus : "ACTIVE";
+        await client.query(
+          `UPDATE armadas SET status = $2, current_rider_id = NULL, reserved_by_rider_id = NULL, reserved_until = NULL WHERE id = $1;`,
+          [armadaId, validReturnStatus]
+        );
+      }
+
+      await client.query("COMMIT");
+      return assignRows[0];
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+}
+
+export const riderOperationalRepository = RiderOperationalRepository.getInstance();

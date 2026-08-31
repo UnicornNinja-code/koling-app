@@ -1,0 +1,118 @@
+/*
+ * POIDistanceService.js
+ * Singleton Service for Criteria C5 (Distance Cost Score) from Hub or Live Rider Location to Zone Boundary.
+ */
+
+import { SystemSettingModel } from "../../models/systemSettingModel.js";
+import { zoneRepository } from "../../repositories/zoneRepository.js";
+
+export class POIDistanceService {
+  static instance = null;
+
+  constructor(repo = zoneRepository) {
+    if (POIDistanceService.instance) {
+      return POIDistanceService.instance;
+    }
+    this.repo = repo;
+    POIDistanceService.instance = this;
+  }
+
+  static getInstance() {
+    if (!POIDistanceService.instance) {
+      POIDistanceService.instance = new POIDistanceService();
+    }
+    return POIDistanceService.instance;
+  }
+
+  /**
+   * Helper to get default Hub coordinates from System Settings
+   */
+  async getHubCoordinates() {
+    const latSetting = await SystemSettingModel.getByKey("HUB_LATITUDE");
+    const lonSetting = await SystemSettingModel.getByKey("HUB_LONGITUDE");
+
+    const latitude = parseFloat(latSetting?.setting_value || latSetting?.value || "-7.397402184098715");
+    const longitude = parseFloat(lonSetting?.setting_value || lonSetting?.value || "112.71195887495875");
+
+    return { latitude, longitude };
+  }
+
+  /**
+   * Calculate C5 Cost Score (Geodesic Distance in KM to Zone Centroid)
+   * @param {string} zoneId 
+   * @param {number|string} customLat - Optional dynamic rider latitude
+   * @param {number|string} customLon - Optional dynamic rider longitude
+   */
+  async calculateZoneC5Score(zoneId, customLat = null, customLon = null) {
+    let originLat = parseFloat(customLat);
+    let originLon = parseFloat(customLon);
+    let originType = "RIDER_LIVE_LOCATION";
+
+    if (isNaN(originLat) || isNaN(originLon)) {
+      const hub = await this.getHubCoordinates();
+      originLat = hub.latitude;
+      originLon = hub.longitude;
+      originType = "HUB_DEFAULT_LOCATION";
+    }
+
+    const result = await this.repo.getDistanceToZoneCentroid(zoneId, originLat, originLon);
+
+    return {
+      zone_id: result.zone_id,
+      zone_name: result.zone_name,
+      skor_c5: result.distance_km, // C5 Cost Criteria = Distance in KM to Zone Centroid
+      distance_meters: result.distance_meters,
+      distance_km: result.distance_km,
+      centroid: {
+        latitude: result.centroid_lat,
+        longitude: result.centroid_lon,
+      },
+      origin: {
+        type: originType,
+        latitude: originLat,
+        longitude: originLon,
+      },
+    };
+  }
+
+  /**
+   * Calculate C5 Cost Score for a Candidate Selling Location Point (Distance in KM from Origin)
+   */
+  async calculateCandidateC5Score(candidateLat, candidateLon, customLat = null, customLon = null) {
+    let originLat = parseFloat(customLat);
+    let originLon = parseFloat(customLon);
+    let originType = "RIDER_LIVE_LOCATION";
+
+    if (isNaN(originLat) || isNaN(originLon)) {
+      const hub = await this.getHubCoordinates();
+      originLat = hub.latitude;
+      originLon = hub.longitude;
+      originType = "HUB_DEFAULT_LOCATION";
+    }
+
+    const { pool } = await import("../../config/database.js");
+    const { rows } = await pool.query(
+      `SELECT ST_Distance(
+        ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography,
+        ST_SetSRID(ST_MakePoint($4, $3), 4326)::geography
+      ) AS distance_meters;`,
+      [candidateLat, candidateLon, originLat, originLon]
+    );
+
+    const distanceMeters = parseFloat(rows[0]?.distance_meters || 0);
+    const distanceKm = Math.round((distanceMeters / 1000) * 100) / 100;
+
+    return {
+      skor_c5: distanceKm,
+      distance_meters: distanceMeters,
+      distance_km: distanceKm,
+      origin: {
+        type: originType,
+        latitude: originLat,
+        longitude: originLon,
+      },
+    };
+  }
+}
+
+export const poiDistanceService = POIDistanceService.getInstance();
