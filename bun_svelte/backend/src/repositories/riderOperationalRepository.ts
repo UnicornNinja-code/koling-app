@@ -59,6 +59,9 @@ export class RiderOperationalRepository {
   /**
    * Fetch all armadas in Hub with reservation availability status for UI rendering
    */
+  /**
+   * Fetch all armadas in Hub with reservation availability status for UI rendering
+   */
   public async getAvailableArmadasForHub(riderId: number | string): Promise<any[]> {
     const query = `
       SELECT 
@@ -66,16 +69,28 @@ export class RiderOperationalRepository {
         a.code,
         a.type,
         a.status,
+        a.status AS fleet_status,
+        a.current_rider_id,
         a.reserved_by_rider_id,
         a.reserved_until,
         CASE 
-          WHEN a.status = 'ACTIVE' AND (a.reserved_until IS NULL OR a.reserved_until < NOW() OR a.reserved_by_rider_id = $1) THEN true
+          WHEN a.status = 'ACTIVE' AND a.current_rider_id IS NULL AND (a.reserved_until IS NULL OR a.reserved_until <= NOW() OR a.reserved_by_rider_id = $1) THEN true
           ELSE false
         END AS is_claimable,
         CASE 
-          WHEN a.status = 'IN_USE' OR (a.status = 'RESERVED' AND a.reserved_by_rider_id != $1 AND a.reserved_until >= NOW()) THEN true
+          WHEN a.status = 'MAINTENANCE' OR a.status = 'RETIRED' THEN true
+          WHEN a.current_rider_id IS NOT NULL THEN true
+          WHEN a.status = 'ACTIVE' AND a.reserved_by_rider_id != $1 AND a.reserved_until > NOW() THEN true
           ELSE false
-        END AS is_faded_out
+        END AS is_faded_out,
+        CASE 
+          WHEN a.status = 'ACTIVE' AND a.reserved_until IS NOT NULL AND a.reserved_until > NOW() THEN 'HELD'
+          ELSE 'AVAILABLE'
+        END AS reservation_state,
+        CASE
+          WHEN a.current_rider_id IS NOT NULL THEN 'IN_USE'
+          ELSE 'UNASSIGNED'
+        END AS assignment_state
       FROM armadas a
       ORDER BY a.code ASC;
     `;
@@ -85,6 +100,7 @@ export class RiderOperationalRepository {
 
   /**
    * Temporary hold reservation on armada unit when rider inspects detail page (Ticket-Booking Lock)
+   * BR-FLEET-03 (Exclusive Hold), BR-FLEET-04 (5-Minute Hold), BR-FLEET-09 (Maintenance Protection)
    */
   public async holdArmadaUnit({
     riderId,
@@ -99,10 +115,8 @@ export class RiderOperationalRepository {
     try {
       await client.query("BEGIN");
 
-      const checkQuery = `
-        SELECT * FROM armadas 
-        WHERE id = $1 FOR UPDATE;
-      `;
+      // 1. Check & lock target armada
+      const checkQuery = `SELECT * FROM armadas WHERE id = $1 FOR UPDATE;`;
       const { rows } = await client.query(checkQuery, [armadaId]);
       const armada = rows[0];
 
@@ -112,22 +126,55 @@ export class RiderOperationalRepository {
         throw error;
       }
 
-      const isHeldByOther =
-        armada.status === "RESERVED" &&
-        armada.reserved_by_rider_id !== riderId &&
-        armada.reserved_until &&
-        new Date(armada.reserved_until) > new Date();
-
-      if (armada.status === "IN_USE" || isHeldByOther || armada.status === "MAINTENANCE") {
-        const error: any = new Error(`Unit ${armada.code} sedang diulas / diklaim oleh Rider lain dan tidak tersedia.`);
+      if (armada.status === "MAINTENANCE" || armada.status === "RETIRED") {
+        const error: any = new Error(`Unit ${armada.code} sedang dalam masa pemeliharaan/nonaktif dan tidak dapat digunakan.`);
         error.statusCode = 400;
         throw error;
       }
 
+      if (armada.current_rider_id) {
+        const error: any = new Error(`Unit ${armada.code} sedang bertugas di lapangan oleh Rider lain.`);
+        error.statusCode = 400;
+        throw error;
+      }
+
+      const isHeldByOther =
+        armada.reserved_by_rider_id &&
+        String(armada.reserved_by_rider_id) !== String(riderId) &&
+        armada.reserved_until &&
+        new Date(armada.reserved_until) > new Date();
+
+      if (isHeldByOther) {
+        const error: any = new Error(`Unit ${armada.code} sedang diinspeksi oleh Rider lain. Silakan pilih unit lain.`);
+        error.statusCode = 409;
+        throw error;
+      }
+
+      // 2. Cancel any previous active hold by this rider on other units
+      await client.query(
+        `UPDATE fleet_reservations 
+         SET status = 'CANCELLED', released_at = CURRENT_TIMESTAMP 
+         WHERE rider_id = $1 AND status = 'ACTIVE';`,
+        [riderId]
+      );
+      await client.query(
+        `UPDATE armadas 
+         SET reserved_by_rider_id = NULL, reserved_until = NULL 
+         WHERE reserved_by_rider_id = $1 AND id != $2;`,
+        [riderId, armadaId]
+      );
+
+      // 3. Create active reservation record in fleet_reservations
+      await client.query(
+        `INSERT INTO fleet_reservations (armada_id, rider_id, status, expires_at)
+         VALUES ($1, $2, 'ACTIVE', NOW() + ($3 || ' minutes')::interval);`,
+        [armadaId, riderId, holdMinutes]
+      );
+
+      // 4. Update armada reservation fields
       const holdQuery = `
         UPDATE armadas 
         SET 
-          status = 'RESERVED',
           reserved_by_rider_id = $2,
           reserved_until = NOW() + ($3 || ' minutes')::interval,
           updated_at = CURRENT_TIMESTAMP
@@ -160,32 +207,55 @@ export class RiderOperationalRepository {
     riderId: number | string;
     armadaId: number | string;
   }): Promise<any | null> {
-    const query = `
-      UPDATE armadas 
-      SET 
-        status = 'ACTIVE',
-        reserved_by_rider_id = NULL,
-        reserved_until = NULL,
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1 
-        AND reserved_by_rider_id = $2
-      RETURNING *;
-    `;
-    const { rows } = await this.pool.query(query, [armadaId, riderId]);
-    return rows[0] || null;
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      await client.query(
+        `UPDATE fleet_reservations 
+         SET status = 'CANCELLED', released_at = CURRENT_TIMESTAMP 
+         WHERE armada_id = $1 AND rider_id = $2 AND status = 'ACTIVE';`,
+        [armadaId, riderId]
+      );
+
+      const query = `
+        UPDATE armadas 
+        SET 
+          reserved_by_rider_id = NULL,
+          reserved_until = NULL,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1 
+          AND reserved_by_rider_id = $2
+        RETURNING *;
+      `;
+      const { rows } = await client.query(query, [armadaId, riderId]);
+
+      await client.query("COMMIT");
+      return rows[0] || null;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   /**
-   * Confirm final claim on armada unit (Converts status to IN_USE permanently)
+   * Confirm final claim on armada unit (Converts status to IN_USE)
+   * BR-FLEET-06 (Claim Authorization), BR-FLEET-07 (One Fleet Per Session), BR-FLEET-08 (One Rider Per Fleet)
    */
   public async confirmArmadaClaim({
     riderId,
     armadaId,
     assignmentId,
+    checklist = {},
+    notes,
   }: {
     riderId: number | string;
     armadaId: number | string;
     assignmentId?: number | string;
+    checklist?: Record<string, any>;
+    notes?: string;
   }): Promise<any> {
     const client = await this.pool.connect();
     try {
@@ -201,22 +271,45 @@ export class RiderOperationalRepository {
         throw error;
       }
 
-      const isHeldByOther =
-        armada.status === "RESERVED" &&
-        armada.reserved_by_rider_id !== riderId &&
-        armada.reserved_until &&
-        new Date(armada.reserved_until) > new Date();
-
-      if (armada.status === "IN_USE" || isHeldByOther) {
-        const error: any = new Error(`Unit ${armada.code} baru saja diklaim oleh Rider lain. Silakan pilih unit lain.`);
+      if (armada.status === "MAINTENANCE" || armada.status === "RETIRED") {
+        const error: any = new Error(`Unit ${armada.code} sedang dalam masa pemeliharaan.`);
         error.statusCode = 400;
         throw error;
       }
 
+      // Check Lazy Expiration & Exclusive Hold
+      const isHoldValid =
+        armada.reserved_by_rider_id &&
+        String(armada.reserved_by_rider_id) === String(riderId) &&
+        armada.reserved_until &&
+        new Date(armada.reserved_until) > new Date();
+
+      if (!isHoldValid && armada.current_rider_id && String(armada.current_rider_id) !== String(riderId)) {
+        const error: any = new Error(`Masa reservasi inspeksi telah berakhir atau unit telah diklaim rider lain.`);
+        error.statusCode = 409;
+        throw error;
+      }
+
+      // 1. Complete fleet_reservations
+      await client.query(
+        `UPDATE fleet_reservations 
+         SET status = 'CLAIMED', inspection_checklist = $3, inspection_notes = $4, released_at = CURRENT_TIMESTAMP 
+         WHERE armada_id = $1 AND rider_id = $2 AND status = 'ACTIVE';`,
+        [armadaId, riderId, JSON.stringify(checklist), notes || null]
+      );
+
+      // 2. Create fleet_assignments record
+      await client.query(
+        `INSERT INTO fleet_assignments (armada_id, rider_id, zone_id, status, initial_condition)
+         VALUES ($1, $2, (SELECT zone_id FROM zone_assignments WHERE id = $3 LIMIT 1), 'IN_USE', $4);`,
+        [armadaId, riderId, assignmentId || null, JSON.stringify(checklist)]
+      );
+
+      // 3. Update armada table
       const updateArmadaQuery = `
         UPDATE armadas
         SET 
-          status = 'IN_USE',
+          status = 'ACTIVE',
           current_rider_id = $2,
           reserved_by_rider_id = NULL,
           reserved_until = NULL,
@@ -226,6 +319,7 @@ export class RiderOperationalRepository {
       `;
       const { rows: updatedArmadas } = await client.query(updateArmadaQuery, [armadaId, riderId]);
 
+      // 4. Update zone_assignments link
       if (assignmentId) {
         await client.query(
           `UPDATE zone_assignments SET armada_id = $2 WHERE id = $1;`,
@@ -458,15 +552,22 @@ export class RiderOperationalRepository {
 
   /**
    * Checkout rider session & return armada unit to Hub
+   * BR-FLEET-11 (Fleet Return Inspection)
    */
   public async checkoutRiderSession({
     assignmentId,
     armadaId,
+    riderId,
     returnStatus = "ACTIVE",
+    inspectionCondition = {},
+    notes,
   }: {
     assignmentId: number | string;
     armadaId?: number | string | null;
+    riderId?: number | string | null;
     returnStatus?: string;
+    inspectionCondition?: Record<string, any>;
+    notes?: string;
   }): Promise<any> {
     const client = await this.pool.connect();
     try {
@@ -482,8 +583,34 @@ export class RiderOperationalRepository {
 
       if (armadaId) {
         const validReturnStatus = ["ACTIVE", "MAINTENANCE"].includes(returnStatus) ? returnStatus : "ACTIVE";
+        
+        // 1. Update fleet_assignments record
         await client.query(
-          `UPDATE armadas SET status = $2, current_rider_id = NULL, reserved_by_rider_id = NULL, reserved_until = NULL WHERE id = $1;`,
+          `UPDATE fleet_assignments 
+           SET 
+             status = $3,
+             returned_at = CURRENT_TIMESTAMP,
+             return_condition = $4,
+             updated_at = CURRENT_TIMESTAMP
+           WHERE armada_id = $1 AND ($2::uuid IS NULL OR rider_id = $2) AND status = 'IN_USE';`,
+          [
+            armadaId, 
+            riderId || null, 
+            validReturnStatus === 'MAINTENANCE' ? 'DAMAGED' : 'RETURNED', 
+            JSON.stringify({ ...inspectionCondition, notes: notes || null })
+          ]
+        );
+
+        // 2. Update armada table
+        await client.query(
+          `UPDATE armadas 
+           SET 
+             status = $2, 
+             current_rider_id = NULL, 
+             reserved_by_rider_id = NULL, 
+             reserved_until = NULL,
+             updated_at = CURRENT_TIMESTAMP 
+           WHERE id = $1;`,
           [armadaId, validReturnStatus]
         );
       }

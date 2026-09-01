@@ -130,6 +130,38 @@ export const dssService = {
   },
 
   /**
+   * Preview TOPSIS Impact given proposed BWM Weights (Simulasi Dampak Bobot)
+   */
+  previewBwmImpact: async (payload: {
+    weights: Record<string, number>;
+    time_slot?: string;
+  }): Promise<{
+    status: string;
+    time_slot: string;
+    rankings: TopsisRanking[];
+    total_zones: number;
+  }> => {
+    const res = await axiosInstance.post("/dss/bwm/preview-impact", payload);
+    return res.data;
+  },
+
+  /**
+   * Activate specific BWM configuration version
+   */
+  activateBwmConfig: async (id: string | number): Promise<{ msg: string; config: any }> => {
+    const res = await axiosInstance.post(`/dss/bwm/${id}/activate`);
+    return res.data;
+  },
+
+  /**
+   * Fetch all BWM Configurations history & versions
+   */
+  getAllConfigs: async (): Promise<ActiveDssConfig[]> => {
+    const res = await axiosInstance.get("/dss/bwm/configs");
+    return res.data?.configs || [];
+  },
+
+  /**
    * Run Hybrid BWM-TOPSIS Zone Evaluation
    */
   evaluateHybridTopsis: async (payload: {

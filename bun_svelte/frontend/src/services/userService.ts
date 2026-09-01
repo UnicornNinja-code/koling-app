@@ -92,4 +92,12 @@ export const userService = {
     const res = await axiosInstance.delete(`/users/${id}`);
     return res.data;
   },
+
+  /**
+   * Resend activation invitation email & token
+   */
+  resendInvitation: async (id: number | string): Promise<any> => {
+    const res = await axiosInstance.post(`/users/${id}/resend-invitation`);
+    return res.data;
+  },
 };

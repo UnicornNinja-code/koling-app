@@ -53,8 +53,13 @@ axiosInstance.interceptors.response.use(
         const newToken = refreshRes.data?.token;
         if (newToken) {
           localStorage.setItem("token", newToken);
+          window.dispatchEvent(new CustomEvent("auth:token_refreshed", { detail: newToken }));
           if (originalRequest.headers) {
-            originalRequest.headers.Authorization = `Bearer ${newToken}`;
+            if (typeof (originalRequest.headers as any).set === 'function') {
+              (originalRequest.headers as any).set('Authorization', `Bearer ${newToken}`);
+            } else {
+              originalRequest.headers.Authorization = `Bearer ${newToken}`;
+            }
           }
           return axiosInstance(originalRequest);
         }

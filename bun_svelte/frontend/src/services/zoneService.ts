@@ -33,6 +33,17 @@ export interface ZoneConfig {
   protocol_road_prohibited: boolean;
 }
 
+export interface ZoneValidationResult {
+  is_valid: boolean;
+  errors: string[];
+  warnings: string[];
+  metrics: {
+    area_km2: number;
+    max_distance_from_hub_km: number;
+    radius_limit_km: number;
+  };
+}
+
 export const zoneService = {
   getAllZones: async (params?: { status?: string; search?: string }): Promise<ZoneItem[]> => {
     const res = await axiosInstance.get("/zones", { params });
@@ -47,6 +58,15 @@ export const zoneService = {
   getZoneById: async (id: string): Promise<ZoneItem> => {
     const res = await axiosInstance.get(`/zones/${id}`);
     return res.data?.zone || res.data;
+  },
+
+  validateZonePolygon: async (payload: {
+    polygon: any;
+    name?: string;
+    exclude_id?: string;
+  }): Promise<ZoneValidationResult> => {
+    const res = await axiosInstance.post("/zones/validate", payload);
+    return res.data;
   },
 
   createZone: async (payload: {

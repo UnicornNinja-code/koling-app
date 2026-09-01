@@ -205,7 +205,7 @@
   const loadData = async () => {
     loading = true;
     try {
-      const [zonesData, configData, protoRoads, tollRoads, poisData] = await Promise.all([
+      const [zonesData, configData, protoRoads, tollRoads, poisData] = await Promise.allSettled([
         zoneService.getAllZones(),
         zoneService.getZoneConfig(),
         mapService.getProtocolRoads(),
@@ -213,11 +213,11 @@
         mapService.getPOIs(),
       ]);
 
-      zones = zonesData;
-      zoneConfig = configData;
-      protocolRoadsGeoJson = protoRoads;
-      tollRoadsGeoJson = tollRoads;
-      pois = poisData;
+      if (zonesData.status === 'fulfilled' && zonesData.value) zones = zonesData.value;
+      if (configData.status === 'fulfilled' && configData.value) zoneConfig = configData.value;
+      if (protoRoads.status === 'fulfilled' && protoRoads.value) protocolRoadsGeoJson = protoRoads.value;
+      if (tollRoads.status === 'fulfilled' && tollRoads.value) tollRoadsGeoJson = tollRoads.value;
+      if (poisData.status === 'fulfilled' && poisData.value) pois = poisData.value;
 
       renderAllMapLayers();
     } catch (err) {
@@ -818,7 +818,7 @@
           <label class="flex items-center justify-between cursor-pointer hover:text-white text-[#A1A1AA]">
             <span class="flex items-center gap-1.5">
               <input type="checkbox" bind:checked={showProtocolRoads} onchange={renderAllMapLayers} class="accent-[#F59E0B] rounded cursor-pointer" />
-              <span class="text-amber-400">Jalan Protokol (885)</span>
+              <span class="text-amber-400">Jalan Protokol ({protocolRoadsGeoJson?.features ? protocolRoadsGeoJson.features.length : 0})</span>
             </span>
             <span class="w-2 h-2 rounded-full bg-amber-400"></span>
           </label>
@@ -826,7 +826,7 @@
           <label class="flex items-center justify-between cursor-pointer hover:text-white text-[#A1A1AA]">
             <span class="flex items-center gap-1.5">
               <input type="checkbox" bind:checked={showTollRoads} onchange={renderAllMapLayers} class="accent-[#EF4444] rounded cursor-pointer" />
-              <span class="text-rose-400">Jalan Tol (692)</span>
+              <span class="text-rose-400">Jalan Tol ({tollRoadsGeoJson?.features ? tollRoadsGeoJson.features.length : 0})</span>
             </span>
             <span class="w-2 h-2 rounded-full bg-rose-500"></span>
           </label>

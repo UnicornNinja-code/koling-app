@@ -86,6 +86,34 @@
 
   const isConsistent = $derived((calculationResult?.consistency_ratio ?? 0) <= 0.1);
 
+  // Live Impact Preview
+  let impactRankings = $state<any[]>([]);
+  let loadingImpact = $state(false);
+  let impactDebounceTimer: any = null;
+
+  const loadImpactPreview = async () => {
+    if (!calculationResult?.weights) return;
+    loadingImpact = true;
+    try {
+      const res = await dssService.previewBwmImpact({
+        weights: calculationResult.weights,
+        time_slot: 'pagi',
+      });
+      impactRankings = res.rankings?.slice(0, 3) || [];
+    } catch (e) {
+      console.warn('Gagal memuat dampak simulasi bobot:', e);
+    } finally {
+      loadingImpact = false;
+    }
+  };
+
+  const debouncedImpactPreview = () => {
+    clearTimeout(impactDebounceTimer);
+    impactDebounceTimer = setTimeout(() => {
+      loadImpactPreview();
+    }, 400);
+  };
+
   // Local Simplex Approximation / Live Estimator for Instant UI responsiveness
   const computeLocalBwm = () => {
     try {
@@ -144,6 +172,8 @@
           weight_percentage: parseFloat((normalizedWeights[c.id] * 100).toFixed(2)),
         })),
       };
+
+      debouncedImpactPreview();
     } catch (e) {
       console.warn('Live BWM calculation error:', e);
     }
@@ -428,6 +458,15 @@
                   </span>
                 </div>
 
+                <!-- Visual Level Bar Meter (1 to 9) -->
+                <div class="flex items-center gap-1 py-0.5">
+                  {#each [1, 2, 3, 4, 5, 6, 7, 8, 9] as step}
+                    <div
+                      class="h-1.5 flex-1 rounded-sm transition-all {step <= val ? 'bg-[#FF634A]' : 'bg-[#2B2B36]'}"
+                    ></div>
+                  {/each}
+                </div>
+
                 <div class="flex items-center gap-3">
                   <input
                     type="range"
@@ -441,7 +480,7 @@
                 </div>
 
                 <div class="flex items-center justify-between text-[10px] text-[#71717A]">
-                  <span>{SAATY_DESCRIPTIONS[val]}</span>
+                  <span class="font-outfit-600 text-zinc-300">{SAATY_DESCRIPTIONS[val]}</span>
                   <span>1 (Sama) ➔ 9 (Mutlak)</span>
                 </div>
               </div>
@@ -478,6 +517,15 @@
                   </span>
                 </div>
 
+                <!-- Visual Level Bar Meter (1 to 9) -->
+                <div class="flex items-center gap-1 py-0.5">
+                  {#each [1, 2, 3, 4, 5, 6, 7, 8, 9] as step}
+                    <div
+                      class="h-1.5 flex-1 rounded-sm transition-all {step <= val ? 'bg-blue-400' : 'bg-[#2B2B36]'}"
+                    ></div>
+                  {/each}
+                </div>
+
                 <div class="flex items-center gap-3">
                   <input
                     type="range"
@@ -491,7 +539,7 @@
                 </div>
 
                 <div class="flex items-center justify-between text-[10px] text-[#71717A]">
-                  <span>{SAATY_DESCRIPTIONS[val]}</span>
+                  <span class="font-outfit-600 text-zinc-300">{SAATY_DESCRIPTIONS[val]}</span>
                   <span>1 (Sama) ➔ 9 (Mutlak)</span>
                 </div>
               </div>
@@ -538,7 +586,7 @@
           </div>
         </div>
 
-        <!-- Metric Cards -->
+        <!-- Metric Cards & Health Gauge -->
         <div class="grid grid-cols-2 gap-3">
           <div class="p-3 bg-[#1A1A1F] rounded-2xl border border-[#272730] space-y-1">
             <span class="text-[10px] uppercase font-outfit-600 text-[#71717A] block">Nilai Deviasi ξ*</span>
@@ -549,19 +597,35 @@
           </div>
 
           <div class="p-3 bg-[#1A1A1F] rounded-2xl border border-[#272730] space-y-1">
-            <span class="text-[10px] uppercase font-outfit-600 text-[#71717A] block">Rasio Konsistensi (CR)</span>
+            <span class="text-[10px] uppercase font-outfit-600 text-[#71717A] block">Kelayakan (CR)</span>
             <div class="text-lg font-outfit-600 font-mono {isConsistent ? 'text-emerald-400' : 'text-rose-400'}">
               {(calculationResult?.consistency_ratio ?? 0.012).toFixed(4)}
             </div>
             <span class="text-[10px] {isConsistent ? 'text-emerald-400' : 'text-rose-400'} font-semibold">
-              {isConsistent ? '✓ CR ≤ 0.10 (Valid)' : '✗ CR > 0.10 (Inkonsisten)'}
+              {isConsistent ? '✓ Sangat Baik (CR ≤ 0.10)' : '✗ CR > 0.10 (Perlu Kalibrasi)'}
             </span>
           </div>
         </div>
 
+        <!-- Inconsistency "Why?" Explanation Guide -->
+        {#if !isConsistent}
+          <div class="p-3.5 rounded-2xl bg-amber-950/40 border border-amber-800/40 text-amber-200 text-xs space-y-1.5 font-outfit-400">
+            <div class="font-outfit-600 text-amber-300 flex items-center gap-1.5">
+              <AlertTriangle class="w-4 h-4 text-amber-400" />
+              <span>Mengapa Konfigurasi Belum Konsisten?</span>
+            </div>
+            <p class="text-[11px] leading-relaxed text-amber-200/90">
+              Rasio konsistensi saat ini adalah <strong>{(calculationResult?.consistency_ratio ?? 0).toFixed(4)}</strong> (melebihi batas toleransi 0.10). Terdapat kontradiksi antara perbandingan kriteria utama [{bestCriteria?.name}] dengan kriteria lainnya.
+            </p>
+            <p class="text-[10px] text-amber-300 font-outfit-600">
+              💡 Saran: Kurangi nilai skala ekstrim (7-9) pada kriteria yang kurang dominan atau seimbangkan nilai A_B dan A_W.
+            </p>
+          </div>
+        {/if}
+
         <!-- Weight Distribution List & Bars -->
         <div class="space-y-3 pt-1">
-          <h5 class="text-xs font-outfit-600 text-zinc-300 uppercase tracking-wider">Distribusi Bobot Kriteria (W*):</h5>
+          <h5 class="text-xs font-outfit-600 text-zinc-300 uppercase tracking-wider">Distribusi Bobot Prioritas (W*):</h5>
 
           {#if calculationResult?.formatted_details}
             <div class="space-y-2.5">
@@ -591,6 +655,41 @@
                 </div>
               {/each}
             </div>
+          {/if}
+        </div>
+
+        <!-- SIMULASI DAMPAK BOBOT TERHADAP ZONA (IMPACT OF WEIGHT) -->
+        <div class="p-4 rounded-2xl bg-[#17171C] border border-[#24242A] space-y-3">
+          <div class="flex items-center justify-between">
+            <h5 class="text-xs font-outfit-600 text-white flex items-center gap-1.5">
+              <Sparkles class="w-3.5 h-3.5 text-[#FF634A]" />
+              <span>Simulasi Dampak Bobot ke Zona Teratas:</span>
+            </h5>
+            {#if loadingImpact}
+              <span class="text-[10px] text-zinc-400 animate-pulse">Menghitung...</span>
+            {/if}
+          </div>
+
+          {#if impactRankings.length > 0}
+            <div class="space-y-1.5">
+              {#each impactRankings as r, idx}
+                <div class="p-2.5 rounded-xl bg-[#1F1F26] border border-[#2B2B36] flex items-center justify-between text-xs">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span class="w-5 h-5 rounded-full {idx === 0 ? 'bg-amber-400 text-black font-bold' : idx === 1 ? 'bg-zinc-300 text-black font-bold' : 'bg-amber-800 text-white'} text-[10px] flex items-center justify-center font-mono">
+                      #{idx + 1}
+                    </span>
+                    <span class="font-outfit-600 text-zinc-100 truncate">{r.zone_name}</span>
+                  </div>
+                  <div class="font-mono text-emerald-400 font-bold shrink-0 ml-2">
+                    C* = {(r.preference_score ?? 0).toFixed(4)}
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {:else}
+            <p class="text-[11px] text-zinc-500">
+              Belum ada data dampak ranking zona. Pastikan zona operasional aktif tersedia di sistem.
+            </p>
           {/if}
         </div>
 

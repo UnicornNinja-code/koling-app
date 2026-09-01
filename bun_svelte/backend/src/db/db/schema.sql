@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS "users" (
   "password" varchar(255) NOT NULL,
   "name" varchar(255),
   "role" "Role" NOT NULL DEFAULT 'SUPERADMIN',
+  "birth_date" date,
   "is_active" boolean NOT NULL DEFAULT true,
   "created_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updated_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP

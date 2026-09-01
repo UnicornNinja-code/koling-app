@@ -5,6 +5,7 @@
 
 import bcrypt from "bcryptjs";
 import { pool } from "../config/database.js";
+import { syncProtocolRoadsService } from "../services/roadService.js";
 
 async function seedCleanData() {
   console.log("🌱 Memulai Seeding Master Data & Operasional Koling App...");
@@ -41,14 +42,6 @@ async function seedCleanData() {
         updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
 
-      CREATE TABLE IF NOT EXISTS protocol_roads (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-        name varchar(255),
-        highway_type varchar(100),
-        geometry jsonb NOT NULL,
-        created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
-      );
-
       ALTER TABLE pois DROP COLUMN IF EXISTS zone_id;
     `);
 
@@ -63,6 +56,13 @@ async function seedCleanData() {
         password: defaultPasswordHash,
         name: "Super Admin System",
         role: "SUPERADMIN",
+      },
+      {
+        email: "management@kopikeliling.com",
+        username: "management",
+        password: defaultPasswordHash,
+        name: "Manajemen Operasional",
+        role: "MANAGEMENT",
       },
       {
         email: "supervisor@kopikeliling.com",
@@ -110,13 +110,14 @@ async function seedCleanData() {
 
     for (const u of usersData) {
       const query = `
-        INSERT INTO users (email, username, password, name, role)
-        VALUES ($1, $2, $3, $4, $5::"Role")
+        INSERT INTO users (email, username, password, name, role, is_active)
+        VALUES ($1, $2, $3, $4, $5::"Role", true)
         ON CONFLICT (email) DO UPDATE SET
           username = EXCLUDED.username,
           password = EXCLUDED.password,
           name = EXCLUDED.name,
-          role = EXCLUDED.role;
+          role = EXCLUDED.role,
+          is_active = true;
       `;
       await pool.query(query, [u.email, u.username, u.password, u.name, u.role]);
     }
@@ -144,6 +145,25 @@ async function seedCleanData() {
       await pool.query(query, [c.name, c.type, c.weight]);
     }
     console.log(`✅ ${criteriasData.length} kriteria SPK standar berhasil disiapkan.`);
+
+    // 3.1 Seeding Konfigurasi BWM Awal di dss_configurations
+    const critRows = (await pool.query("SELECT id, name FROM criterias ORDER BY name;")).rows;
+    if (critRows.length >= 2) {
+      const bestCrit = critRows[0];
+      const worstCrit = critRows[critRows.length - 1];
+      const b2o: Record<string, number> = {};
+      const w2o: Record<string, number> = {};
+      critRows.forEach((c, idx) => {
+        b2o[c.id] = idx + 1;
+        w2o[c.id] = critRows.length - idx;
+      });
+      await pool.query(
+        `INSERT INTO dss_configurations (name, is_active, best_criteria_id, worst_criteria_id, best_to_others, worst_to_others)
+         VALUES ($1, true, $2, $3, $4, $5);`,
+        ["Konfigurasi Standar Sidoarjo (BWM-TOPSIS)", bestCrit.id, worstCrit.id, JSON.stringify(b2o), JSON.stringify(w2o)]
+      );
+      console.log("✅ Konfigurasi aktif BWM (dss_configurations) berhasil disiapkan.");
+    }
 
     // 4. Kategori POI Matriks Skor Keramaian Waktu (Likert 1-5)
     console.log("⏳ Seeding 51 Kategori POI & Matriks Keramaian Waktu...");
@@ -406,6 +426,11 @@ async function seedCleanData() {
       }
       console.log(`✅ ${sampleNotifs.length} notifikasi in-app disiapkan.`);
     }
+
+    // 12. Seeding Data Spasial Jalan Protokol (PostGIS)
+    console.log("⏳ Seeding Lapisan Spasial Jalan Protokol (PostGIS)...");
+    const roadRes = await syncProtocolRoadsService(false);
+    console.log(`✅ ${roadRes.totalRoads} ruas jalan protokol aktif terdaftar di PostGIS.`);
 
     console.log("\n==================================================");
     console.log("🎉 SEEDING MASTER & OPERASIONAL DATA SELESAI SUKSES!");

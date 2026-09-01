@@ -8,6 +8,7 @@ import {
   getZoneConfig,
   getAllZones,
   getZoneById,
+  validateZone,
   createZone,
   updateZone,
   updateZoneStatus,
@@ -23,6 +24,13 @@ const router = express.Router();
 router.get("/config", authenticateToken, getZoneConfig);
 router.get("/", authenticateToken, getAllZones);
 router.get("/:id", authenticateToken, getZoneById);
+
+// Pre-validate zone polygon (SUPERADMIN, MANAGEMENT, SUPERVISOR)
+router.post(
+  "/validate",
+  authenticateToken,
+  validateZone
+);
 
 // Create zone (SUPERADMIN ONLY)
 router.post(

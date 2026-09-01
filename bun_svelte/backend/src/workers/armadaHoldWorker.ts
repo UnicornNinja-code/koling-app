@@ -27,10 +27,12 @@ export const armadaHoldWorker = new Worker(
       return { released: false, reason: "Armada not found" };
     }
 
-    if (armada.status !== "RESERVED") {
-      console.log(`ℹ️ [ARMADA WORKER] Armada '${armada.code}' sudah berstatus '${armada.status}' (tidak perlu dilepas).`);
-      return { released: false, reason: `Armada status is ${armada.status}` };
-    }
+    await pool.query(
+      `UPDATE fleet_reservations 
+       SET status = 'EXPIRED', released_at = CURRENT_TIMESTAMP 
+       WHERE armada_id = $1 AND status = 'ACTIVE' AND expires_at <= NOW();`,
+      [armadaId]
+    );
 
     const queryRelease = `
       UPDATE armadas
@@ -39,7 +41,7 @@ export const armadaHoldWorker = new Worker(
         reserved_by_rider_id = NULL,
         reserved_until = NULL,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1 AND status = 'RESERVED'
+      WHERE id = $1 AND (reserved_until IS NULL OR reserved_until <= NOW())
       RETURNING id, code;
     `;
     const { rows: updatedRows } = await pool.query(queryRelease, [armadaId]);

@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { authService, type CaptchaData } from "../../services/authService";
   import { authStore, getRoleLandingPath } from "../../lib/stores/auth.svelte";
-  import { Coffee, Lock, User, Shield, ArrowRight, KeyRound, Sparkles, RefreshCw, ShieldCheck } from "lucide-svelte";
+  import { Coffee, Lock, User, Shield, ArrowRight, KeyRound, RefreshCw } from "lucide-svelte";
   import Button from "../../components/ui/Button.svelte";
   import Input from "../../components/ui/Input.svelte";
   import Alert from "../../components/ui/Alert.svelte";
@@ -20,7 +20,6 @@
   let captchaLoading = $state(false);
   let errorMsg = $state<string | null>(null);
   let loading = $state(false);
-  let activePreset = $state<string | null>(null);
 
   const errors = $state<{ identifier?: string; password?: string; captcha?: string }>({});
 
@@ -105,15 +104,6 @@
     } finally {
       loading = false;
     }
-  };
-
-  const setPreset = (roleKey: string, user: string, pass: string) => {
-    activePreset = roleKey;
-    identifier = user;
-    password = pass;
-    errorMsg = null;
-    errors.identifier = undefined;
-    errors.password = undefined;
   };
 </script>
 
@@ -248,54 +238,6 @@
           {loading ? "Memverifikasi Kredensial..." : "Masuk ke Sistem"}
         </Button>
       </form>
-
-      <!-- Quick Demo Credentials Selector -->
-      <div class="pt-3 border-t border-[#24242A] space-y-2.5">
-        <div class="flex items-center justify-between text-[11px] text-[#A1A1AA] font-outfit-600">
-          <span class="flex items-center gap-1.5 text-zinc-300">
-            <Sparkles class="w-3.5 h-3.5 text-[#FF634A]" /> Demo Quick Access:
-          </span>
-          <span class="text-[#71717A] text-[10px]">Pass: <code class="text-zinc-400">password123</code></span>
-        </div>
-
-        <div class="grid grid-cols-3 gap-2">
-          <button
-            type="button"
-            onclick={() => setPreset("superadmin", "superadmin@kopikeliling.com", "password123")}
-            class="px-2.5 py-2 text-xs font-outfit-600 rounded-xl border transition-all cursor-pointer text-center flex flex-col items-center gap-0.5
-            {activePreset === 'superadmin' 
-              ? 'bg-[#FF634A]/15 border-[#FF634A] text-white shadow-sm shadow-[#FF634A]/20' 
-              : 'bg-[#1A1A1F] border-[#272730] hover:border-[#383842] text-[#A1A1AA] hover:text-white'}"
-          >
-            <span class="text-[11px] font-semibold text-purple-400">Executive</span>
-            <span class="text-[11px] leading-tight">Superadmin</span>
-          </button>
-
-          <button
-            type="button"
-            onclick={() => setPreset("supervisor", "supervisor@kopikeliling.com", "password123")}
-            class="px-2.5 py-2 text-xs font-outfit-600 rounded-xl border transition-all cursor-pointer text-center flex flex-col items-center gap-0.5
-            {activePreset === 'supervisor' 
-              ? 'bg-[#FF634A]/15 border-[#FF634A] text-white shadow-sm shadow-[#FF634A]/20' 
-              : 'bg-[#1A1A1F] border-[#272730] hover:border-[#383842] text-[#A1A1AA] hover:text-white'}"
-          >
-            <span class="text-[11px] font-semibold text-blue-400">Manager</span>
-            <span class="text-[11px] leading-tight">Supervisor</span>
-          </button>
-
-          <button
-            type="button"
-            onclick={() => setPreset("rider", "rider@kopikeliling.com", "password123")}
-            class="px-2.5 py-2 text-xs font-outfit-600 rounded-xl border transition-all cursor-pointer text-center flex flex-col items-center gap-0.5
-            {activePreset === 'rider' 
-              ? 'bg-[#FF634A]/15 border-[#FF634A] text-white shadow-sm shadow-[#FF634A]/20' 
-              : 'bg-[#1A1A1F] border-[#272730] hover:border-[#383842] text-[#A1A1AA] hover:text-white'}"
-          >
-            <span class="text-[11px] font-semibold text-emerald-400">Operasional</span>
-            <span class="text-[11px] leading-tight">Rider Armada</span>
-          </button>
-        </div>
-      </div>
 
       <!-- Activation Prompt -->
       <div class="p-3 bg-[#1A1A1F] rounded-2xl border border-[#272730] text-center text-xs text-[#A1A1AA] flex items-center justify-center gap-1.5 flex-wrap">

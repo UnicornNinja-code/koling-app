@@ -67,25 +67,33 @@ export class UserRepository {
     return rows[0] || null;
   }
 
+  public async countActiveSuperadmins(): Promise<number> {
+    const query = `SELECT COUNT(*) as count FROM users WHERE role = 'SUPERADMIN' AND is_active = true;`;
+    const { rows } = await this.pool.query(query);
+    return parseInt(rows[0]?.count || "0", 10);
+  }
+
   public async createUser({
     email,
     username,
     password,
     name,
     role = "RIDER",
+    isActive = false,
   }: {
     email: string;
     username?: string;
     password?: string;
     name: string;
     role?: UserRole;
+    isActive?: boolean;
   }): Promise<UserSanitized> {
     const query = `
-      INSERT INTO users (email, username, password, name, role)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO users (email, username, password, name, role, is_active)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING id, email, username, name, role, is_active, created_at, updated_at;
     `;
-    const values = [email, username || email.split("@")[0], password, name, role];
+    const values = [email, username || email.split("@")[0], password, name, role, isActive];
     const { rows } = await this.pool.query(query, values);
     return rows[0];
   }

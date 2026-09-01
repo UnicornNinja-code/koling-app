@@ -12,7 +12,8 @@ export const UserModel = {
   findByIdWithPassword: (id: number | string) => userRepository.findByIdWithPassword(id),
   findByEmail: (email: string) => userRepository.findByEmailOrUsername(email),
   findByEmailOrUsername: (identifier: string) => userRepository.findByEmailOrUsername(identifier),
-  create: (data: { email: string; username?: string; password?: string; name: string; role?: UserRole }) =>
+  countActiveSuperadmins: () => userRepository.countActiveSuperadmins(),
+  create: (data: { email: string; username?: string; password?: string; name: string; role?: UserRole; isActive?: boolean }) =>
     userRepository.createUser(data),
   update: (id: number | string, data: { name?: string; email?: string; role?: UserRole }) =>
     userRepository.updateUser(id, data),

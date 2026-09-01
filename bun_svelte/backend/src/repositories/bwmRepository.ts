@@ -124,6 +124,28 @@ export class BwmRepository {
       client.release();
     }
   }
+
+  /**
+   * Activate a specific BWM configuration by ID
+   */
+  public async activateConfig(id: number | string): Promise<any> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("UPDATE dss_configurations SET is_active = false;");
+      const { rows } = await client.query(
+        "UPDATE dss_configurations SET is_active = true, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *;",
+        [id]
+      );
+      await client.query("COMMIT");
+      return rows[0] || null;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
 }
 
 export const bwmRepository = BwmRepository.getInstance();

@@ -1,14 +1,18 @@
 /*
  * distributionRoutes.ts
- * API Routes for Rider Duty Queue & Distribution Engine in TypeScript
+ * API Routes for Operational Sessions, Rider Duty Queue & Distribution Engine in TypeScript
  */
 
 import express from "express";
 import {
   confirmDuty,
   getDistributionOverview,
+  previewDistribution,
+  confirmDistribution,
   autoDistribute,
   manualDistribute,
+  getDistributionRuns,
+  updateRiderDutyStatus,
   getMyDutyHistory,
 } from "../controllers/distributionController.js";
 import { authenticateToken } from "../middlewares/authMiddleware.js";
@@ -29,6 +33,20 @@ router.get(
   getDistributionOverview
 );
 
+router.get(
+  "/preview",
+  authenticateToken,
+  checkRole(["SUPERADMIN", "MANAGEMENT", "SUPERVISOR"]),
+  previewDistribution
+);
+
+router.post(
+  "/confirm",
+  authenticateToken,
+  checkRole(["SUPERADMIN", "SUPERVISOR"]),
+  confirmDistribution
+);
+
 router.post(
   "/auto",
   authenticateToken,
@@ -41,6 +59,20 @@ router.post(
   authenticateToken,
   checkRole(["SUPERADMIN", "SUPERVISOR"]),
   manualDistribute
+);
+
+router.get(
+  "/runs",
+  authenticateToken,
+  checkRole(["SUPERADMIN", "MANAGEMENT", "SUPERVISOR"]),
+  getDistributionRuns
+);
+
+router.put(
+  "/duty/:id/status",
+  authenticateToken,
+  checkRole(["SUPERADMIN", "MANAGEMENT", "SUPERVISOR"]),
+  updateRiderDutyStatus
 );
 
 router.get(

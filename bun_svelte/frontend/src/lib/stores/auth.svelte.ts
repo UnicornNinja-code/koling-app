@@ -29,6 +29,11 @@ class AuthStore {
       window.addEventListener("auth:expired", () => {
         this.handleExpired();
       });
+      window.addEventListener("auth:token_refreshed", (e: any) => {
+        if (e?.detail) {
+          this.token = e.detail;
+        }
+      });
     }
   }
 
@@ -70,7 +75,11 @@ class AuthStore {
       }
     } catch (err: any) {
       console.warn("Sesi tidak valid atau telah kedaluwarsa:", err?.message);
-      this.logout();
+      // Only logout on explicit 401 Unauthorized or deactivated user (403 USER_DEACTIVATED)
+      // Do NOT log out if there is a transient 500 error or network disconnection!
+      if (err?.response?.status === 401 || err?.response?.data?.error === "USER_DEACTIVATED") {
+        this.logout();
+      }
     } finally {
       this.loading = false;
     }

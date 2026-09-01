@@ -31,7 +31,7 @@ export const getMyNotifications = async (req: Request, res: Response): Promise<a
 export const markNotificationAsRead = async (req: Request, res: Response): Promise<any> => {
   try {
     const userId = req.user?.id;
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     if (!userId) {
       return res.status(401).json({ msg: "Unauthorized" });
@@ -67,7 +67,7 @@ export const markAllNotificationsAsRead = async (req: Request, res: Response): P
 export const deleteNotification = async (req: Request, res: Response): Promise<any> => {
   try {
     const userId = req.user?.id;
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     if (!userId) {
       return res.status(401).json({ msg: "Unauthorized" });

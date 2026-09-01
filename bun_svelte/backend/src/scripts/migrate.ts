@@ -15,23 +15,26 @@ async function runMigration() {
   try {
     const dbDir = path.join(__dirname, "../db");
 
-    console.log("⏳ [1/4] Memproses migrasi skema utama (schema.sql)...");
+    console.log("⏳ Memproses migrasi skema utama (schema.sql)...");
     const sqlMaster = fs.readFileSync(path.join(dbDir, "schema.sql"), "utf8");
     await pool.query(sqlMaster);
 
-    console.log("⏳ [2/4] Memproses migrasi 001 (001_poi_eligibility_and_candidate_spots.sql)...");
-    const sql001 = fs.readFileSync(path.join(dbDir, "migrations/001_poi_eligibility_and_candidate_spots.sql"), "utf8");
-    await pool.query(sql001);
+    const migrationsDir = path.join(dbDir, "migrations");
+    if (fs.existsSync(migrationsDir)) {
+      const migrationFiles = fs
+        .readdirSync(migrationsDir)
+        .filter((file) => file.endsWith(".sql") && !file.includes("rollback"))
+        .sort();
 
-    console.log("⏳ [3/4] Memproses migrasi 002 (002_protocol_roads_spatial_layer.sql)...");
-    const sql002 = fs.readFileSync(path.join(dbDir, "migrations/002_protocol_roads_spatial_layer.sql"), "utf8");
-    await pool.query(sql002);
+      for (let i = 0; i < migrationFiles.length; i++) {
+        const file = migrationFiles[i];
+        console.log(`⏳ [${i + 1}/${migrationFiles.length}] Memproses migrasi (${file})...`);
+        const sql = fs.readFileSync(path.join(migrationsDir, file), "utf8");
+        await pool.query(sql);
+      }
+    }
 
-    console.log("⏳ [4/4] Memproses migrasi 003 (003_add_zone_invalid_reason.sql)...");
-    const sql003 = fs.readFileSync(path.join(dbDir, "migrations/003_add_zone_invalid_reason.sql"), "utf8");
-    await pool.query(sql003);
-
-    console.log("✅ Seluruh skema database dan migrasi (001, 002, 003) berhasil dieksekusi!");
+    console.log("✅ Seluruh skema database dan migrasi berhasil dieksekusi!");
   } catch (error: any) {
     console.error("❌ Gagal migrasi database:", error.message);
     process.exit(1);

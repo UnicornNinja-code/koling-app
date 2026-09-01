@@ -15,12 +15,24 @@
   import SuperAdminUsersPage from './pages/superadmin/SuperAdminUsersPage.svelte';
   import SuperAdminFleetPage from './pages/superadmin/SuperAdminFleetPage.svelte';
   import SuperAdminDistributionPage from './pages/superadmin/SuperAdminDistributionPage.svelte';
+  import SuperAdminSettingsPage from './pages/superadmin/SuperAdminSettingsPage.svelte';
   import SupervisorCatalogPage from './pages/supervisor/SupervisorCatalogPage.svelte';
+  import RiderDashboardPage from './pages/rider/RiderDashboardPage.svelte';
   import NotFoundPage from './pages/error/NotFoundPage.svelte';
   import ForbiddenPage from './pages/error/ForbiddenPage.svelte';
   import ServerErrorPage from './pages/error/ServerErrorPage.svelte';
 
-  let currentRoute = $state<string>('/login');
+  function resolveRoute(path: string): string {
+    if (path === '/register' || path === '/activate') return '/register';
+    if (path === '/forgot-password') return '/forgot-password';
+    if (path === '/reset-password') return '/reset-password';
+    if (path === '/login') return '/login';
+    if (path === '' || path === '/') return '/dashboard';
+    return path;
+  }
+
+  const initialPath = typeof window !== 'undefined' ? window.location.pathname : '/dashboard';
+  let currentRoute = $state<string>(resolveRoute(initialPath));
   let globalError = $state<{ msg?: string; stack?: string } | null>(null);
 
   const navigate = (route: string) => {
@@ -31,54 +43,25 @@
   };
 
   onMount(async () => {
-    await authStore.validateSession();
+    // If local session exists, validate it with the backend in background
+    if (authStore.isAuthenticated) {
+      await authStore.validateSession();
+    }
 
-    // Determine initial route from URL
+    // Determine current route from URL after validating session
     const pathname = window.location.pathname;
-    if (pathname === '/register' || pathname === '/activate') {
-      currentRoute = '/register';
-    } else if (pathname === '/forgot-password') {
-      currentRoute = '/forgot-password';
-    } else if (pathname === '/reset-password') {
-      currentRoute = '/reset-password';
-    } else if (pathname === '/login') {
+    const isPublicAuthRoute = ['/register', '/activate', '/forgot-password', '/reset-password', '/login'].includes(pathname);
+
+    if (!isPublicAuthRoute && !authStore.isAuthenticated) {
       currentRoute = '/login';
-    } else if (authStore.isAuthenticated) {
-      if (pathname === '/map' || pathname === '/superadmin/map') {
-        currentRoute = '/map';
-      } else if (pathname === '/catalog' || pathname === '/superadmin/catalog') {
-        currentRoute = '/catalog';
-      } else if (pathname === '/zones' || pathname === '/superadmin/zones') {
-        currentRoute = '/zones';
-      } else if (pathname === '/users' || pathname === '/superadmin/users') {
-        currentRoute = '/users';
-      } else if (pathname === '/fleet' || pathname === '/superadmin/fleet') {
-        currentRoute = '/fleet';
-      } else if (pathname === '/distribution' || pathname === '/superadmin/distribution') {
-        currentRoute = '/distribution';
-      } else if (pathname === '/dss' || pathname === '/superadmin/dss') {
-        currentRoute = '/dss';
-      } else if (pathname === '/reports' || pathname === '/superadmin/reports') {
-        currentRoute = '/reports';
-      } else {
-        currentRoute = '/dashboard';
-      }
     } else {
-      currentRoute = '/login';
+      currentRoute = resolveRoute(pathname);
     }
 
     // Handle browser back/forward buttons
     window.addEventListener('popstate', () => {
       const p = window.location.pathname || '/login';
-      if (p === '/register' || p === '/activate') {
-        currentRoute = '/register';
-      } else if (p === '/forgot-password') {
-        currentRoute = '/forgot-password';
-      } else if (p === '/reset-password') {
-        currentRoute = '/reset-password';
-      } else {
-        currentRoute = p;
-      }
+      currentRoute = resolveRoute(p);
     });
   });
 </script>
@@ -101,6 +84,9 @@
 {:else if !authStore.isAuthenticated || currentRoute === '/login'}
   <!-- Login View -->
   <LoginPage onNavigate={navigate} />
+{:else if authStore.user?.role === 'RIDER' || currentRoute.startsWith('/rider')}
+  <!-- Dedicated Mobile-first Rider View -->
+  <RiderDashboardPage onNavigate={navigate} />
 {:else}
   <!-- Authenticated Views with AppShell -->
   <AppShell 
@@ -153,6 +139,16 @@
       {/if}
     {:else if currentRoute === '/reports' || currentRoute === '/superadmin/reports'}
       <SuperAdminReportsPage onNavigate={navigate} />
+    {:else if currentRoute === '/settings' || currentRoute === '/superadmin/settings'}
+      {#if authStore.user?.role === 'SUPERADMIN' || authStore.user?.role === 'MANAGEMENT'}
+        <SuperAdminSettingsPage onNavigate={navigate} />
+      {:else}
+        <ForbiddenPage 
+          onNavigate={navigate} 
+          attemptedRoute={currentRoute}
+          requiredRole="SUPERADMIN / MANAGEMENT" 
+        />
+      {/if}
     {:else if currentRoute === '/catalog' || currentRoute === '/superadmin/catalog'}
       {#if authStore.user?.role === 'SUPERVISOR'}
         <SupervisorCatalogPage onNavigate={navigate} />

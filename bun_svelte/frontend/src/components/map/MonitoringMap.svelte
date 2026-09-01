@@ -627,7 +627,7 @@
   const loadAllSpatialData = async () => {
     loading = true;
     try {
-      const [zonesRes, ridersRes, protoRoadsRes, tollRoadsRes, poisRes, configRes] = await Promise.all([
+      const [zonesRes, ridersRes, protoRoadsRes, tollRoadsRes, poisRes, configRes] = await Promise.allSettled([
         mapService.getAllZones(),
         mapService.getNearbyRiders(-7.4450, 112.7150, 50000),
         mapService.getProtocolRoads(),
@@ -636,12 +636,12 @@
         mapService.getZoneConfig(),
       ]);
 
-      realZones = zonesRes;
-      activeRiders = ridersRes;
-      protocolRoadsGeoJson = protoRoadsRes;
-      tollRoadsGeoJson = tollRoadsRes;
-      realPois = poisRes;
-      zoneConfig = configRes;
+      if (zonesRes.status === 'fulfilled' && zonesRes.value) realZones = zonesRes.value;
+      if (ridersRes.status === 'fulfilled' && ridersRes.value) activeRiders = ridersRes.value;
+      if (protoRoadsRes.status === 'fulfilled' && protoRoadsRes.value) protocolRoadsGeoJson = protoRoadsRes.value;
+      if (tollRoadsRes.status === 'fulfilled' && tollRoadsRes.value) tollRoadsGeoJson = tollRoadsRes.value;
+      if (poisRes.status === 'fulfilled' && poisRes.value) realPois = poisRes.value;
+      if (configRes.status === 'fulfilled' && configRes.value) zoneConfig = configRes.value;
 
       renderZones();
       renderHub();
@@ -1164,7 +1164,7 @@
                     <span class="text-amber-400">Jalan Protokol</span>
                   </span>
                   <span class="px-2 py-0.5 rounded bg-amber-950/60 text-amber-400 text-[10px] font-bold border border-amber-800/40">
-                    {protocolRoadsGeoJson?.features?.length || 885} Ruas
+                    {protocolRoadsGeoJson?.features ? `${protocolRoadsGeoJson.features.length} Ruas` : '0 Ruas'}
                   </span>
                 </label>
 
@@ -1174,7 +1174,7 @@
                     <span class="text-rose-400">Jalan Tol</span>
                   </span>
                   <span class="px-2 py-0.5 rounded bg-rose-950/60 text-rose-400 text-[10px] font-bold border border-rose-800/40">
-                    {tollRoadsGeoJson?.features?.length || 692} Ruas
+                    {tollRoadsGeoJson?.features ? `${tollRoadsGeoJson.features.length} Ruas` : '0 Ruas'}
                   </span>
                 </label>
 

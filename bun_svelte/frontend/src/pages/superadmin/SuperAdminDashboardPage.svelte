@@ -17,6 +17,7 @@
   import DssStatusCard from '../../components/dashboard/DssStatusCard.svelte';
   import ActivityFeed, { type ActivityItem } from '../../components/dashboard/ActivityFeed.svelte';
   import HubAtmosphericRadarCard from '../../components/dashboard/HubAtmosphericRadarCard.svelte';
+  import SystemReadinessWidget from '../../components/system/SystemReadinessWidget.svelte';
 
   import SyncWeatherModal from '../../components/dashboard/SyncWeatherModal.svelte';
   import RecalculateDssModal from '../../components/dashboard/RecalculateDssModal.svelte';
@@ -243,6 +244,11 @@
   <!-- SECTION 1.5: HUB ATMOSPHERIC WEATHER RADAR WIDGET -->
   <HubAtmosphericRadarCard
     onSyncRequest={loadDashboardData}
+  />
+
+  <!-- SECTION 1.6: SYSTEM READINESS ORCHESTRATION WIDGET -->
+  <SystemReadinessWidget
+    {onNavigate}
   />
 
   <!-- SECTION 2: GRID ROW 1 (Sales Trend Chart + Produk Terlaris Leaderboard) -->

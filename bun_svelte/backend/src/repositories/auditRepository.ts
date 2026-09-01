@@ -93,6 +93,58 @@ export class AuditRepository {
     const { rows } = await this.pool.query(query, values);
     return rows;
   }
+
+  /**
+   * Insert a new audit log record
+   */
+  public async createAuditLog({
+    userId,
+    userRole,
+    action,
+    entityType,
+    entityId,
+    details = {},
+    ipAddress,
+    userAgent,
+    status = "SUCCESS",
+    oldValues,
+    newValues,
+  }: {
+    userId?: number | string | null;
+    userRole?: string | null;
+    action: string;
+    entityType?: string | null;
+    entityId?: string | null;
+    details?: any;
+    ipAddress?: string | null;
+    userAgent?: string | null;
+    status?: string;
+    oldValues?: any;
+    newValues?: any;
+  }): Promise<AuditLog> {
+    const query = `
+      INSERT INTO audit_logs (
+        user_id, user_role, action, entity_type, entity_id, details, ip_address, user_agent, status, old_values, new_values
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING *;
+    `;
+    const values = [
+      userId || null,
+      userRole || null,
+      action,
+      entityType || null,
+      entityId || null,
+      JSON.stringify(details || {}),
+      ipAddress || null,
+      userAgent || null,
+      status || "SUCCESS",
+      oldValues ? JSON.stringify(oldValues) : null,
+      newValues ? JSON.stringify(newValues) : null,
+    ];
+    const { rows } = await this.pool.query(query, values);
+    return rows[0];
+  }
 }
 
 export const auditRepository = AuditRepository.getInstance();

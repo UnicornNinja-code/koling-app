@@ -12,15 +12,16 @@
     "db:reset": "bun src/scripts/reset-db.ts",
     "db:seed": "bun src/scripts/seed.ts",
     "db:setup": "bun src/scripts/setup-db.ts",
+    "db:fresh": "bun src/scripts/setup-clean-db.ts",
     "db:init": "bun src/scripts/setup-db.ts",
     "db:recluster": "bun src/scripts/recluster-poi.ts",
     "fetch:weather": "bun src/scripts/fetch-weather.ts",
     "sync:toll-roads": "bun src/scripts/sync-toll-roads.ts",
-    "test": "bun src/scripts/test-runner.ts integration",
-    "test:unit": "bun src/scripts/test-runner.ts unit",
-    "test:integration": "bun src/scripts/test-runner.ts integration",
-    "test:e2e": "bun src/scripts/test-runner.ts e2e",
-    "test:smoke": "bun src/scripts/test-runner.ts smoke",
+    "test": "bun src/scripts/test-system-e2e.ts",
+    "test:e2e": "bun src/scripts/test-system-e2e.ts",
+    "test:stability": "bun src/scripts/verify-api-stability.ts",
+    "test:onboarding": "bun src/scripts/test-onboarding.ts",
+    "test:k6": "\"C:\\Program Files\\k6\\k6.exe\" run tests/k6-load-test.js",
     "test:benchmark": "bun src/scripts/benchmark-comparison.ts"
   },
   "dependencies": {
@@ -44,6 +45,8 @@
     "redis": "^6.1.0",
     "sharp": "^0.35.4",
     "socket.io": "^4.8.3",
+    "swagger-jsdoc": "^6.3.0",
+    "swagger-ui-express": "^5.0.1",
     "zod": "^3.24.1"
   },
   "devDependencies": {
@@ -60,6 +63,8 @@
     "@types/nodemailer": "^7.0.9",
     "@types/pg": "^8.16.0",
     "@types/pg-format": "^1.0.3",
+    "@types/swagger-jsdoc": "^6.0.4",
+    "@types/swagger-ui-express": "^4.1.8",
     "typescript": "^5.7.3"
   }
 }

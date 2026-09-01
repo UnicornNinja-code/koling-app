@@ -14,6 +14,7 @@ import {
   getProfile,
   changePassword,
   adminResetPassword,
+  resendInvitation,
 } from "../controllers/userController.js";
 import { authenticateToken } from "../middlewares/authMiddleware.js";
 import { checkRole } from "../middlewares/roleMiddleware.js";
@@ -30,6 +31,9 @@ router.get("/", checkRole(["SUPERADMIN", "MANAGEMENT"]), getAllUsers);
 
 // Create user account
 router.post("/", checkRole(["SUPERADMIN", "MANAGEMENT"]), createUser);
+
+// Resend invitation link
+router.post("/:id/resend-invitation", checkRole(["SUPERADMIN", "MANAGEMENT"]), resendInvitation);
 
 // Only Superadmin & Management can view specific user details
 router.get("/:id", checkRole(["SUPERADMIN", "MANAGEMENT"]), getUserById);

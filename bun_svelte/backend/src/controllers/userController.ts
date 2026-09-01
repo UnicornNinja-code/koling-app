@@ -14,6 +14,7 @@ import {
   deleteUserService,
   changePasswordService,
   adminResetPasswordService,
+  resendInvitationService,
 } from "../services/userService.js";
 
 const sanitizeUser = (userObj: any) => {
@@ -138,5 +139,16 @@ export const adminResetPassword = async (req: Request, res: Response): Promise<a
   } catch (error: any) {
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({ msg: error.message || "Gagal mereset password." });
+  }
+};
+
+export const resendInvitation = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const id = req.params.id as string;
+    const result = await resendInvitationService(id, req.user);
+    return res.status(200).json(result);
+  } catch (error: any) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Gagal mengirim ulang undangan aktivasi." });
   }
 };

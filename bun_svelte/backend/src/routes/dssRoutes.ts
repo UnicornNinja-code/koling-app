@@ -6,6 +6,8 @@
 import express from "express";
 import {
   calculateBwmWeights,
+  previewBwmImpact,
+  activateBwmConfig,
   getActiveDssConfig,
   getAllDssConfigs,
   getZoneRawEvaluation,
@@ -26,10 +28,24 @@ router.post(
   calculateBwmWeights
 );
 
+router.post(
+  "/bwm/preview-impact",
+  authenticateToken,
+  checkRole(["SUPERADMIN", "SUPERVISOR", "MANAGEMENT"]),
+  previewBwmImpact
+);
+
+router.post(
+  "/bwm/:id/activate",
+  authenticateToken,
+  checkRole(["SUPERADMIN"]),
+  activateBwmConfig
+);
+
 router.get(
   "/bwm/active",
   authenticateToken,
-  checkRole(["SUPERADMIN", "SUPERVISOR"]),
+  checkRole(["SUPERADMIN", "SUPERVISOR", "MANAGEMENT"]),
   getActiveDssConfig
 );
 

@@ -13,6 +13,7 @@ import { poiDistanceService } from "../poi/POIDistanceService.js";
 import { poiCompetitorService } from "../poi/POICompetitorService.js";
 import { TimeSlotEvaluator } from "../../utils/TimeSlotEvaluator.js";
 import { pool } from "../../config/database.js";
+import { redisClient } from "../../config/redis.js";
 import { bwmWeightService } from "./BwmWeightService.js";
 
 function normRowValue(val: any): number {
@@ -48,9 +49,23 @@ export class TopsisEngineService {
     riderLat?: number | string | null;
     riderLon?: number | string | null;
     riderId?: number | string | null;
+    customWeights?: Record<string, number> | null;
   } = {}): Promise<any> {
     const activeSlot = options.timeSlot || TimeSlotEvaluator.getSlot(new Date());
-    const { riderLat = null, riderLon = null, riderId = null } = options;
+    const { riderLat = null, riderLon = null, riderId = null, customWeights = null } = options;
+
+    const cacheKey = !riderLat && !riderLon && !customWeights
+      ? `dss:topsis:${activeSlot.toLowerCase()}`
+      : null;
+
+    if (cacheKey) {
+      try {
+        const cached = await redisClient.get(cacheKey);
+        if (cached) {
+          return JSON.parse(cached);
+        }
+      } catch {}
+    }
 
     console.log("\n================================================================================");
     console.log("🚀 [TOPSIS ENGINE] MEMULAI REKOMENDASI LOKASI DSS ZONA (TOPSIS PIPELINE)");
@@ -74,7 +89,10 @@ export class TopsisEngineService {
       C4: 0.1667, C5: 0.1667, C6: 0.1667,
     };
 
-    if (activeBwmConfig && activeBwmConfig.best_to_others && activeBwmConfig.worst_to_others) {
+    if (customWeights && Object.keys(customWeights).length > 0) {
+      weights = { ...weights, ...customWeights };
+      console.log("✅ Menggunakan Custom Draft Weights untuk Simulasi Preview");
+    } else if (activeBwmConfig && activeBwmConfig.best_to_others && activeBwmConfig.worst_to_others) {
       const { rows: dbCriteria } = await pool.query("SELECT id, name, type FROM criterias WHERE is_active = true ORDER BY name ASC;");
       const formattedCriteria = dbCriteria.map((c: any, idx: number) => ({ ...c, code: `C${idx + 1}` }));
 
@@ -267,7 +285,7 @@ export class TopsisEngineService {
       rankings: finalRankings,
     });
 
-    return {
+    const output = {
       message: "Proses Komputasi TOPSIS Rekomendasi Lokasi Berhasil Selesai.",
       time_slot: activeSlot,
       weight_source: weightSource,
@@ -276,6 +294,14 @@ export class TopsisEngineService {
       ideal_negative: idealNegative,
       rankings: finalRankings,
     };
+
+    if (cacheKey) {
+      try {
+        await redisClient.set(cacheKey, JSON.stringify(output), { EX: 60 });
+      } catch {}
+    }
+
+    return output;
   }
 
   /**

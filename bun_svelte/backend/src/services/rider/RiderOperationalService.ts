@@ -131,9 +131,13 @@ export class RiderOperationalService {
   public async confirmArmadaClaim({
     riderId,
     armadaId,
+    checklist,
+    notes,
   }: {
     riderId: number | string;
     armadaId: number | string;
+    checklist?: Record<string, any>;
+    notes?: string;
   }): Promise<any> {
     if (!riderId || !armadaId) {
       const error: any = new Error("Rider ID dan Armada ID harus diisi.");
@@ -148,6 +152,8 @@ export class RiderOperationalService {
       riderId,
       armadaId,
       assignmentId,
+      checklist,
+      notes,
     });
 
     await removeArmadaHoldReleaseJob(claimed.id || armadaId);
@@ -352,10 +358,12 @@ export class RiderOperationalService {
   public async checkoutAndReturnArmada({
     riderId,
     returnStatus = "ACTIVE",
+    inspectionCondition = {},
     notes = "",
   }: {
     riderId: number | string;
     returnStatus?: string;
+    inspectionCondition?: Record<string, any>;
     notes?: string;
   }): Promise<any> {
     if (!riderId) {
@@ -375,7 +383,10 @@ export class RiderOperationalService {
     const checkoutResult = await this.repo.checkoutRiderSession({
       assignmentId: session.assignment_id,
       armadaId: session.armada_id,
+      riderId,
       returnStatus,
+      inspectionCondition,
+      notes,
     });
 
     eventPublisher.publishRiderCheckedOut({

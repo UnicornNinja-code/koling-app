@@ -14,7 +14,8 @@
     FileSpreadsheet, 
     ChevronRight,
     ArrowUpRight,
-    Sparkles
+    Sparkles,
+    X
   } from 'lucide-svelte';
   import Alert from '../ui/Alert.svelte';
 
@@ -29,6 +30,7 @@
 
   let activeMatrixStep = $state<number>(6); // Default show rankings (Step 6)
   let selectedSnapshot = $state<any | null>(null);
+  let selectedExplainZone = $state<any | null>(null);
 
   const loadSnapshots = async () => {
     try {
@@ -220,6 +222,15 @@
                 <div>D+: {(rk.d_pos || 0).toFixed(4)}</div>
                 <div>D-: {(rk.d_neg || 0).toFixed(4)}</div>
               </div>
+
+              <button
+                type="button"
+                onclick={() => (selectedExplainZone = rk)}
+                class="w-full mt-2 py-1.5 px-2 rounded-xl bg-[#1F1F26] hover:bg-[#2B2B36] text-[10px] text-zinc-300 hover:text-white font-outfit-600 flex items-center justify-center gap-1 transition-colors cursor-pointer border border-[#2B2B36]"
+              >
+                <Sparkles class="w-3 h-3 text-[#FF634A]" />
+                <span>Mengapa Zona Ini?</span>
+              </button>
             </div>
           </div>
         {/each}
@@ -485,3 +496,127 @@
     {/if}
   </div>
 </div>
+
+<!-- MODAL: EXPLAINABILITY ("WHY THIS ZONE?") -->
+{#if selectedExplainZone}
+  {@const raw = selectedExplainZone.traceability?.raw_criteria || {}}
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm font-outfit-400">
+    <button
+      type="button"
+      aria-label="Tutup modal"
+      class="fixed inset-0 bg-black/50 border-0 p-0 m-0 cursor-default"
+      onclick={() => (selectedExplainZone = null)}
+    ></button>
+
+    <div class="relative w-full max-w-lg bg-[#131316] border border-[#2E2E38] rounded-3xl p-6 shadow-2xl z-10 space-y-5">
+      <!-- Header -->
+      <div class="flex items-center justify-between pb-3 border-b border-[#24242A]">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-[#FF634A]/20 text-[#FF634A] border border-[#FF634A]/30 flex items-center justify-center font-bold">
+            #{selectedExplainZone.rank}
+          </div>
+          <div>
+            <h3 class="text-base font-outfit-600 text-white">Mengapa Zona Ini Direkomendasikan?</h3>
+            <p class="text-xs text-[#A1A1AA]">{selectedExplainZone.zone_name} • Skor C* = {selectedExplainZone.preference_score.toFixed(4)}</p>
+          </div>
+        </div>
+
+        <button
+          onclick={() => (selectedExplainZone = null)}
+          class="p-2 rounded-xl text-[#71717A] hover:text-white hover:bg-[#1F1F24] transition-colors cursor-pointer"
+        >
+          <X class="w-5 h-5" />
+        </button>
+      </div>
+
+      <!-- Breakdown Bars for 6 Criteria -->
+      <div class="space-y-3 text-xs">
+        <h4 class="font-outfit-600 text-zinc-300 uppercase text-[11px] tracking-wider">Kekuatan & Evaluasi Kriteria:</h4>
+
+        <div class="space-y-2">
+          <!-- C1 Densitas -->
+          <div class="p-3 bg-[#1A1A1F] rounded-2xl border border-[#272730] flex items-center justify-between">
+            <div>
+              <span class="font-outfit-600 text-white block">C1. Densitas POI (Benefit)</span>
+              <span class="text-[10px] text-zinc-400">Total entitas keramaian di zona</span>
+            </div>
+            <div class="text-right">
+              <span class="font-mono text-emerald-400 font-bold">{raw.C1?.raw_value ?? 0} POI</span>
+              <span class="text-[10px] text-zinc-500 block">Sangat Baik</span>
+            </div>
+          </div>
+
+          <!-- C2 Diversitas -->
+          <div class="p-3 bg-[#1A1A1F] rounded-2xl border border-[#272730] flex items-center justify-between">
+            <div>
+              <span class="font-outfit-600 text-white block">C2. Diversitas POI (Benefit)</span>
+              <span class="text-[10px] text-zinc-400">Variasi kategori magnet aktivitas</span>
+            </div>
+            <div class="text-right">
+              <span class="font-mono text-blue-400 font-bold">{raw.C2?.raw_value ?? 0} Kategori</span>
+              <span class="text-[10px] text-zinc-500 block">Tinggi</span>
+            </div>
+          </div>
+
+          <!-- C3 Keramaian Waktu -->
+          <div class="p-3 bg-[#1A1A1F] rounded-2xl border border-[#272730] flex items-center justify-between">
+            <div>
+              <span class="font-outfit-600 text-white block">C3. Keramaian Waktu (Benefit)</span>
+              <span class="text-[10px] text-zinc-400">Peluang traffic jam operasional {timeSlot.toUpperCase()}</span>
+            </div>
+            <div class="text-right">
+              <span class="font-mono text-amber-400 font-bold">{(raw.C3?.raw_value ?? 0).toFixed(1)} / 10</span>
+              <span class="text-[10px] text-zinc-500 block">Potensial</span>
+            </div>
+          </div>
+
+          <!-- C4 Risiko Cuaca -->
+          <div class="p-3 bg-[#1A1A1F] rounded-2xl border border-[#272730] flex items-center justify-between">
+            <div>
+              <span class="font-outfit-600 text-white block">C4. Risiko Cuaca / Presipitasi (Cost)</span>
+              <span class="text-[10px] text-zinc-400">Prakiraan curah hujan Open-Meteo</span>
+            </div>
+            <div class="text-right">
+              <span class="font-mono text-cyan-400 font-bold">{raw.C4?.raw_value ?? 0}%</span>
+              <span class="text-[10px] text-zinc-500 block">Risiko Rendah</span>
+            </div>
+          </div>
+
+          <!-- C5 Jarak Aksesibilitas -->
+          <div class="p-3 bg-[#1A1A1F] rounded-2xl border border-[#272730] flex items-center justify-between">
+            <div>
+              <span class="font-outfit-600 text-white block">C5. Jarak Aksesibilitas Hub (Cost)</span>
+              <span class="text-[10px] text-zinc-400">Jarak tempuh geodetik dari markas</span>
+            </div>
+            <div class="text-right">
+              <span class="font-mono text-purple-400 font-bold">{(raw.C5?.raw_value ?? 0).toFixed(2)} KM</span>
+              <span class="text-[10px] text-zinc-500 block">Dalam Jangkauan</span>
+            </div>
+          </div>
+
+          <!-- C6 Kompetitor -->
+          <div class="p-3 bg-[#1A1A1F] rounded-2xl border border-[#272730] flex items-center justify-between">
+            <div>
+              <span class="font-outfit-600 text-white block">C6. Kepadatan Kompetitor (Cost)</span>
+              <span class="text-[10px] text-zinc-400">Jumlah kedai kopi / pesaing terdekat</span>
+            </div>
+            <div class="text-right">
+              <span class="font-mono text-rose-400 font-bold">{raw.C6?.raw_value ?? 0} Pesaing</span>
+              <span class="text-[10px] text-zinc-500 block">Terkendali</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pt-3 border-t border-[#24242A] flex justify-end">
+        <button
+          type="button"
+          onclick={() => (selectedExplainZone = null)}
+          class="px-4 py-2 rounded-xl bg-[#1F1F24] hover:bg-[#2A2A32] text-white text-xs font-outfit-600 transition-colors cursor-pointer"
+        >
+          Tutup Rincian
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}

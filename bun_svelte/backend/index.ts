@@ -30,10 +30,13 @@ import lbsRoutes from "./src/routes/lbsRoutes.js";
 import zoneRoutes from "./src/routes/zoneRoutes.js";
 import candidateSellingLocationRoutes from "./src/routes/candidateSellingLocationRoutes.js";
 import systemSettingRoutes from "./src/routes/systemSettingRoutes.js";
+import systemRoutes from "./src/routes/systemRoutes.js";
 import productRoutes from "./src/routes/productRoutes.js";
 import salesRoutes from "./src/routes/salesRoutes.js";
 import dashboardRoutes from "./src/routes/dashboardRoutes.js";
 import notificationRoutes from "./src/routes/notificationRoutes.js";
+import swaggerUi from "swagger-ui-express";
+import { swaggerSpec } from "./src/docs/swagger.js";
 
 // Initialize BullMQ Background Workers
 import "./src/workers/overpassWorker.js";
@@ -130,6 +133,28 @@ app.get("/api/health", (_req: Request, res: Response): any => {
   });
 });
 
+// 4.3 Interactive OpenAPI / Swagger Documentation
+app.get("/api/docs.json", (_req: Request, res: Response): any => {
+  res.setHeader("Content-Type", "application/json");
+  return res.status(200).send(swaggerSpec);
+});
+
+app.use(
+  "/api/docs",
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec, {
+    customSiteTitle: "MantaKopi COZIS API Documentation",
+    customCss: ".swagger-ui .topbar { display: none }",
+    swaggerOptions: {
+      persistAuthorization: true,
+      displayRequestDuration: true,
+      docExpansion: "none",
+      filter: true,
+      tryItOutEnabled: true,
+    },
+  })
+);
+
 // 5. Register Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
@@ -149,6 +174,7 @@ app.use("/api/lbs", lbsRoutes);
 app.use("/api/zones", zoneRoutes);
 app.use("/api/candidate-selling-locations", candidateSellingLocationRoutes);
 app.use("/api/system-settings", systemSettingRoutes);
+app.use("/api/system", systemRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/sales", salesRoutes);
 app.use("/api/dashboard", dashboardRoutes);

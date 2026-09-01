@@ -255,8 +255,8 @@
             >
               {#if authStore.user?.role === 'SUPERADMIN'}
                 <option value="SUPERADMIN">SUPERADMIN (Hak Akses Penuh Sistem)</option>
+                <option value="MANAGEMENT">MANAGEMENT (Pengelola Akun & Armada Bisnis)</option>
               {/if}
-              <option value="MANAGEMENT">MANAGEMENT (Pengelola Akun & Armada Bisnis)</option>
               <option value="SUPERVISOR">SUPERVISOR (Komando Operasional & DSS)</option>
               <option value="RIDER">RIDER (Pelaksana Operasional Lapangan)</option>
             </select>

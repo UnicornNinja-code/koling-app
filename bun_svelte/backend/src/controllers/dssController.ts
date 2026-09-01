@@ -156,6 +156,45 @@ export const getDssSnapshotById = async (req: Request, res: Response): Promise<a
   }
 };
 
+export const previewBwmImpact = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { weights, time_slot } = req.body;
+    const slot = time_slot || "pagi";
+
+    const result = await topsisEngineService.calculateTopsisRecommendations({
+      timeSlot: slot,
+      customWeights: weights || null,
+    });
+
+    return res.status(200).json({
+      status: "success",
+      time_slot: slot,
+      rankings: result.rankings?.slice(0, 5) || [],
+      total_zones: result.total_evaluated_zones || result.rankings?.length || 0,
+    });
+  } catch (error: any) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Internal server error" });
+  }
+};
+
+export const activateBwmConfig = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const id = req.params.id as string;
+    const activated = await bwmRepository.activateConfig(id);
+    if (!activated) {
+      return res.status(404).json({ msg: "Konfigurasi BWM tidak ditemukan." });
+    }
+    return res.status(200).json({
+      msg: "Konfigurasi bobot BWM berhasil diaktifkan.",
+      config: activated,
+    });
+  } catch (error: any) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Internal server error" });
+  }
+};
+
 export const getTopsisRecommendations = async (req: Request, res: Response): Promise<any> => {
   try {
     const { time, lat, lon } = req.query as { time?: string; lat?: string; lon?: string };

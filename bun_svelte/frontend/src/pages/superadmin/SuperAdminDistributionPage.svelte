@@ -6,9 +6,12 @@
     type DutyQueueItem, 
     type AssignmentItem,
     type ZoneDistributionItem,
-    type ArmadaAvailableItem
+    type ArmadaAvailableItem,
+    type DistributionPreviewResponse
   } from '../../services/distributionService';
   import { userService, type UserAccountItem } from '../../services/userService';
+  import DistributionPreviewModal from '../../components/distribution/DistributionPreviewModal.svelte';
+  import DistributionRunsModal from '../../components/distribution/DistributionRunsModal.svelte';
   import { 
     Users, 
     MapPin, 
@@ -22,7 +25,12 @@
     AlertTriangle, 
     ShieldCheck,
     Radio,
-    Compass
+    Compass,
+    History,
+    Calendar,
+    Eye,
+    UserX,
+    Check
   } from 'lucide-svelte';
 
   interface Props {
@@ -32,13 +40,20 @@
   let { onNavigate }: Props = $props();
 
   let loading = $state(true);
-  let autoDistributing = $state(false);
+  let previewLoading = $state(false);
+  let committing = $state(false);
+
   let data = $state<DistributionOverview | null>(null);
   let ridersList = $state<UserAccountItem[]>([]);
   let errorMsg = $state<string | null>(null);
   let successMsg = $state<string | null>(null);
 
-  // Manual Assign Modal State
+  // Modals state
+  let previewModalOpen = $state(false);
+  let previewData = $state<DistributionPreviewResponse | null>(null);
+
+  let runsModalOpen = $state(false);
+
   let manualModalOpen = $state(false);
   let selectedRiderId = $state('');
   let selectedZoneId = $state('');
@@ -65,18 +80,40 @@
     }
   };
 
-  const handleAutoDistribute = async () => {
-    autoDistributing = true;
+  const handleOpenPreview = async () => {
+    previewLoading = true;
+    errorMsg = null;
+    try {
+      const res = await distributionService.getPreview();
+      previewData = res;
+      previewModalOpen = true;
+    } catch (err: any) {
+      errorMsg = err?.response?.data?.msg || err?.message || 'Gagal membuat simulasi preview alokasi.';
+    } finally {
+      previewLoading = false;
+    }
+  };
+
+  const handleConfirmDistribution = async () => {
+    if (!previewData || previewData.proposed_allocations.length === 0) return;
+
+    committing = true;
     errorMsg = null;
     successMsg = null;
     try {
-      const res = await distributionService.autoDistribute();
-      successMsg = res.msg || 'Distribusi otomatis berhasil dieksekusi!';
+      const res = await distributionService.confirmDistribution({
+        execution_type: 'AUTO',
+        allocations: previewData.proposed_allocations,
+        unassigned_riders: previewData.unassigned_riders,
+      });
+
+      successMsg = res.message || res.msg || 'Distribusi otomatis berhasil dieksekusi dan disimpan ke database.';
+      previewModalOpen = false;
       await loadData();
     } catch (err: any) {
-      errorMsg = err.response?.data?.msg || err.message || 'Gagal menjalankan distribusi otomatis.';
+      errorMsg = err?.response?.data?.msg || err?.message || 'Gagal mengonfirmasi eksekusi distribusi.';
     } finally {
-      autoDistributing = false;
+      committing = false;
     }
   };
 
@@ -96,16 +133,27 @@
         zone_id: selectedZoneId,
         armada_id: selectedArmadaId || undefined,
       });
-      successMsg = res.msg || 'Penugasan manual berhasil disimpan.';
+      successMsg = res.message || res.msg || 'Penugasan manual berhasil disimpan.';
       manualModalOpen = false;
       selectedRiderId = '';
       selectedZoneId = '';
       selectedArmadaId = '';
       await loadData();
     } catch (err: any) {
-      errorMsg = err.response?.data?.msg || err.message || 'Gagal menyimpan penugasan manual.';
+      errorMsg = err?.response?.data?.msg || err?.message || 'Gagal menyimpan penugasan manual.';
     } finally {
       assigning = false;
+    }
+  };
+
+  const handleMarkNoShow = async (riderId: string) => {
+    if (!confirm('Tandai rider ini sebagai NO_SHOW (Tidak Hadir)?')) return;
+    try {
+      await distributionService.updateRiderDutyStatus(riderId, 'NO_SHOW', 'Ditandai tidak hadir oleh supervisor.');
+      successMsg = 'Status rider diperbarui menjadi NO_SHOW.';
+      await loadData();
+    } catch (err: any) {
+      errorMsg = err?.response?.data?.msg || 'Gagal memperbarui status rider.';
     }
   };
 
@@ -115,7 +163,7 @@
 </script>
 
 <div class="space-y-6 max-w-7xl mx-auto pb-12 font-outfit-400">
-  <!-- PAGE HEADER & ACTION BUTTONS -->
+  <!-- PAGE HEADER & OPERATIONAL SESSION BADGE -->
   <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#24242A]">
     <div>
       <div class="flex items-center gap-2.5">
@@ -123,11 +171,20 @@
           <Compass class="w-5 h-5" />
         </div>
         <div>
-          <h1 class="text-xl sm:text-2xl font-outfit-600 text-white leading-tight">
-            Pusat Distribusi & Plotting Gerobak
-          </h1>
+          <div class="flex flex-wrap items-center gap-2">
+            <h1 class="text-xl sm:text-2xl font-outfit-600 text-white leading-tight">
+              Pusat Distribusi, Sesi & Plotting
+            </h1>
+            {#if data?.session}
+              <span class="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-emerald-950/60 text-emerald-400 border border-emerald-800/40 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>{data.session.session_code}</span>
+                <span class="text-[10px] text-zinc-400">({data.session.start_time.slice(0, 5)} - {data.session.end_time.slice(0, 5)})</span>
+              </span>
+            {/if}
+          </div>
           <p class="text-xs sm:text-sm text-[#A1A1AA] mt-0.5">
-            Manajemen Antrean Tugas Rider (FIFO), Plotting Otomatis TOPSIS & Penugasan Spasial
+            Orkestrasi Sesi Operasional, Antrean FIFO Rider, Rekomendasi TOPSIS & Commit Distribusi
           </p>
         </div>
       </div>
@@ -145,7 +202,15 @@
       </button>
 
       <button
-        onclick={() => manualModalOpen = true}
+        onclick={() => (runsModalOpen = true)}
+        class="px-3.5 py-2.5 rounded-2xl bg-[#1A1A20] hover:bg-[#24242E] text-purple-300 border border-purple-800/40 text-xs font-outfit-600 flex items-center gap-2 transition-all cursor-pointer shadow-md"
+      >
+        <History class="w-4 h-4 text-purple-400" />
+        <span>Log Audit Runs</span>
+      </button>
+
+      <button
+        onclick={() => (manualModalOpen = true)}
         class="px-3.5 py-2.5 rounded-2xl bg-[#1A1A20] hover:bg-[#262630] text-white border border-[#333340] text-xs font-outfit-600 flex items-center gap-2 transition-all cursor-pointer shadow-md"
       >
         <Plus class="w-4 h-4 text-[#FF634A]" />
@@ -153,12 +218,12 @@
       </button>
 
       <button
-        onclick={handleAutoDistribute}
-        disabled={autoDistributing || (data?.summary?.total_waiting ?? 0) === 0}
+        onclick={handleOpenPreview}
+        disabled={previewLoading || (data?.summary?.total_waiting ?? 0) === 0}
         class="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-[#FF634A] to-[#FF8573] hover:opacity-95 text-[#09090B] text-xs font-outfit-600 font-extrabold flex items-center gap-2 transition-all cursor-pointer shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
       >
-        <Sparkles class="w-4 h-4 {autoDistributing ? 'animate-spin' : ''}" />
-        <span>{autoDistributing ? 'Memproses TOPSIS...' : 'Eksekusi Auto Plotting TOPSIS'}</span>
+        <Eye class="w-4 h-4 {previewLoading ? 'animate-spin' : ''}" />
+        <span>{previewLoading ? 'Menyiapkan Preview...' : 'Review & Simulasi Auto Plotting'}</span>
       </button>
     </div>
   </div>
@@ -189,7 +254,7 @@
       <div class="text-2xl font-outfit-600 text-amber-400 font-mono">
         {data?.summary?.total_waiting ?? 0} <span class="text-xs text-[#71717A]">Rider</span>
       </div>
-      <p class="text-[11px] text-[#A1A1AA] leading-none">Menunggu plotting penugasan</p>
+      <p class="text-[11px] text-[#A1A1AA] leading-none">Menunggu konfirmasi plotting</p>
     </div>
 
     <!-- 2. Rider Ditugaskan Hari Ini -->
@@ -201,7 +266,7 @@
       <div class="text-2xl font-outfit-600 text-emerald-400 font-mono">
         {data?.summary?.total_assigned ?? 0} <span class="text-xs text-[#71717A]">Bertugas</span>
       </div>
-      <p class="text-[11px] text-[#A1A1AA] leading-none">Terkonfirmasi aktif di zona</p>
+      <p class="text-[11px] text-[#A1A1AA] leading-none">Terkonfirmasi aktif pada sesi ini</p>
     </div>
 
     <!-- 3. Kuota Kapasitas Terisi -->
@@ -213,13 +278,13 @@
       <div class="text-2xl font-outfit-600 text-white font-mono">
         {data?.summary?.total_assigned ?? 0} / {data?.summary?.total_capacity ?? 0}
       </div>
-      <p class="text-[11px] text-[#A1A1AA] leading-none">Slot gerobak terisi di semua zona</p>
+      <p class="text-[11px] text-[#A1A1AA] leading-none">Sisa kuota: {data?.summary?.total_remaining_capacity ?? 0} slot</p>
     </div>
 
     <!-- 4. Armada Siap Pakai di Hub -->
     <div class="p-4 rounded-3xl bg-[#131316] border border-[#24242A] space-y-2 shadow-lg">
       <div class="flex items-center justify-between text-xs text-[#71717A] uppercase font-outfit-600">
-        <span>Armada Siap Pakai</span>
+        <span>Armada Standby</span>
         <Bike class="w-4 h-4 text-blue-400" />
       </div>
       <div class="text-2xl font-outfit-600 text-blue-400 font-mono">
@@ -238,7 +303,7 @@
           <div class="flex items-center gap-2">
             <Radio class="w-4 h-4 text-emerald-400 animate-pulse" />
             <h3 class="text-sm font-outfit-600 text-white">
-              Daftar Penugasan Aktif Hari Ini ({data?.duty_date || 'Live'})
+              Daftar Penugasan Aktif Sesi Ini ({data?.session?.session_code || 'Live'})
             </h3>
           </div>
           <span class="px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-emerald-950/50 text-emerald-400 border border-emerald-800/40">
@@ -253,8 +318,8 @@
         {:else if !data?.assignments || data.assignments.length === 0}
           <div class="py-16 text-center text-xs text-[#71717A] space-y-2">
             <i class="ri-user-unfollow-line text-3xl text-zinc-600"></i>
-            <p>Belum ada penugasan aktif hari ini.</p>
-            <p class="text-[11px] text-zinc-500">Klik "Eksekusi Auto Plotting TOPSIS" atau lakukan penugasan manual.</p>
+            <p>Belum ada penugasan aktif pada sesi operasional ini.</p>
+            <p class="text-[11px] text-zinc-500">Klik "Review & Simulasi Auto Plotting" untuk memulai penugasan batch.</p>
           </div>
         {:else}
           <div class="overflow-x-auto">
@@ -342,9 +407,20 @@
                     </span>
                   </div>
                 </div>
-                <span class="px-2 py-0.5 rounded-full text-[9px] font-mono bg-amber-950/50 text-amber-400 border border-amber-800/40">
-                  WAITING
-                </span>
+
+                <div class="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onclick={() => handleMarkNoShow(q.rider_id)}
+                    class="p-1 rounded-lg text-rose-400 hover:bg-rose-950/40 transition-colors cursor-pointer"
+                    title="Tandai Tidak Hadir (NO_SHOW)"
+                  >
+                    <UserX class="w-3.5 h-3.5" />
+                  </button>
+                  <span class="px-2 py-0.5 rounded-full text-[9px] font-mono bg-amber-950/50 text-amber-400 border border-amber-800/40">
+                    WAITING
+                  </span>
+                </div>
               </div>
             {/each}
           </div>
@@ -356,7 +432,7 @@
         <div class="flex items-center justify-between pb-2.5 border-b border-[#24242A]">
           <div class="flex items-center gap-2">
             <Sparkles class="w-4 h-4 text-[#FF634A]" />
-            <h4 class="text-xs font-outfit-600 text-white">Prioritas Zona TOPSIS</h4>
+            <h4 class="text-xs font-outfit-600 text-white">Prioritas Rekomendasi TOPSIS</h4>
           </div>
           <span class="text-[10px] text-[#FF634A] font-outfit-600 uppercase font-mono">
             Slot {data?.time_slot || 'PAGI'}
@@ -376,10 +452,10 @@
                     <span class="w-4 h-4 rounded-full bg-[#FF634A]/20 text-[#FF634A] text-[10px] font-bold flex items-center justify-center shrink-0">
                       {idx + 1}
                     </span>
-                    <strong class="text-white truncate">{z.name}</strong>
+                    <strong class="text-white truncate">{z.zone_name}</strong>
                   </div>
                   <span class="text-[10px] font-mono text-[#71717A]">
-                    Skor: {(z.topsis_score || 0.85).toFixed(3)}
+                    Skor: {(z.topsis_score || z.score || 0.85).toFixed(3)}
                   </span>
                 </div>
 
@@ -398,6 +474,21 @@
   </div>
 </div>
 
+<!-- PREVIEW & SIMULATION MODAL -->
+<DistributionPreviewModal
+  open={previewModalOpen}
+  onClose={() => (previewModalOpen = false)}
+  previewData={previewData}
+  onConfirm={handleConfirmDistribution}
+  confirming={committing}
+/>
+
+<!-- RUNS AUDIT LOG MODAL -->
+<DistributionRunsModal
+  open={runsModalOpen}
+  onClose={() => (runsModalOpen = false)}
+/>
+
 <!-- MANUAL ASSIGNMENT MODAL -->
 {#if manualModalOpen}
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm font-outfit-400">
@@ -407,7 +498,7 @@
           <Plus class="w-5 h-5 text-[#FF634A]" />
           <h3 class="text-base font-outfit-600 text-white">Penugasan Manual Rider</h3>
         </div>
-        <button onclick={() => manualModalOpen = false} aria-label="Tutup modal" class="text-[#71717A] hover:text-white cursor-pointer">
+        <button onclick={() => (manualModalOpen = false)} aria-label="Tutup modal" class="text-[#71717A] hover:text-white cursor-pointer">
           <i class="ri-close-line text-xl"></i>
         </button>
       </div>
@@ -441,7 +532,7 @@
             <option value="">-- Pilih Zona Tujuan --</option>
             {#each data?.zones || [] as z}
               <option value={z.zone_id || z.id} disabled={z.is_full}>
-                {z.name} (Sisa Kuota: {z.remaining_capacity}) {z.is_full ? '[PENUH]' : ''}
+                {z.zone_name} (Sisa Kuota: {z.remaining_capacity}) {z.is_full ? '[PENUH]' : ''}
               </option>
             {/each}
           </select>
@@ -465,7 +556,7 @@
         <div class="pt-3 border-t border-[#24242A] flex items-center justify-end gap-2">
           <button
             type="button"
-            onclick={() => manualModalOpen = false}
+            onclick={() => (manualModalOpen = false)}
             class="px-4 py-2 rounded-xl bg-[#202027] hover:bg-[#282832] text-zinc-300 text-xs font-outfit-600 cursor-pointer"
           >
             Batal

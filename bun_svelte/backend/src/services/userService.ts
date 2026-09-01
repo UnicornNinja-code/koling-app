@@ -11,6 +11,7 @@ import { sendMail } from "../config/mailer.js";
 import { env } from "../config/env.js";
 import crypto from "crypto";
 import { UserRole } from "../types/user.types.js";
+import { auditService } from "./auditService.js";
 
 /**
  * Get current user profile by user ID
@@ -18,7 +19,7 @@ import { UserRole } from "../types/user.types.js";
 export const getProfileService = async (userId: number | string): Promise<any> => {
   const user = await UserModel.findById(userId);
   if (!user) {
-    const error: any = new Error("User not found");
+    const error: any = new Error("User tidak ditemukan");
     error.statusCode = 404;
     throw error;
   }
@@ -39,7 +40,7 @@ export const getAllUsersService = async (): Promise<{ users: any[]; count: numbe
 export const getUserByIdService = async (id: number | string): Promise<any> => {
   const user = await UserModel.findById(id);
   if (!user) {
-    const error: any = new Error("User not found");
+    const error: any = new Error("User tidak ditemukan");
     error.statusCode = 404;
     throw error;
   }
@@ -48,6 +49,7 @@ export const getUserByIdService = async (id: number | string): Promise<any> => {
 
 /**
  * Create a new user account with RBAC Hierarchy check and send email invitation
+ * Default status is PENDING ACTIVATION (is_active = false)
  */
 export const createUserService = async (
   { username, name, email, password, role }: { username?: string; name: string; email: string; password?: string; role: string },
@@ -66,11 +68,12 @@ export const createUserService = async (
     throw error;
   }
 
+  // RBAC Enforcement on User Creation
   if (currentUser.role === "SUPERADMIN") {
-    // Superadmin can create any role
+    // Superadmin can provision any role
   } else if (currentUser.role === "MANAGEMENT") {
-    if (role === "SUPERADMIN") {
-      const error: any = new Error("Akses Ditolak: Manajemen tidak memiliki hak membuat akun Super Admin.");
+    if (role === "SUPERADMIN" || role === "MANAGEMENT") {
+      const error: any = new Error("Akses Ditolak: Manajemen hanya memiliki hak membuat akun Supervisor dan Rider.");
       error.statusCode = 403;
       throw error;
     }
@@ -93,7 +96,8 @@ export const createUserService = async (
     finalUsername = `${finalUsername}_${Math.floor(100 + Math.random() * 900)}`;
   }
 
-  const initialPassword = password || crypto.randomBytes(8).toString("hex") + "A1!";
+  // Temporary password placeholder before user sets their own password during activation
+  const initialPassword = password || crypto.randomBytes(16).toString("hex") + "A1!";
   const hashedPassword = await hashPassword(initialPassword);
 
   const newUser = await UserModel.create({
@@ -102,6 +106,7 @@ export const createUserService = async (
     email: email.trim().toLowerCase(),
     role: role as UserRole,
     password: hashedPassword,
+    isActive: false, // Default: Pending Activation
   });
 
   // 1. Generate secure 48-hour invitation token
@@ -119,7 +124,7 @@ export const createUserService = async (
   const activationUrl = `${env.FRONTEND_URL}/register?token=${invitationToken}&email=${encodeURIComponent(email)}`;
 
   // 2. Send Invitation Email via Nodemailer
-  const roleLabel = role === "RIDER" ? "Rider Armada Kopi Keliling" : role === "SUPERVISOR" ? "Supervisor Operasional" : role;
+  const roleLabel = role === "RIDER" ? "Rider Armada Kopi Keliling" : role === "SUPERVISOR" ? "Supervisor Operasional" : role === "MANAGEMENT" ? "Manajemen Operasional" : role;
   const html = `
     <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; background: #131316; color: #f4f4f5; border-radius: 16px; border: 1px solid #272730;">
       <div style="text-align: center; margin-bottom: 20px;">
@@ -132,7 +137,7 @@ export const createUserService = async (
           Akun Anda telah didaftarkan oleh Manajemen sebagai <strong>${roleLabel}</strong>.
         </p>
         <p style="color: #d4d4d8; font-size: 14px; line-height: 1.6;">
-          Silakan lakukan verifikasi email dan aktivasi akun Anda untuk mulai bertugas:
+          Silakan lakukan aktivasi akun dan tetapkan kata sandi Anda untuk mulai bertugas:
         </p>
         <div style="text-align: center; margin: 24px 0;">
           <a href="${activationUrl}" 
@@ -141,11 +146,11 @@ export const createUserService = async (
           </a>
         </div>
         <p style="color: #a1a1aa; font-size: 12px; line-height: 1.5; border-top: 1px solid #272730; padding-top: 12px;">
-          💡 <strong>Petunjuk Aktivasi:</strong> Klik tombol di atas untuk memverifikasi tanggal lahir dan membuat kata sandi baru akun Anda.
+          💡 <strong>Petunjuk Aktivasi:</strong> Klik tombol di atas untuk membuat kata sandi baru akun Anda. Tautan berlaku selama 48 jam.
         </p>
       </div>
       <p style="color: #71717a; font-size: 11px; text-align: center; margin-top: 20px;">
-        © 2026 MantaKopi COZIS. Tautan berlaku selama 48 jam.
+        © 2026 MantaKopi COZIS.
       </p>
     </div>
   `;
@@ -166,6 +171,16 @@ export const createUserService = async (
     console.warn(`⚠️ Gagal mengirim email ke ${email}:`, err.message);
   }
 
+  // Record audit log
+  await auditService.logAction({
+    userId: currentUser.id,
+    userRole: currentUser.role,
+    action: "USER_CREATED",
+    entityType: "USER",
+    entityId: String(newUser.id),
+    details: { name: newUser.name, email: newUser.email, role: newUser.role, username: newUser.username },
+  });
+
   return {
     ...newUser,
     invitation_token: invitationToken,
@@ -175,7 +190,91 @@ export const createUserService = async (
 };
 
 /**
- * Update user profile / role with IDOR protection & RBAC checks
+ * Resend account activation invitation email & token
+ */
+export const resendInvitationService = async (userId: number | string, currentUser: any): Promise<any> => {
+  const targetUser = await UserModel.findById(userId);
+  if (!targetUser) {
+    const error: any = new Error("User tidak ditemukan");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (currentUser.role === "MANAGEMENT" && (targetUser.role === "SUPERADMIN" || targetUser.role === "MANAGEMENT")) {
+    const error: any = new Error("Akses Ditolak: Manajemen tidak memiliki hak mengelola akun Super Admin atau Manajemen lain.");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const invitationToken = crypto.randomBytes(32).toString("hex");
+  const resetId = crypto.randomUUID();
+  const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 jam
+
+  await PasswordResetTokenModel.create({
+    id: resetId,
+    token: invitationToken,
+    userId: targetUser.id,
+    expiresAt,
+  });
+
+  const activationUrl = `${env.FRONTEND_URL}/register?token=${invitationToken}&email=${encodeURIComponent(targetUser.email)}`;
+  const roleLabel = targetUser.role === "RIDER" ? "Rider Armada Kopi Keliling" : targetUser.role === "SUPERVISOR" ? "Supervisor Operasional" : targetUser.role === "MANAGEMENT" ? "Manajemen Operasional" : targetUser.role;
+
+  const html = `
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; background: #131316; color: #f4f4f5; border-radius: 16px; border: 1px solid #272730;">
+      <div style="text-align: center; margin-bottom: 20px;">
+        <h1 style="color: #FF634A; margin: 0; font-size: 24px;">☕ MantaKopi COZIS</h1>
+        <p style="color: #a1a1aa; font-size: 13px; margin-top: 4px;">Coffee Zone Intelligence & Spatial Decision Support System</p>
+      </div>
+      <div style="background: #18181D; padding: 20px; border-radius: 12px; border: 1px solid #272730;">
+        <h2 style="color: #fff; font-size: 18px; margin-top: 0;">Halo, ${targetUser.name}! 👋</h2>
+        <p style="color: #d4d4d8; font-size: 14px; line-height: 1.6;">
+          Berikut adalah tautan baru untuk aktivasi akun Anda sebagai <strong>${roleLabel}</strong>:
+        </p>
+        <div style="text-align: center; margin: 24px 0;">
+          <a href="${activationUrl}" 
+             style="display: inline-block; padding: 12px 32px; background: #FF634A; color: #09090B; text-decoration: none; border-radius: 12px; font-weight: bold; font-size: 14px; box-shadow: 0 4px 14px rgba(255, 99, 74, 0.4);">
+            Aktivasi Akun Sekarang
+          </a>
+        </div>
+        <p style="color: #a1a1aa; font-size: 12px; line-height: 1.5; border-top: 1px solid #272730; padding-top: 12px;">
+          💡 Tautan berlaku selama 48 jam.
+        </p>
+      </div>
+    </div>
+  `;
+
+  let mailResult: any = { sent: false };
+  try {
+    mailResult = await sendMail({
+      to: targetUser.email,
+      subject: `🚀 Tautan Aktivasi Akun ${roleLabel} — MantaKopi COZIS`,
+      html,
+      text: `Halo ${targetUser.name}, Buka link berikut untuk aktivasi akun: ${activationUrl}`,
+    });
+  } catch (err: any) {
+    console.warn(`⚠️ Gagal mengirim email ke ${targetUser.email}:`, err.message);
+  }
+
+  await auditService.logAction({
+    userId: currentUser.id,
+    userRole: currentUser.role,
+    action: "USER_INVITATION_RESENT",
+    entityType: "USER",
+    entityId: String(targetUser.id),
+    details: { email: targetUser.email },
+  });
+
+  return {
+    message: `Tautan aktivasi berhasil dibuat dan dikirim ke ${targetUser.email}`,
+    invitation_token: invitationToken,
+    invitation_link: activationUrl,
+    email_preview_url: mailResult?.previewUrl || null,
+  };
+};
+
+/**
+ * Update user profile / role with RBAC & Invariant checks
  */
 export const updateUserService = async (
   id: number | string,
@@ -184,7 +283,7 @@ export const updateUserService = async (
 ): Promise<any> => {
   const targetUser = await UserModel.findById(id);
   if (!targetUser) {
-    const error: any = new Error("User not found");
+    const error: any = new Error("User tidak ditemukan");
     error.statusCode = 404;
     throw error;
   }
@@ -193,7 +292,7 @@ export const updateUserService = async (
 
   if (isSelf) {
     if (role && role !== targetUser.role && currentUser.role !== "SUPERADMIN") {
-      const error: any = new Error("Only SUPERADMIN can change user role");
+      const error: any = new Error("Akses Ditolak: Anda tidak dapat mengubah peran akun Anda sendiri.");
       error.statusCode = 403;
       throw error;
     }
@@ -201,19 +300,29 @@ export const updateUserService = async (
     if (currentUser.role === "SUPERADMIN") {
       // Allowed
     } else if (currentUser.role === "MANAGEMENT") {
-      if (targetUser.role === "SUPERADMIN") {
-        const error: any = new Error("Access forbidden: cannot modify SUPERADMIN accounts");
+      if (targetUser.role === "SUPERADMIN" || targetUser.role === "MANAGEMENT") {
+        const error: any = new Error("Akses Ditolak: Manajemen tidak memiliki otoritas mengubah akun Super Admin atau Manajemen lain.");
         error.statusCode = 403;
         throw error;
       }
-      if (role === "SUPERADMIN") {
-        const error: any = new Error("Access forbidden: cannot assign SUPERADMIN role");
+      if (role === "SUPERADMIN" || role === "MANAGEMENT") {
+        const error: any = new Error("Akses Ditolak: Manajemen tidak dapat memberikan peran Super Admin atau Manajemen.");
         error.statusCode = 403;
         throw error;
       }
     } else {
-      const error: any = new Error("Access forbidden: you can only update your own profile");
+      const error: any = new Error("Akses Ditolak: Anda hanya memiliki hak memperbarui profil pribadi Anda.");
       error.statusCode = 403;
+      throw error;
+    }
+  }
+
+  // Protection against demoting the last active Superadmin
+  if (role && role !== "SUPERADMIN" && targetUser.role === "SUPERADMIN") {
+    const activeSuperadminCount = await UserModel.countActiveSuperadmins();
+    if (activeSuperadminCount <= 1) {
+      const error: any = new Error("Tindakan Ditolak: Tidak dapat mengubah peran Super Admin terakhir dalam sistem demi integritas operasional.");
+      error.statusCode = 400;
       throw error;
     }
   }
@@ -221,35 +330,47 @@ export const updateUserService = async (
   if (email && email.toLowerCase() !== targetUser.email.toLowerCase()) {
     const existingEmail = await UserModel.findByEmailOrUsername(email);
     if (existingEmail && String(existingEmail.id) !== String(id)) {
-      const error: any = new Error("Email is already registered");
+      const error: any = new Error("Alamat email sudah terdaftar pada akun lain.");
       error.statusCode = 400;
       throw error;
     }
   }
 
   const updatedUser = await UserModel.update(id, { name, email, role: (role as UserRole) || undefined });
+
+  // Record audit log
+  await auditService.logAction({
+    userId: currentUser.id,
+    userRole: currentUser.role,
+    action: role && role !== targetUser.role ? "USER_ROLE_CHANGED" : "USER_UPDATED",
+    entityType: "USER",
+    entityId: String(id),
+    oldValues: { name: targetUser.name, email: targetUser.email, role: targetUser.role },
+    newValues: { name: updatedUser?.name, email: updatedUser?.email, role: updatedUser?.role },
+  });
+
   return updatedUser;
 };
 
 /**
- * Activate or Deactivate user account with RBAC Hierarchy check
+ * Activate or Deactivate user account with RBAC & Invariant checks
  */
 export const setUserStatusService = async (id: number | string, isActive: boolean, currentUser: any): Promise<any> => {
   if (typeof isActive !== "boolean") {
-    const error: any = new Error("Parameter 'is_active' boolean value is required");
+    const error: any = new Error("Parameter 'is_active' boolean diperlukan.");
     error.statusCode = 400;
     throw error;
   }
 
   if (String(id) === String(currentUser.id)) {
-    const error: any = new Error("Cannot activate or deactivate your own account");
+    const error: any = new Error("Tindakan Ditolak: Tidak dapat mengaktifkan atau menonaktifkan akun sendiri.");
     error.statusCode = 400;
     throw error;
   }
 
   const targetUser = await UserModel.findById(id);
   if (!targetUser) {
-    const error: any = new Error("User not found");
+    const error: any = new Error("User tidak ditemukan");
     error.statusCode = 404;
     throw error;
   }
@@ -257,15 +378,25 @@ export const setUserStatusService = async (id: number | string, isActive: boolea
   if (currentUser.role === "SUPERADMIN") {
     // Allowed
   } else if (currentUser.role === "MANAGEMENT") {
-    if (targetUser.role === "SUPERADMIN") {
-      const error: any = new Error("Access forbidden: cannot modify SUPERADMIN accounts");
+    if (targetUser.role === "SUPERADMIN" || targetUser.role === "MANAGEMENT") {
+      const error: any = new Error("Akses Ditolak: Manajemen tidak memiliki otoritas mengubah status akun Super Admin atau Manajemen lain.");
       error.statusCode = 403;
       throw error;
     }
   } else {
-    const error: any = new Error("Access forbidden: insufficient permissions to manage user status");
+    const error: any = new Error("Akses Ditolak: Otoritas tidak mencukupi untuk mengelola status akun pengguna.");
     error.statusCode = 403;
     throw error;
+  }
+
+  // Protection against deactivating the last active Superadmin
+  if (!isActive && targetUser.role === "SUPERADMIN") {
+    const activeSuperadminCount = await UserModel.countActiveSuperadmins();
+    if (activeSuperadminCount <= 1) {
+      const error: any = new Error("Tindakan Ditolak: Tidak dapat menonaktifkan Super Admin terakhir dalam sistem demi integritas operasional.");
+      error.statusCode = 400;
+      throw error;
+    }
   }
 
   const updatedUser = await UserModel.updateStatus(id, isActive);
@@ -274,25 +405,34 @@ export const setUserStatusService = async (id: number | string, isActive: boolea
     await RefreshTokenModel.revokeAllForUser(id);
   }
 
+  await auditService.logAction({
+    userId: currentUser.id,
+    userRole: currentUser.role,
+    action: "USER_STATUS_CHANGED",
+    entityType: "USER",
+    entityId: String(id),
+    details: { is_active: isActive, target_username: targetUser.username, target_email: targetUser.email },
+  });
+
   return {
     user: updatedUser,
-    message: `User account successfully ${isActive ? "activated" : "deactivated"}`,
+    message: `Akun pengguna berhasil ${isActive ? "diaktifkan" : "dinonaktifkan"}.`,
   };
 };
 
 /**
- * Delete user by ID with RBAC Hierarchy check
+ * Delete user by ID with RBAC & Invariant checks
  */
 export const deleteUserService = async (id: number | string, currentUser: any): Promise<any> => {
   if (String(id) === String(currentUser.id)) {
-    const error: any = new Error("Cannot delete your own account");
+    const error: any = new Error("Tindakan Ditolak: Tidak dapat menghapus akun Anda sendiri.");
     error.statusCode = 400;
     throw error;
   }
 
   const targetUser = await UserModel.findById(id);
   if (!targetUser) {
-    const error: any = new Error("User not found");
+    const error: any = new Error("User tidak ditemukan");
     error.statusCode = 404;
     throw error;
   }
@@ -300,21 +440,41 @@ export const deleteUserService = async (id: number | string, currentUser: any): 
   if (currentUser.role === "SUPERADMIN") {
     // Allowed
   } else if (currentUser.role === "MANAGEMENT") {
-    if (targetUser.role === "SUPERADMIN") {
-      const error: any = new Error("Access forbidden: cannot delete SUPERADMIN accounts");
+    if (targetUser.role === "SUPERADMIN" || targetUser.role === "MANAGEMENT") {
+      const error: any = new Error("Akses Ditolak: Manajemen tidak memiliki otoritas menghapus akun Super Admin atau Manajemen lain.");
       error.statusCode = 403;
       throw error;
     }
   } else {
-    const error: any = new Error("Access forbidden: insufficient permissions to delete user accounts");
+    const error: any = new Error("Akses Ditolak: Otoritas tidak mencukupi untuk menghapus akun pengguna.");
     error.statusCode = 403;
     throw error;
+  }
+
+  // Protection against deleting the last active Superadmin
+  if (targetUser.role === "SUPERADMIN") {
+    const activeSuperadminCount = await UserModel.countActiveSuperadmins();
+    if (activeSuperadminCount <= 1) {
+      const error: any = new Error("Tindakan Ditolak: Tidak dapat menghapus Super Admin terakhir dalam sistem demi integritas operasional.");
+      error.statusCode = 400;
+      throw error;
+    }
   }
 
   await RefreshTokenModel.revokeAllForUser(id);
 
   const deletedUser = await UserModel.delete(id);
-  return { message: "User deleted successfully", user: deletedUser };
+
+  await auditService.logAction({
+    userId: currentUser.id,
+    userRole: currentUser.role,
+    action: "USER_DELETED",
+    entityType: "USER",
+    entityId: String(id),
+    details: { name: targetUser.name, email: targetUser.email, role: targetUser.role },
+  });
+
+  return { message: "Akun pengguna berhasil dihapus.", user: deletedUser };
 };
 
 /**
@@ -348,6 +508,15 @@ export const changePasswordService = async (
   }
   const hashedPassword = await hashPassword(newPassword);
   const updatedUser = await UserModel.updatePassword(userId, hashedPassword);
+
+  await auditService.logAction({
+    userId,
+    userRole: user.role,
+    action: "USER_PASSWORD_CHANGED",
+    entityType: "USER",
+    entityId: String(userId),
+  });
+
   return updatedUser;
 };
 
@@ -375,13 +544,13 @@ export const adminResetPasswordService = async (
   if (currentUser.role === "SUPERADMIN") {
     // Allowed
   } else if (currentUser.role === "MANAGEMENT") {
-    if (targetUser.role === "SUPERADMIN") {
-      const error: any = new Error("Access forbidden: MANAGEMENT cannot reset SUPERADMIN password");
+    if (targetUser.role === "SUPERADMIN" || targetUser.role === "MANAGEMENT") {
+      const error: any = new Error("Akses Ditolak: Manajemen tidak memiliki otoritas mereset password akun Super Admin atau Manajemen lain.");
       error.statusCode = 403;
       throw error;
     }
   } else {
-    const error: any = new Error("Access forbidden: insufficient permissions to reset user password");
+    const error: any = new Error("Akses Ditolak: Otoritas tidak mencukupi untuk mereset password pengguna.");
     error.statusCode = 403;
     throw error;
   }
@@ -389,6 +558,15 @@ export const adminResetPasswordService = async (
   const hashedPassword = await hashPassword(newPassword);
   await UserModel.updatePassword(targetUserId, hashedPassword);
   await RefreshTokenModel.revokeAllForUser(targetUserId);
+
+  await auditService.logAction({
+    userId: currentUser.id,
+    userRole: currentUser.role,
+    action: "USER_PASSWORD_RESET_BY_ADMIN",
+    entityType: "USER",
+    entityId: String(targetUserId),
+    details: { target_username: targetUser.username, target_email: targetUser.email },
+  });
 
   return { message: `Password akun ${targetUser.username} berhasil direset.` };
 };

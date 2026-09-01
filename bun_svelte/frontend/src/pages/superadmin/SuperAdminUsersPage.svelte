@@ -20,7 +20,11 @@
     Mail, 
     Clock, 
     ShieldCheck, 
-    RotateCcw
+    RotateCcw,
+    Send,
+    Copy,
+    Check,
+    X
   } from 'lucide-svelte';
   import Alert from '../../components/ui/Alert.svelte';
 
@@ -45,6 +49,21 @@
   let resetModalOpen = $state(false);
   let selectedUser = $state<UserAccountItem | null>(null);
 
+  // Resend invitation modal state
+  let invitationModalOpen = $state(false);
+  let resentInvitationData = $state<{ name: string; email: string; link: string } | null>(null);
+  let invitationCopied = $state(false);
+  let resendingId = $state<number | string | null>(null);
+
+  const canManageUser = (targetUser: UserAccountItem): boolean => {
+    const currentRole = authStore.user?.role;
+    if (currentRole === 'SUPERADMIN') return true;
+    if (currentRole === 'MANAGEMENT') {
+      return targetUser.role === 'SUPERVISOR' || targetUser.role === 'RIDER';
+    }
+    return false;
+  };
+
   const loadUsers = async () => {
     loading = true;
     errorMsg = null;
@@ -58,10 +77,45 @@
     }
   };
 
+  const handleResendInvitation = async (u: UserAccountItem) => {
+    resendingId = u.id;
+    errorMsg = null;
+    try {
+      const res = await userService.resendInvitation(u.id);
+      resentInvitationData = {
+        name: u.name,
+        email: u.email,
+        link: res.invitation_link,
+      };
+      invitationModalOpen = true;
+      invitationCopied = false;
+    } catch (err: any) {
+      errorMsg = err?.response?.data?.msg || 'Gagal mengirim ulang undangan aktivasi.';
+    } finally {
+      resendingId = null;
+    }
+  };
+
+  const copyResentLink = async () => {
+    if (!resentInvitationData?.link) return;
+    try {
+      await navigator.clipboard.writeText(resentInvitationData.link);
+      invitationCopied = true;
+      setTimeout(() => (invitationCopied = false), 2500);
+    } catch {
+      // fallback
+    }
+  };
+
   const handleToggleStatus = async (u: UserAccountItem) => {
     if (String(u.id) === String(authStore.user?.id)) {
       errorMsg = 'Anda tidak dapat menonaktifkan akun Anda sendiri.';
       setTimeout(() => (errorMsg = null), 3000);
+      return;
+    }
+
+    if (!canManageUser(u)) {
+      errorMsg = 'Akses ditolak: Anda tidak memiliki wewenang mengubah status akun ini.';
       return;
     }
 
@@ -80,6 +134,11 @@
     if (String(u.id) === String(authStore.user?.id)) {
       errorMsg = 'Anda tidak dapat menghapus akun Anda sendiri.';
       setTimeout(() => (errorMsg = null), 3000);
+      return;
+    }
+
+    if (!canManageUser(u)) {
+      errorMsg = 'Akses ditolak: Anda tidak memiliki wewenang menghapus akun ini.';
       return;
     }
 
@@ -120,7 +179,7 @@
       const matchStatus =
         selectedStatus === 'ALL' ||
         (selectedStatus === 'AKTIF' && u.is_active) ||
-        (selectedStatus === 'NONAKTIF' && !u.is_active);
+        (selectedStatus === 'MENUNGGU' && !u.is_active);
       return matchSearch && matchRole && matchStatus;
     })
   );
@@ -330,14 +389,27 @@
                 </td>
 
                 <td class="py-3 px-3 text-center">
-                  <button
-                    type="button"
-                    onclick={() => handleToggleStatus(u)}
-                    class="px-2.5 py-0.5 rounded-full text-[10px] font-outfit-600 transition-all cursor-pointer border
-                    {u.is_active ? 'bg-emerald-950/40 text-emerald-400 border-emerald-800/40' : 'bg-zinc-800 text-zinc-400 border-zinc-700'}"
-                  >
-                    {u.is_active ? 'Aktif' : 'Nonaktif'}
-                  </button>
+                  {#if u.is_active}
+                    <button
+                      type="button"
+                      disabled={!canManageUser(u)}
+                      onclick={() => handleToggleStatus(u)}
+                      class="px-2.5 py-0.5 rounded-full text-[10px] font-outfit-600 transition-all cursor-pointer border bg-emerald-950/40 text-emerald-400 border-emerald-800/40 hover:bg-emerald-900/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={canManageUser(u) ? "Klik untuk menonaktifkan akun" : "Hak akses tidak mencukupi"}
+                    >
+                      Aktif
+                    </button>
+                  {:else}
+                    <button
+                      type="button"
+                      disabled={!canManageUser(u)}
+                      onclick={() => handleToggleStatus(u)}
+                      class="px-2.5 py-0.5 rounded-full text-[10px] font-outfit-600 transition-all cursor-pointer border bg-amber-950/40 text-amber-300 border-amber-800/40 hover:bg-amber-900/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={canManageUser(u) ? "Menunggu Aktivasi / Nonaktif. Klik untuk mengaktifkan." : "Hak akses tidak mencukupi"}
+                    >
+                      Menunggu Aktivasi
+                    </button>
+                  {/if}
                 </td>
 
                 <td class="py-3 px-4 font-mono text-[11px] text-[#71717A]">
@@ -347,33 +419,50 @@
                 <!-- Contextual Actions -->
                 <td class="py-3 px-4 text-center">
                   <div class="flex items-center justify-center gap-1.5">
-                    <button
-                      type="button"
-                      onclick={() => openEditModal(u)}
-                      class="p-1.5 rounded-lg text-zinc-300 hover:text-white hover:bg-[#24242C] transition-colors cursor-pointer"
-                      title="Edit Data User"
-                    >
-                      <Edit2 class="w-3.5 h-3.5" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onclick={() => openResetModal(u)}
-                      class="p-1.5 rounded-lg text-amber-400 hover:bg-amber-950/40 transition-colors cursor-pointer"
-                      title="Reset Password Akun"
-                    >
-                      <Key class="w-3.5 h-3.5" />
-                    </button>
-
-                    {#if String(u.id) !== String(authStore.user?.id)}
+                    <!-- Resend Invitation Link -->
+                    {#if canManageUser(u)}
                       <button
                         type="button"
-                        onclick={() => handleDeleteUser(u)}
-                        class="p-1.5 rounded-lg text-rose-400 hover:bg-rose-950/40 transition-colors cursor-pointer"
-                        title="Hapus Akun"
+                        disabled={resendingId === u.id}
+                        onclick={() => handleResendInvitation(u)}
+                        class="p-1.5 rounded-lg text-blue-400 hover:bg-blue-950/40 transition-colors cursor-pointer disabled:opacity-50"
+                        title="Kirim Ulang / Dapatkan Tautan Aktivasi"
                       >
-                        <Trash2 class="w-3.5 h-3.5" />
+                        <Send class="w-3.5 h-3.5 {resendingId === u.id ? 'animate-pulse' : ''}" />
                       </button>
+                    {/if}
+
+                    {#if canManageUser(u)}
+                      <button
+                        type="button"
+                        onclick={() => openEditModal(u)}
+                        class="p-1.5 rounded-lg text-zinc-300 hover:text-white hover:bg-[#24242C] transition-colors cursor-pointer"
+                        title="Edit Data User"
+                      >
+                        <Edit2 class="w-3.5 h-3.5" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onclick={() => openResetModal(u)}
+                        class="p-1.5 rounded-lg text-amber-400 hover:bg-amber-950/40 transition-colors cursor-pointer"
+                        title="Reset Password Akun"
+                      >
+                        <Key class="w-3.5 h-3.5" />
+                      </button>
+
+                      {#if String(u.id) !== String(authStore.user?.id)}
+                        <button
+                          type="button"
+                          onclick={() => handleDeleteUser(u)}
+                          class="p-1.5 rounded-lg text-rose-400 hover:bg-rose-950/40 transition-colors cursor-pointer"
+                          title="Hapus Akun"
+                        >
+                          <Trash2 class="w-3.5 h-3.5" />
+                        </button>
+                      {/if}
+                    {:else}
+                      <span class="text-[10px] text-zinc-600 font-mono italic">Akses Terkunci</span>
                     {/if}
                   </div>
                 </td>
@@ -385,6 +474,77 @@
     </div>
   </div>
 </div>
+
+<!-- RESEND INVITATION MODAL -->
+{#if invitationModalOpen && resentInvitationData}
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 font-outfit-400">
+    <button
+      type="button"
+      aria-label="Tutup modal undangan"
+      class="fixed inset-0 bg-black/75 backdrop-blur-xs border-0 p-0 m-0 cursor-default"
+      onclick={() => (invitationModalOpen = false)}
+    ></button>
+
+    <div class="relative w-full max-w-md bg-[#131316] border border-[#24242A] rounded-3xl p-6 shadow-2xl z-10 space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-[#24242A]">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-blue-950/40 border border-blue-800/40 text-blue-400 flex items-center justify-center font-bold">
+            <Send class="w-5 h-5" />
+          </div>
+          <div>
+            <h3 class="text-base font-outfit-600 text-white">Tautan Aktivasi Dikirim</h3>
+            <p class="text-xs text-[#A1A1AA]">{resentInvitationData.name} ({resentInvitationData.email})</p>
+          </div>
+        </div>
+
+        <button
+          onclick={() => (invitationModalOpen = false)}
+          class="p-2 rounded-xl text-[#71717A] hover:text-white hover:bg-[#1F1F24] transition-colors cursor-pointer"
+        >
+          <X class="w-5 h-5" />
+        </button>
+      </div>
+
+      <div class="p-3.5 bg-[#18181D] border border-[#2C2C36] rounded-2xl space-y-2">
+        <span class="text-[11px] text-zinc-400 font-semibold block">Tautan Aktivasi Akun (Berlaku 48 Jam):</span>
+        <div class="flex items-center gap-2">
+          <input
+            type="text"
+            readonly
+            value={resentInvitationData.link}
+            class="flex-1 px-2.5 py-1.5 bg-[#121215] border border-[#24242A] rounded-xl text-[11px] text-zinc-300 font-mono focus:outline-none select-all"
+          />
+          <button
+            type="button"
+            onclick={copyResentLink}
+            class="px-3 py-1.5 rounded-xl bg-[#24242A] hover:bg-[#32323A] text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+          >
+            {#if invitationCopied}
+              <Check class="w-3.5 h-3.5 text-emerald-400" />
+              <span class="text-emerald-400 text-[11px]">Tersalin!</span>
+            {:else}
+              <Copy class="w-3.5 h-3.5" />
+              <span class="text-[11px]">Salin</span>
+            {/if}
+          </button>
+        </div>
+        <p class="text-[10px] text-zinc-500">
+          💡 Tautan aktivasi baru telah dikirimkan ke email personel. Anda juga dapat menyalin tautan di atas secara langsung.
+        </p>
+      </div>
+
+      <div class="pt-2 border-t border-[#24242A]">
+        <button
+          type="button"
+          onclick={() => (invitationModalOpen = false)}
+          class="w-full py-2.5 rounded-xl bg-[#FF634A] hover:bg-[#FF8573] text-[#09090B] text-xs font-outfit-600 font-bold transition-all cursor-pointer shadow-md"
+        >
+          Tutup
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <!-- MODALS -->
 <UserFormModal

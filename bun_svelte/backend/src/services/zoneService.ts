@@ -283,7 +283,140 @@ export class ZoneService {
   }
 
   /**
-   * Create a new zone with PostGIS spatial validation
+   * Check if a polygon is within the operational coverage radius from Central Hub
+   */
+  public async checkOperationalCoverage(polygonGeoJsonStr: string): Promise<{
+    is_within_radius: boolean;
+    max_distance_km: number;
+    radius_limit_km: number;
+    hub_name: string;
+    area_km2: number;
+  }> {
+    const [hubLatSetting, hubLngSetting, hubRadiusSetting, hubNameSetting] = await Promise.all([
+      SystemSettingModel.getByKey("CENTRAL_HUB_LAT"),
+      SystemSettingModel.getByKey("CENTRAL_HUB_LNG"),
+      SystemSettingModel.getByKey("OPERATIONAL_RADIUS_KM"),
+      SystemSettingModel.getByKey("CENTRAL_HUB_NAME"),
+    ]);
+
+    const hubLat = parseFloat(hubLatSetting?.value || "-7.4478");
+    const hubLng = parseFloat(hubLngSetting?.value || "112.7183");
+    const radiusKm = parseFloat(hubRadiusSetting?.value || "12");
+    const hubName = hubNameSetting?.value || "Central Hub Sidoarjo";
+
+    const query = `
+      SELECT 
+        ST_MaxDistance(
+          ST_SetSRID(ST_GeomFromGeoJSON($1), 4326)::geography,
+          ST_SetSRID(ST_MakePoint($2, $3), 4326)::geography
+        ) / 1000.0 AS max_distance_km,
+        ST_Area(
+          ST_SetSRID(ST_GeomFromGeoJSON($1), 4326)::geography
+        ) / 1000000.0 AS area_km2;
+    `;
+    const { rows } = await pool.query(query, [polygonGeoJsonStr, hubLng, hubLat]);
+    const maxDistance = parseFloat(rows[0]?.max_distance_km || "0");
+    const areaKm2 = parseFloat(rows[0]?.area_km2 || "0");
+
+    const isWithin = maxDistance <= radiusKm;
+    return {
+      is_within_radius: isWithin,
+      max_distance_km: maxDistance,
+      radius_limit_km: radiusKm,
+      hub_name: hubName,
+      area_km2: areaKm2,
+    };
+  }
+
+  /**
+   * Interactive Pre-Validation of Zone Polygon without modifying the database
+   */
+  public async preValidateZonePolygon({
+    polygon,
+    name,
+    excludeId = null,
+  }: {
+    polygon: any;
+    name?: string;
+    excludeId?: string | number | null;
+  }): Promise<{
+    is_valid: boolean;
+    errors: string[];
+    warnings: string[];
+    metrics: {
+      area_km2: number;
+      max_distance_from_hub_km: number;
+      radius_limit_km: number;
+    };
+  }> {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+    let metrics = {
+      area_km2: 0,
+      max_distance_from_hub_km: 0,
+      radius_limit_km: 12,
+    };
+
+    try {
+      const geoJsonStr = this.validateAndFormatPolygon(polygon);
+
+      // 1. Check Operational Coverage
+      const coverage = await this.checkOperationalCoverage(geoJsonStr);
+      metrics = {
+        area_km2: parseFloat(coverage.area_km2.toFixed(3)),
+        max_distance_from_hub_km: parseFloat(coverage.max_distance_km.toFixed(2)),
+        radius_limit_km: coverage.radius_limit_km,
+      };
+
+      if (!coverage.is_within_radius) {
+        errors.push(
+          `Sebagian area zona berada di luar batas operasional (${coverage.max_distance_km.toFixed(1)} KM dari ${coverage.hub_name}, batas maksimal: ${coverage.radius_limit_km} KM).`
+        );
+      }
+
+      // 2. Check Prohibited Roads (Toll / Protocol)
+      const prohibitedRoads = await this.checkProhibitedRoadIntersection(geoJsonStr);
+      if (prohibitedRoads && prohibitedRoads.length > 0) {
+        const tollRoads = prohibitedRoads.filter((r) => r.restriction_type === "PROHIBITED_TOLL_ROAD");
+        const protocolRoads = prohibitedRoads.filter((r) => r.restriction_type !== "PROHIBITED_TOLL_ROAD");
+
+        if (tollRoads.length > 0) {
+          errors.push(
+            `Zona memotong Jalan Tol (${tollRoads.map((r) => r.name).join(", ")}). Kopi keliling dilarang beroperasi di area tol.`
+          );
+        }
+        if (protocolRoads.length > 0) {
+          warnings.push(`Zona bersinggungan dengan Jalan Protokol (${protocolRoads.map((r) => r.name).join(", ")}).`);
+        }
+      }
+
+      // 3. Check Overlap against other active zones
+      const overlapZone = await ZoneModel.checkPolygonOverlap(geoJsonStr, excludeId);
+      if (overlapZone) {
+        errors.push(`Zona bertumpang tindih (overlap) dengan zona aktif lain ('${overlapZone.name}').`);
+      }
+
+      // 4. Check Duplicate Name if provided
+      if (name && name.trim()) {
+        const existing = await ZoneModel.findByName(name, excludeId);
+        if (existing) {
+          errors.push(`Nama zona '${name.trim()}' sudah digunakan.`);
+        }
+      }
+    } catch (err: any) {
+      errors.push(err.message || "Format geometri poligon tidak valid.");
+    }
+
+    return {
+      is_valid: errors.length === 0,
+      errors,
+      warnings,
+      metrics,
+    };
+  }
+
+  /**
+   * Create a new zone with full spatial validation (Coverage, Toll Roads, Overlap)
    */
   public async createZone({
     name,
@@ -332,15 +465,29 @@ export class ZoneService {
     let warnings: any[] | null = null;
 
     if (normalizedStatus !== "INACTIVE") {
+      // 1. Operational Coverage Validation
+      const coverage = await this.checkOperationalCoverage(geoJsonStr);
+      if (!coverage.is_within_radius) {
+        const error: any = new Error(
+          `Zona tidak dapat dibuat karena berada di luar area operasional (${coverage.max_distance_km.toFixed(1)} KM dari ${coverage.hub_name}, batas maksimal: ${coverage.radius_limit_km} KM).`
+        );
+        error.statusCode = 400;
+        error.code = "ZONE_EXCEEDS_OPERATIONAL_AREA";
+        throw error;
+      }
+
+      // 2. Road Restriksi Validation
       const prohibitedRoads = await this.checkProhibitedRoadIntersection(geoJsonStr);
       warnings = await this.evaluateProhibitedRoadError(prohibitedRoads, false);
 
+      // 3. Overlap Validation
       const overlapZone = await ZoneModel.checkPolygonOverlap(geoJsonStr, null);
       if (overlapZone) {
         const error: any = new Error(
           `Zona tidak dapat dibuat karena bertumpang tindih (overlap) dengan zona lain ('${overlapZone.name}').`
         );
         error.statusCode = 400;
+        error.code = "ZONE_OVERLAPS_EXISTING_ZONE";
         throw error;
       }
     }
@@ -443,15 +590,29 @@ export class ZoneService {
 
       const targetStatus = updatePayload.status || zone.status;
       if (targetStatus !== "INACTIVE") {
+        // 1. Operational Coverage Validation
+        const coverage = await this.checkOperationalCoverage(geoJsonStr);
+        if (!coverage.is_within_radius) {
+          const error: any = new Error(
+            `Zona tidak dapat diperbarui karena berada di luar area operasional (${coverage.max_distance_km.toFixed(1)} KM dari ${coverage.hub_name}, batas maksimal: ${coverage.radius_limit_km} KM).`
+          );
+          error.statusCode = 400;
+          error.code = "ZONE_EXCEEDS_OPERATIONAL_AREA";
+          throw error;
+        }
+
+        // 2. Road Restriksi Validation
         const prohibitedRoads = await this.checkProhibitedRoadIntersection(geoJsonStr);
         warnings = await this.evaluateProhibitedRoadError(prohibitedRoads, true);
 
+        // 3. Overlap Validation
         const overlapZone = await ZoneModel.checkPolygonOverlap(geoJsonStr, id);
         if (overlapZone) {
           const error: any = new Error(
             `Zona tidak dapat diperbarui karena bertumpang tindih (overlap) dengan zona lain ('${overlapZone.name}').`
           );
           error.statusCode = 400;
+          error.code = "ZONE_OVERLAPS_EXISTING_ZONE";
           throw error;
         }
       }

@@ -78,6 +78,12 @@ export class CronManagerService {
    * Worker Task 1: Release expired ticket-booking armada holds
    */
   public async taskReleaseExpiredArmadaHolds(): Promise<{ released_count: number; released_units: any[] }> {
+    await pool.query(`
+      UPDATE fleet_reservations
+      SET status = 'EXPIRED', released_at = CURRENT_TIMESTAMP
+      WHERE status = 'ACTIVE' AND expires_at < NOW();
+    `);
+
     const query = `
       UPDATE armadas
       SET 
@@ -85,8 +91,7 @@ export class CronManagerService {
         reserved_by_rider_id = NULL,
         reserved_until = NULL,
         updated_at = CURRENT_TIMESTAMP
-      WHERE status = 'RESERVED'
-        AND reserved_until IS NOT NULL
+      WHERE reserved_until IS NOT NULL
         AND reserved_until < NOW()
       RETURNING id, code;
     `;

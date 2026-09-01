@@ -16,16 +16,26 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
       return res.status(401).json({ msg: "No token provided, unauthorized" });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "fallback_secret") as { id: string | number; role: string };
+    let decoded: { id: string | number; role: string };
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET || "fallback_secret") as { id: string | number; role: string };
+    } catch (jwtErr: any) {
+      return res.status(401).json({ msg: "Invalid or expired token", error: jwtErr.message });
+    }
 
     const user = await UserModel.findById(decoded.id);
     if (!user) {
       return res.status(401).json({ msg: "User not found, unauthorized" });
     }
 
+    if (user.is_active === false) {
+      return res.status(403).json({ msg: "Akun Anda telah dinonaktifkan.", error: "USER_DEACTIVATED" });
+    }
+
     req.user = user;
     next();
   } catch (error: any) {
-    return res.status(403).json({ msg: "Invalid or expired token", error: error.message });
+    console.error("[AUTH MIDDLEWARE] Internal authentication error:", error);
+    return res.status(500).json({ msg: "Internal server error during authentication", error: error.message });
   }
 };

@@ -38,6 +38,21 @@ export const getZoneById = async (req: Request, res: Response): Promise<any> => 
   }
 };
 
+export const validateZone = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { polygon, name, exclude_id } = req.body;
+    const validation = await zoneService.preValidateZonePolygon({
+      polygon,
+      name,
+      excludeId: exclude_id || null,
+    });
+    return res.status(200).json(validation);
+  } catch (error: any) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Internal server error" });
+  }
+};
+
 export const createZone = async (req: Request, res: Response): Promise<any> => {
   try {
     const { name, description, max_capacity, status, polygon } = req.body;

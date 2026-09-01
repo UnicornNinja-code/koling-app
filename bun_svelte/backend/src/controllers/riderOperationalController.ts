@@ -63,11 +63,13 @@ export const cancelHoldArmada = async (req: Request, res: Response): Promise<any
 export const confirmClaimArmada = async (req: Request, res: Response): Promise<any> => {
   try {
     const riderId = req.user?.id || req.body?.rider_id;
-    const { armada_id } = req.body;
+    const { armada_id, checklist, notes } = req.body;
 
     const result = await riderOperationalService.confirmArmadaClaim({
       riderId,
       armadaId: armada_id,
+      checklist,
+      notes,
     });
     return res.status(200).json(result);
   } catch (error: any) {
@@ -143,11 +145,13 @@ export const checkoutSession = async (req: Request, res: Response): Promise<any>
   try {
     const riderId = req.user.id;
     const returnStatus = req.body.return_status || req.body.returnStatus || "ACTIVE";
+    const inspectionCondition = req.body.inspection_condition || req.body.inspectionCondition || {};
     const notes = req.body.notes;
 
     const result = await riderOperationalService.checkoutAndReturnArmada({
       riderId,
       returnStatus,
+      inspectionCondition,
       notes,
     });
     return res.status(200).json(result);

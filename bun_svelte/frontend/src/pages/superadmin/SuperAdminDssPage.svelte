@@ -64,59 +64,66 @@
     </div>
   </div>
 
-  <!-- MAIN 4-TAB NAVIGATION BAR -->
-  <div class="flex items-center gap-2 overflow-x-auto pb-1 border-b border-[#24242A]">
-    <!-- Tab 1: BWM Calibration -->
-    <button
-      type="button"
-      onclick={() => (activeTab = 'bwm')}
-      class="px-4 py-3 rounded-2xl text-xs sm:text-sm font-outfit-600 transition-all cursor-pointer flex items-center gap-2 shrink-0 border
-      {activeTab === 'bwm'
-        ? 'bg-white text-[#09090B] font-extrabold border-white shadow-lg shadow-white/10'
-        : 'bg-[#131316] text-[#A1A1AA] hover:text-white border-[#24242A] hover:border-[#383842]'}"
-    >
-      <Compass class="w-4 h-4 {activeTab === 'bwm' ? 'text-[#FF634A]' : 'text-purple-400'}" />
-      <span>1. Kalibrasi Bobot BWM</span>
-    </button>
+  <!-- MAIN 2 PRIMARY ACTIVITIES NAVIGATION BAR WITH SECONDARY CRITERIA PILLS -->
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#24242A]">
+    <!-- Primary 2 Activities -->
+    <div class="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+      <!-- Activity 1: BWM Calibration Wizard -->
+      <button
+        type="button"
+        onclick={() => (activeTab = 'bwm')}
+        class="px-4 py-3 rounded-2xl text-xs sm:text-sm font-outfit-600 transition-all cursor-pointer flex items-center gap-2 shrink-0 border
+        {activeTab === 'bwm'
+          ? 'bg-white text-[#09090B] font-extrabold border-white shadow-lg shadow-white/10'
+          : 'bg-[#131316] text-[#A1A1AA] hover:text-white border-[#24242A] hover:border-[#383842]'}"
+      >
+        <Compass class="w-4 h-4 {activeTab === 'bwm' ? 'text-[#FF634A]' : 'text-purple-400'}" />
+        <span>1. Konfigurasi Bobot BWM</span>
+      </button>
 
-    <!-- Tab 2: C3 Time Crowd -->
-    <button
-      type="button"
-      onclick={() => (activeTab = 'c3')}
-      class="px-4 py-3 rounded-2xl text-xs sm:text-sm font-outfit-600 transition-all cursor-pointer flex items-center gap-2 shrink-0 border
-      {activeTab === 'c3'
-        ? 'bg-white text-[#09090B] font-extrabold border-white shadow-lg shadow-white/10'
-        : 'bg-[#131316] text-[#A1A1AA] hover:text-white border-[#24242A] hover:border-[#383842]'}"
-    >
-      <Clock class="w-4 h-4 {activeTab === 'c3' ? 'text-[#FF634A]' : 'text-amber-400'}" />
-      <span>2. Kriteria C3 (Keramaian Waktu)</span>
-    </button>
+      <!-- Activity 2: TOPSIS Simulation & Rankings -->
+      <button
+        type="button"
+        onclick={() => (activeTab = 'topsis')}
+        class="px-4 py-3 rounded-2xl text-xs sm:text-sm font-outfit-600 transition-all cursor-pointer flex items-center gap-2 shrink-0 border
+        {activeTab === 'topsis'
+          ? 'bg-white text-[#09090B] font-extrabold border-white shadow-lg shadow-white/10'
+          : 'bg-[#131316] text-[#A1A1AA] hover:text-white border-[#24242A] hover:border-[#383842]'}"
+      >
+        <Play class="w-4 h-4 {activeTab === 'topsis' ? 'text-[#FF634A]' : 'text-emerald-400'} fill-current" />
+        <span>2. Simulasi & Ranking TOPSIS</span>
+      </button>
+    </div>
 
-    <!-- Tab 3: C6 Competitor Survey -->
-    <button
-      type="button"
-      onclick={() => (activeTab = 'c6')}
-      class="px-4 py-3 rounded-2xl text-xs sm:text-sm font-outfit-600 transition-all cursor-pointer flex items-center gap-2 shrink-0 border
-      {activeTab === 'c6'
-        ? 'bg-white text-[#09090B] font-extrabold border-white shadow-lg shadow-white/10'
-        : 'bg-[#131316] text-[#A1A1AA] hover:text-white border-[#24242A] hover:border-[#383842]'}"
-    >
-      <Users class="w-4 h-4 {activeTab === 'c6' ? 'text-[#FF634A]' : 'text-rose-400'}" />
-      <span>3. Kriteria C6 (Survei Kompetitor)</span>
-    </button>
+    <!-- Secondary Criteria Reference Pills -->
+    <div class="flex items-center gap-2 self-end sm:self-auto shrink-0">
+      <span class="text-[10px] uppercase font-outfit-600 text-zinc-500 hidden sm:inline">Data Kriteria:</span>
+      <!-- Tab C3 -->
+      <button
+        type="button"
+        onclick={() => (activeTab = 'c3')}
+        class="px-3 py-2 rounded-xl text-xs font-outfit-600 transition-all cursor-pointer flex items-center gap-1.5 border
+        {activeTab === 'c3'
+          ? 'bg-amber-950/60 text-amber-300 border-amber-800/80'
+          : 'bg-[#18181C] text-zinc-400 hover:text-zinc-200 border-[#272730]'}"
+      >
+        <Clock class="w-3.5 h-3.5 text-amber-400" />
+        <span>C3 Keramaian</span>
+      </button>
 
-    <!-- Tab 4: TOPSIS Simulation & Snapshots -->
-    <button
-      type="button"
-      onclick={() => (activeTab = 'topsis')}
-      class="px-4 py-3 rounded-2xl text-xs sm:text-sm font-outfit-600 transition-all cursor-pointer flex items-center gap-2 shrink-0 border
-      {activeTab === 'topsis'
-        ? 'bg-white text-[#09090B] font-extrabold border-white shadow-lg shadow-white/10'
-        : 'bg-[#131316] text-[#A1A1AA] hover:text-white border-[#24242A] hover:border-[#383842]'}"
-    >
-      <Play class="w-4 h-4 {activeTab === 'topsis' ? 'text-[#FF634A]' : 'text-emerald-400'} fill-current" />
-      <span>4. Simulasi TOPSIS & Snapshot</span>
-    </button>
+      <!-- Tab C6 -->
+      <button
+        type="button"
+        onclick={() => (activeTab = 'c6')}
+        class="px-3 py-2 rounded-xl text-xs font-outfit-600 transition-all cursor-pointer flex items-center gap-1.5 border
+        {activeTab === 'c6'
+          ? 'bg-rose-950/60 text-rose-300 border-rose-800/80'
+          : 'bg-[#18181C] text-zinc-400 hover:text-zinc-200 border-[#272730]'}"
+      >
+        <Users class="w-3.5 h-3.5 text-rose-400" />
+        <span>C6 Kompetitor</span>
+      </button>
+    </div>
   </div>
 
   <!-- TAB CONTENT DISPLAY -->

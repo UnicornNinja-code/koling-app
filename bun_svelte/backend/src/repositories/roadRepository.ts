@@ -51,31 +51,39 @@ export class RoadRepository {
       JSON.stringify(r.geometry || r.geom || {}),
     ]);
 
-    const insertQuery = format(
-      `
-      INSERT INTO protocol_roads (external_id, name, highway_type, restriction_type, metadata, geom)
-      SELECT 
-        v.external_id,
-        v.name,
-        v.highway_type,
-        v.restriction_type,
-        v.metadata::jsonb,
-        ST_SetSRID(ST_GeomFromGeoJSON(v.geojson), 4326)
-      FROM (VALUES %L) AS v(external_id, name, highway_type, restriction_type, metadata, geojson)
-      ON CONFLICT (external_id) DO UPDATE SET
-        name = EXCLUDED.name,
-        highway_type = EXCLUDED.highway_type,
-        restriction_type = EXCLUDED.restriction_type,
-        metadata = EXCLUDED.metadata,
-        geom = EXCLUDED.geom,
-        updated_at = CURRENT_TIMESTAMP
-      RETURNING *;
-    `,
-      valuesArray
-    );
+    const batchSize = 200;
+    const allRows: any[] = [];
 
-    const { rows } = await this.pool.query(insertQuery);
-    return rows;
+    for (let i = 0; i < valuesArray.length; i += batchSize) {
+      const batch = valuesArray.slice(i, i + batchSize);
+      const insertQuery = format(
+        `
+        INSERT INTO protocol_roads (external_id, name, highway_type, restriction_type, metadata, geom)
+        SELECT 
+          v.external_id,
+          v.name,
+          v.highway_type,
+          v.restriction_type,
+          v.metadata::jsonb,
+          ST_SetSRID(ST_GeomFromGeoJSON(v.geojson), 4326)
+        FROM (VALUES %L) AS v(external_id, name, highway_type, restriction_type, metadata, geojson)
+        ON CONFLICT (external_id) DO UPDATE SET
+          name = EXCLUDED.name,
+          highway_type = EXCLUDED.highway_type,
+          restriction_type = EXCLUDED.restriction_type,
+          metadata = EXCLUDED.metadata,
+          geom = EXCLUDED.geom,
+          updated_at = CURRENT_TIMESTAMP
+        RETURNING *;
+      `,
+        batch
+      );
+
+      const { rows } = await this.pool.query(insertQuery);
+      allRows.push(...rows);
+    }
+
+    return allRows;
   }
 }
 

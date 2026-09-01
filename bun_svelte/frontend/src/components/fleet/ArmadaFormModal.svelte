@@ -143,21 +143,23 @@
           </select>
         </div>
 
-        <!-- Operational Status -->
+        <!-- Operational Lifecycle Status -->
         <div class="space-y-1.5">
           <label for="form-armada-status" class="block font-outfit-600 text-zinc-300">
-            Status Operasional Unit <span class="text-[#FF634A]">*</span>
+            Status Lifecycle Armada <span class="text-[#FF634A]">*</span>
           </label>
           <select
             id="form-armada-status"
             bind:value={status}
             class="w-full px-3.5 py-2.5 rounded-2xl bg-[#1A1A1F] border border-[#2E2E38] text-white text-xs font-outfit-600 focus:border-[#FF634A] focus:outline-none cursor-pointer"
           >
-            <option value="ACTIVE">ACTIVE / AVAILABLE (Siap Digunakan Rider)</option>
-            <option value="IN_USE">IN_USE (Sedang Beroperasi di Lapangan)</option>
-            <option value="MAINTENANCE">MAINTENANCE (Masuk Bengkel / Perbaikan)</option>
-            <option value="RESERVED">RESERVED (Dicadangkan / Khusus Event)</option>
+            <option value="ACTIVE">ACTIVE (Armada Aktif & Layak Operasi)</option>
+            <option value="MAINTENANCE">MAINTENANCE (Dalam Perawatan / Perbaikan)</option>
+            <option value="RETIRED">RETIRED (Pensiun / Nonaktif Permanen)</option>
           </select>
+          <p class="text-[10px] text-zinc-500">
+            💡 Status reservasi (HELD) dan penugasan (IN_USE) diatur otomatis oleh sistem operasional harian.
+          </p>
         </div>
 
         <!-- Actions -->

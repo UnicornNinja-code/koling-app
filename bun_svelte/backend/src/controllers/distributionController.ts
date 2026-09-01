@@ -1,6 +1,6 @@
 /*
  * distributionController.ts
- * HTTP Controller for Rider Distribution Engine & Queue Management in TypeScript
+ * HTTP Controller for Rider Distribution Engine, Operational Sessions & Queue Management in TypeScript
  */
 
 import type { Request, Response } from "express";
@@ -15,8 +15,9 @@ export const confirmDuty = async (req: Request, res: Response): Promise<any> => 
 
     const queueEntry = await distributionService.confirmRiderDuty(riderId);
     return res.status(200).json({
-      msg: "Konfirmasi kesediaan bertugas berhasil. Rider telah masuk ke Antrean FIFO.",
+      msg: "Konfirmasi kesediaan bertugas berhasil. Rider telah masuk ke Antrean FIFO Sesi Operasional.",
       queue: queueEntry,
+      session: queueEntry.session,
     });
   } catch (error: any) {
     const statusCode = error.statusCode || 500;
@@ -34,9 +35,39 @@ export const getDistributionOverview = async (req: Request, res: Response): Prom
   }
 };
 
+export const previewDistribution = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const preview = await distributionService.previewDistribution();
+    return res.status(200).json(preview);
+  } catch (error: any) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Internal server error" });
+  }
+};
+
+export const confirmDistribution = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { execution_type = "AUTO", allocations = [], unassigned_riders = [] } = req.body;
+    const executedBy = req.user?.id;
+
+    const result = await distributionService.confirmDistributionRun({
+      executionType: execution_type,
+      executedBy,
+      allocations,
+      unassignedRiders: unassigned_riders,
+    });
+
+    return res.status(200).json(result);
+  } catch (error: any) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Internal server error" });
+  }
+};
+
 export const autoDistribute = async (req: Request, res: Response): Promise<any> => {
   try {
-    const result = await distributionService.autoDistributeRiders();
+    const executedBy = req.user?.id;
+    const result = await distributionService.autoDistributeRiders(executedBy);
     return res.status(200).json(result);
   } catch (error: any) {
     const statusCode = error.statusCode || 500;
@@ -56,6 +87,37 @@ export const manualDistribute = async (req: Request, res: Response): Promise<any
     });
 
     return res.status(200).json(result);
+  } catch (error: any) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Internal server error" });
+  }
+};
+
+export const getDistributionRuns = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const limit = req.query.limit ? parseInt(String(req.query.limit), 10) : 20;
+    const runs = await distributionService.getDistributionRunsHistory(limit);
+    return res.status(200).json({ runs });
+  } catch (error: any) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Internal server error" });
+  }
+};
+
+export const updateRiderDutyStatus = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { id } = req.params; // rider_id
+    const { status, notes } = req.body;
+    const updatedBy = req.user?.id;
+
+    const updated = await distributionService.updateRiderDutyStatus({
+      riderId: String(id),
+      status,
+      notes,
+      updatedBy,
+    });
+
+    return res.status(200).json({ msg: "Status antrean rider berhasil diperbarui.", updated });
   } catch (error: any) {
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({ msg: error.message || "Internal server error" });
