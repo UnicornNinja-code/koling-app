@@ -30,7 +30,7 @@ export class UserRepository {
 
   public async findAll(): Promise<UserSanitized[]> {
     const query = `
-      SELECT id, email, username, name, role, birth_date, is_active, created_at, updated_at
+      SELECT id, email, username, name, role, birth_date, is_active, first_login, created_at, updated_at
       FROM users
       ORDER BY created_at DESC;
     `;
@@ -40,7 +40,7 @@ export class UserRepository {
 
   public async findById(id: number | string): Promise<UserSanitized | null> {
     const query = `
-      SELECT id, email, username, name, role, birth_date, is_active, created_at, updated_at
+      SELECT id, email, username, name, role, birth_date, is_active, first_login, created_at, updated_at
       FROM users
       WHERE id = $1;
     `;
@@ -50,7 +50,7 @@ export class UserRepository {
 
   public async findByIdWithPassword(id: number | string): Promise<User | null> {
     const query = `
-      SELECT id, email, username, password, name, role, birth_date, is_active, created_at, updated_at
+      SELECT id, email, username, password, name, role, birth_date, is_active, first_login, created_at, updated_at
       FROM users
       WHERE id = $1;
     `;
@@ -80,6 +80,7 @@ export class UserRepository {
     name,
     role = "RIDER",
     isActive = false,
+    firstLogin = false,
   }: {
     email: string;
     username?: string;
@@ -87,15 +88,28 @@ export class UserRepository {
     name: string;
     role?: UserRole;
     isActive?: boolean;
+    firstLogin?: boolean;
   }): Promise<UserSanitized> {
     const query = `
-      INSERT INTO users (email, username, password, name, role, is_active)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING id, email, username, name, role, is_active, created_at, updated_at;
+      INSERT INTO users (email, username, password, name, role, is_active, first_login)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING id, email, username, name, role, is_active, first_login, created_at, updated_at;
     `;
-    const values = [email, username || email.split("@")[0], password, name, role, isActive];
+    const values = [email, username || email.split("@")[0], password, name, role, isActive, firstLogin];
     const { rows } = await this.pool.query(query, values);
     return rows[0];
+  }
+
+  /**
+   * Mark first-login as completed — called after user successfully sets their own password
+   */
+  public async setFirstLoginDone(userId: number | string): Promise<void> {
+    const query = `
+      UPDATE users
+      SET first_login = false, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1;
+    `;
+    await this.pool.query(query, [userId]);
   }
 
   public async updateUserRole(userId: number | string, newRole: UserRole): Promise<UserSanitized | null> {
@@ -189,9 +203,10 @@ export class UserRepository {
       SET password = $1,
           birth_date = COALESCE($2, birth_date),
           is_active = TRUE,
+          first_login = FALSE,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = $3
-      RETURNING id, email, username, name, role, birth_date, is_active, updated_at;
+      RETURNING id, email, username, name, role, birth_date, is_active, first_login, updated_at;
     `;
     const { rows } = await this.pool.query(query, [hashedPassword, birthDate || null, userId]);
     return rows[0] || null;

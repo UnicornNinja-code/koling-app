@@ -3,6 +3,10 @@
   import { armadaService, type ArmadaItem, type FleetIssueItem } from '../../services/armadaService';
   import ArmadaFormModal from '../../components/fleet/ArmadaFormModal.svelte';
   import ArmadaHistoryModal from '../../components/fleet/ArmadaHistoryModal.svelte';
+  import FleetInventoryGrid from '../../components/fleet/FleetInventoryGrid.svelte';
+  import FleetIssuesTable from '../../components/fleet/FleetIssuesTable.svelte';
+  import { confirmModal } from '../../lib/stores/confirmModal.svelte';
+  import { authStore } from '../../lib/stores/auth.svelte';
   import { 
     Bike, 
     Plus, 
@@ -30,6 +34,8 @@
   }
 
   let { onNavigate }: Props = $props();
+
+  let canModifyMaster = $derived(authStore.role === 'SUPERADMIN' || authStore.role === 'MANAGEMENT');
 
   let activeTab = $state<'INVENTARIS' | 'ISSUES'>('INVENTARIS');
 
@@ -77,14 +83,25 @@
       return;
     }
 
-    try {
-      await armadaService.updateArmada(item.id, { status: nextStatus });
-      armadas = armadas.map((a) => (a.id === item.id ? { ...a, status: nextStatus } : a));
-      successMsg = `Status unit ${item.code} diubah menjadi ${nextStatus}.`;
-      setTimeout(() => (successMsg = null), 3000);
-    } catch (err: any) {
-      errorMsg = err?.response?.data?.msg || 'Gagal mengubah status pemeliharaan armada.';
-    }
+    await confirmModal.verify({
+      context: 'ARMADA_MAINTENANCE_OVERRIDE',
+      title: nextStatus === 'MAINTENANCE' ? 'Alihkan Armada ke Mode Maintenance' : 'Aktifkan Kembali Unit Armada',
+      subtitle: nextStatus === 'MAINTENANCE'
+        ? `Mengalihkan unit ${item.code} (${item.type}) ke bengkel perbaikan. Unit tidak akan tersedia untuk penugasan.`
+        : `Mengaktifkan kembali unit ${item.code} ke status siap pakai (ACTIVE) di Central Hub.`,
+      targetName: `${item.code} — ${item.type}`,
+      severity: nextStatus === 'MAINTENANCE' ? 'warning' : 'success',
+      confirmLabel: nextStatus === 'MAINTENANCE' ? 'Alihkan ke Perbaikan' : 'Aktifkan Armada',
+      verificationLabel: nextStatus === 'MAINTENANCE'
+        ? `Saya mengonfirmasi bahwa unit ${item.code} telah berada di Central Hub untuk servis teknis.`
+        : `Saya memastikan unit ${item.code} telah selesai diperbaiki dan siap jalan.`,
+      onConfirm: async () => {
+        await armadaService.updateArmada(item.id, { status: nextStatus });
+        armadas = armadas.map((a) => (a.id === item.id ? { ...a, status: nextStatus } : a));
+        successMsg = `Status unit ${item.code} diubah menjadi ${nextStatus}.`;
+        setTimeout(() => (successMsg = null), 3000);
+      },
+    });
   };
 
   const handleDeleteArmada = async (item: ArmadaItem) => {
@@ -94,30 +111,40 @@
       return;
     }
 
-    if (!confirm(`Hapus permanen unit armada "${item.code}" dari sistem?`)) return;
-
-    try {
-      await armadaService.deleteArmada(item.id);
-      armadas = armadas.filter((a) => a.id !== item.id);
-      successMsg = `Unit armada ${item.code} berhasil dihapus.`;
-      setTimeout(() => (successMsg = null), 3000);
-    } catch (err: any) {
-      errorMsg = err?.response?.data?.msg || 'Gagal menghapus unit armada.';
-    }
+    await confirmModal.verify({
+      context: 'ARMADA_DELETE',
+      targetName: `${item.code} — ${item.type}`,
+      subtitle: `Hapus unit armada "${item.code}" dari sistem inventaris. Tindakan ini tidak dapat dibatalkan.`,
+      onConfirm: async () => {
+        await armadaService.deleteArmada(item.id);
+        armadas = armadas.filter((a) => a.id !== item.id);
+        successMsg = `Unit armada ${item.code} berhasil dihapus.`;
+        setTimeout(() => (successMsg = null), 3000);
+      },
+    });
   };
 
   const handleResolveIssue = async (issueId: string, action: 'RESOLVED' | 'SENT_TO_MAINTENANCE') => {
-    try {
-      await armadaService.resolveIssueReport(issueId, {
-        status: action,
-        resolution_notes: action === 'SENT_TO_MAINTENANCE' ? 'Unit dipindahkan ke bengkel perbaikan oleh admin.' : 'Masalah telah selesai ditangani.',
-      });
-      successMsg = action === 'SENT_TO_MAINTENANCE' ? 'Unit armada dipindahkan ke status MAINTENANCE.' : 'Kendala ditandai telah selesai.';
-      setTimeout(() => (successMsg = null), 3000);
-      loadData();
-    } catch (err: any) {
-      errorMsg = err?.response?.data?.msg || 'Gagal memproses laporan kendala.';
-    }
+    await confirmModal.verify({
+      context: action === 'SENT_TO_MAINTENANCE' ? 'ARMADA_MAINTENANCE_OVERRIDE' : 'CUSTOM',
+      title: action === 'SENT_TO_MAINTENANCE' ? 'Pindahkan Armada ke Bengkel Servis' : 'Selesaikan Laporan Kendala',
+      subtitle: action === 'SENT_TO_MAINTENANCE'
+        ? 'Memindahkan unit armada terkait laporan kendala ke status MAINTENANCE.'
+        : 'Menandai laporan kendala ini telah selesai ditangani secara teknis.',
+      targetName: `Laporan Kendala #${issueId.slice(0, 8)}`,
+      severity: action === 'SENT_TO_MAINTENANCE' ? 'warning' : 'success',
+      confirmLabel: action === 'SENT_TO_MAINTENANCE' ? 'Kirim ke Bengkel' : 'Tandai Selesai',
+      verificationLabel: 'Saya telah memverifikasi laporan teknis kendala armada ini.',
+      onConfirm: async () => {
+        await armadaService.resolveIssueReport(issueId, {
+          status: action,
+          resolution_notes: action === 'SENT_TO_MAINTENANCE' ? 'Unit dipindahkan ke bengkel perbaikan oleh admin.' : 'Masalah telah selesai ditangani.',
+        });
+        successMsg = action === 'SENT_TO_MAINTENANCE' ? 'Unit armada dipindahkan ke status MAINTENANCE.' : 'Kendala ditandai telah selesai.';
+        setTimeout(() => (successMsg = null), 3000);
+        loadData();
+      },
+    });
   };
 
   const openCreateModal = () => {
@@ -168,15 +195,17 @@
 
     <!-- Quick Actions -->
     <div class="flex flex-wrap items-center gap-2">
-      <button
-        onclick={openCreateModal}
-        class="pill-btn-orange text-xs font-outfit-600 cursor-pointer"
-      >
-        <span class="px-4 py-2 flex items-center gap-1.5 text-white font-bold">
-          <Plus class="w-4 h-4" />
-          <span>Registrasi Armada</span>
-        </span>
-      </button>
+      {#if canModifyMaster}
+        <button
+          onclick={openCreateModal}
+          class="pill-btn-orange text-xs font-outfit-600 cursor-pointer"
+        >
+          <span class="px-4 py-2 flex items-center gap-1.5 text-white font-bold">
+            <Plus class="w-4 h-4" />
+            <span>Registrasi Armada</span>
+          </span>
+        </button>
+      {/if}
 
       <button
         onclick={() => onNavigate('/dashboard')}
@@ -276,291 +305,28 @@
   {/if}
 
   {#if activeTab === 'INVENTARIS'}
-    <!-- MAIN ARMADAS TABLE CONTAINER -->
-    <div class="p-5 sm:p-6 rounded-3xl bg-[#131316] border border-[#24242A] shadow-xl space-y-5">
-      <!-- Filter Toolbar -->
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <!-- Search Input -->
-        <div class="relative flex-1 max-w-sm">
-          <Search class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#71717A]" />
-          <input
-            type="text"
-            placeholder="Cari nomor seri, rider..."
-            bind:value={searchQuery}
-            class="w-full pl-9 pr-4 py-2 text-xs bg-[#1A1A1F] border border-[#2E2E38] rounded-xl text-white placeholder-[#71717A] focus:border-[#FF634A] focus:outline-none"
-          />
-        </div>
-
-        <div class="flex flex-wrap items-center gap-2">
-          <!-- Type Filter -->
-          <select
-            bind:value={selectedType}
-            class="px-3 py-2 rounded-xl bg-[#1A1A1F] border border-[#2E2E38] text-white text-xs font-outfit-600 focus:border-[#FF634A] focus:outline-none cursor-pointer"
-          >
-            <option value="ALL">Semua Tipe</option>
-            <option value="GEROBAK">Gerobak Manual</option>
-            <option value="MOTOR_LISTRIK">Motor Listrik (E-Bike)</option>
-            <option value="LAINNYA">Lainnya</option>
-          </select>
-
-          <!-- Status Lifecycle Filter -->
-          <select
-            bind:value={selectedStatus}
-            class="px-3 py-2 rounded-xl bg-[#1A1A1F] border border-[#2E2E38] text-white text-xs font-outfit-600 focus:border-[#FF634A] focus:outline-none cursor-pointer"
-          >
-            <option value="ALL">Semua Lifecycle</option>
-            <option value="ACTIVE">ACTIVE (Layak Operasi)</option>
-            <option value="MAINTENANCE">MAINTENANCE (Perbaikan)</option>
-            <option value="RETIRED">RETIRED (Pensiun)</option>
-          </select>
-
-          <!-- Reservation State Filter -->
-          <select
-            bind:value={selectedReservation}
-            class="px-3 py-2 rounded-xl bg-[#1A1A1F] border border-[#2E2E38] text-white text-xs font-outfit-600 focus:border-[#FF634A] focus:outline-none cursor-pointer"
-          >
-            <option value="ALL">Semua Reservasi</option>
-            <option value="AVAILABLE">AVAILABLE (Bebas)</option>
-            <option value="HELD">HELD (Di-Hold 5 Mnt)</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Table -->
-      <div class="rounded-2xl border border-[#24242A] overflow-hidden bg-[#16161A]">
-        <table class="w-full text-xs text-left">
-          <thead class="bg-[#1C1C22] text-[#71717A] uppercase text-[10px] font-outfit-600 border-b border-[#24242A]">
-            <tr>
-              <th class="py-3 px-4">Nomor Seri / Kode Unit</th>
-              <th class="py-3 px-4">Tipe Armada</th>
-              <th class="py-3 px-3 text-center">Status Lifecycle</th>
-              <th class="py-3 px-3 text-center">Reservasi 5-Mnt</th>
-              <th class="py-3 px-4">Penugasan Rider</th>
-              <th class="py-3 px-4 text-center">Aksi</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-[#24242A]">
-            {#if loading}
-              <tr>
-                <td colspan="6" class="py-8 text-center text-xs text-[#A1A1AA]">
-                  <div class="inline-block w-6 h-6 border-2 border-[#FF634A] border-t-transparent rounded-full animate-spin mb-2"></div>
-                  <div>Memuat data master armada gerobak...</div>
-                </td>
-              </tr>
-            {:else if filteredArmadas.length === 0}
-              <tr>
-                <td colspan="6" class="py-8 text-center text-xs text-[#71717A]">
-                  Tidak ada data unit armada yang sesuai filter pencarian.
-                </td>
-              </tr>
-            {:else}
-              {#each filteredArmadas as item}
-                <tr class="hover:bg-[#1D1D24] transition-colors {item.status === 'RETIRED' ? 'opacity-50' : ''}">
-                  <td class="py-3 px-4 font-outfit-600 text-white flex items-center gap-2.5">
-                    <div class="w-8 h-8 rounded-xl bg-[#24242C] text-[#FF634A] flex items-center justify-center font-mono font-bold text-xs border border-[#33333E]">
-                      <Bike class="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div class="font-bold text-sm tracking-wide font-mono">{item.code}</div>
-                      <div class="text-[10px] text-[#71717A]">ID Unit #{item.id}</div>
-                    </div>
-                  </td>
-
-                  <td class="py-3 px-4 text-zinc-300">
-                    {#if item.type === 'MOTOR_LISTRIK'}
-                      <span class="px-2 py-0.5 rounded-full text-[10px] font-outfit-600 bg-purple-950/40 text-purple-300 border border-purple-800/40">
-                        Motor Listrik (E-Bike)
-                      </span>
-                    {:else if item.type === 'GEROBAK'}
-                      <span class="px-2 py-0.5 rounded-full text-[10px] font-outfit-600 bg-zinc-800 text-zinc-300 border border-zinc-700">
-                        Gerobak Manual
-                      </span>
-                    {:else}
-                      <span class="px-2 py-0.5 rounded-full text-[10px] font-outfit-600 bg-amber-950/40 text-amber-300 border border-amber-800/40">
-                        Unit Khusus
-                      </span>
-                    {/if}
-                  </td>
-
-                  <!-- 1. Fleet Lifecycle Status -->
-                  <td class="py-3 px-3 text-center">
-                    {#if item.status === 'ACTIVE'}
-                      <span class="px-2.5 py-0.5 rounded-full text-[10px] font-outfit-600 bg-emerald-950/40 text-emerald-400 border border-emerald-800/40">
-                        ACTIVE
-                      </span>
-                    {:else if item.status === 'MAINTENANCE'}
-                      <span class="px-2.5 py-0.5 rounded-full text-[10px] font-outfit-600 bg-rose-950/40 text-rose-400 border border-rose-800/40">
-                        MAINTENANCE
-                      </span>
-                    {:else}
-                      <span class="px-2.5 py-0.5 rounded-full text-[10px] font-outfit-600 bg-zinc-800 text-zinc-400 border border-zinc-700">
-                        RETIRED
-                      </span>
-                    {/if}
-                  </td>
-
-                  <!-- 2. Reservation State -->
-                  <td class="py-3 px-3 text-center">
-                    {#if item.reservation_state === 'HELD'}
-                      <span class="px-2.5 py-0.5 rounded-full text-[10px] font-outfit-600 bg-amber-950/40 text-amber-300 border border-amber-800/40 flex items-center justify-center gap-1 mx-auto w-fit" title={item.reserved_by_rider_name ? `Di-Hold oleh ${item.reserved_by_rider_name}` : 'Di-Hold'}>
-                        <Clock class="w-3 h-3 text-amber-400" />
-                        <span>HELD</span>
-                      </span>
-                    {:else}
-                      <span class="px-2 py-0.5 text-[10px] font-mono text-zinc-500">
-                        AVAILABLE
-                      </span>
-                    {/if}
-                  </td>
-
-                  <!-- 3. Assignment State -->
-                  <td class="py-3 px-4">
-                    {#if item.current_rider_name}
-                      <div class="flex items-center gap-1.5 font-outfit-600 text-blue-400 text-xs">
-                        <span class="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>
-                        <User class="w-3.5 h-3.5" />
-                        <span>{item.current_rider_name}</span>
-                      </div>
-                    {:else}
-                      <span class="text-[11px] text-[#71717A] italic">— Standby di Hub</span>
-                    {/if}
-                  </td>
-
-                  <!-- Contextual Actions -->
-                  <td class="py-3 px-4 text-center">
-                    <div class="flex items-center justify-center gap-1.5">
-                      <button
-                        type="button"
-                        onclick={() => openHistoryModal(item)}
-                        class="p-1.5 rounded-lg text-blue-400 hover:bg-blue-950/40 transition-colors cursor-pointer"
-                        title="Lihat Riwayat Penugasan"
-                      >
-                        <History class="w-3.5 h-3.5" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onclick={() => openEditModal(item)}
-                        class="p-1.5 rounded-lg text-zinc-300 hover:text-white hover:bg-[#24242C] transition-colors cursor-pointer"
-                        title="Edit Data Armada"
-                      >
-                        <Edit2 class="w-3.5 h-3.5" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onclick={() => handleToggleMaintenance(item)}
-                        class="p-1.5 rounded-lg transition-colors cursor-pointer
-                        {item.status === 'MAINTENANCE' ? 'text-emerald-400 hover:bg-emerald-950/40' : 'text-amber-400 hover:bg-amber-950/40'}"
-                        title={item.status === 'MAINTENANCE' ? 'Selesai Servis (Set ACTIVE)' : 'Set Masuk Bengkel (MAINTENANCE)'}
-                      >
-                        <Wrench class="w-3.5 h-3.5" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onclick={() => handleDeleteArmada(item)}
-                        disabled={!!item.current_rider_id || item.status === 'IN_USE'}
-                        class="p-1.5 rounded-lg text-rose-400 hover:bg-rose-950/40 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                        title="Hapus Unit Armada"
-                      >
-                        <Trash2 class="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              {/each}
-            {/if}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <FleetInventoryGrid
+      {armadas}
+      {loading}
+      {searchQuery}
+      {selectedType}
+      {selectedStatus}
+      {selectedReservation}
+      onUpdateSearch={(val) => (searchQuery = val)}
+      onUpdateType={(val) => (selectedType = val)}
+      onUpdateStatus={(val) => (selectedStatus = val)}
+      onUpdateReservation={(val) => (selectedReservation = val)}
+      onOpenHistory={openHistoryModal}
+      onOpenEdit={openEditModal}
+      onToggleMaintenance={handleToggleMaintenance}
+      onDelete={handleDeleteArmada}
+    />
   {:else}
-    <!-- ISSUES & MAINTENANCE TAB -->
-    <div class="p-5 sm:p-6 rounded-3xl bg-[#131316] border border-[#24242A] shadow-xl space-y-5">
-      <div class="flex items-center justify-between pb-3 border-b border-[#24242A]">
-        <div>
-          <h3 class="text-base font-outfit-600 text-white">Daftar Laporan Kerusakan & Bengkel</h3>
-          <p class="text-xs text-[#A1A1AA]">Laporan insiden / kendala unit dari rider saat bertugas di lapangan</p>
-        </div>
-        <button
-          onclick={loadData}
-          class="px-3 py-1.5 rounded-xl bg-[#1F1F24] hover:bg-[#2A2A32] text-xs text-white font-outfit-600 flex items-center gap-1.5 transition-colors cursor-pointer"
-        >
-          <RefreshCw class="w-3.5 h-3.5" />
-          <span>Refresh Laporan</span>
-        </button>
-      </div>
-
-      {#if issues.length === 0}
-        <div class="py-12 text-center text-xs text-zinc-500 space-y-2">
-          <CheckCircle2 class="w-8 h-8 text-emerald-400/60 mx-auto" />
-          <div>Semua unit armada dalam kondisi prima. Tidak ada laporan kendala aktif.</div>
-        </div>
-      {:else}
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {#each issues as issue}
-            <div class="p-4 bg-[#18181D] border border-[#26262E] rounded-2xl space-y-3">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <span class="font-mono font-bold text-white text-sm">#{issue.armada_code}</span>
-                  <span class="px-2 py-0.5 rounded-full text-[10px] font-outfit-600
-                  {issue.severity === 'CRITICAL' ? 'bg-rose-950/50 text-rose-400 border border-rose-800/40' : 'bg-amber-950/50 text-amber-400 border border-amber-800/40'}">
-                    {issue.severity}
-                  </span>
-                </div>
-                <span class="text-[10px] text-zinc-500 font-mono">
-                  {new Date(issue.reported_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                </span>
-              </div>
-
-              <div class="text-xs space-y-1">
-                <div class="text-zinc-300 font-semibold flex items-center gap-1.5">
-                  <Tag class="w-3.5 h-3.5 text-[#FF634A]" />
-                  <span>Komponen: {issue.issue_type}</span>
-                </div>
-                <p class="text-zinc-400 leading-relaxed bg-[#121215] p-2.5 rounded-xl border border-[#222228]">
-                  "{issue.description}"
-                </p>
-                <div class="text-[11px] text-zinc-500 pt-1">
-                  Dilaporkan oleh: <strong class="text-zinc-300">{issue.rider_name}</strong>
-                </div>
-              </div>
-
-              <!-- Issue Action Buttons -->
-              {#if issue.status === 'REPORTED'}
-                <div class="pt-2 border-t border-[#24242A] flex items-center justify-end gap-2">
-                  <button
-                    type="button"
-                    onclick={() => handleResolveIssue(issue.id, 'SENT_TO_MAINTENANCE')}
-                    class="px-3 py-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900/70 text-rose-300 border border-rose-800/40 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <Wrench class="w-3.5 h-3.5" />
-                    <span>Kirim ke Bengkel (Maintenance)</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onclick={() => handleResolveIssue(issue.id, 'RESOLVED')}
-                    class="px-3 py-1.5 rounded-xl bg-emerald-950/60 hover:bg-emerald-900/70 text-emerald-300 border border-emerald-800/40 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <Check class="w-3.5 h-3.5" />
-                    <span>Selesaikan Kendala</span>
-                  </button>
-                </div>
-              {:else}
-                <div class="pt-2 border-t border-[#24242A] flex items-center justify-between text-[11px] text-zinc-500">
-                  <span>Status: <strong class="text-emerald-400">{issue.status}</strong></span>
-                  {#if issue.resolution_notes}
-                    <span class="italic">"{issue.resolution_notes}"</span>
-                  {/if}
-                </div>
-              {/if}
-            </div>
-          {/each}
-        </div>
-      {/if}
-    </div>
+    <FleetIssuesTable
+      {issues}
+      onRefresh={loadData}
+      onResolveIssue={handleResolveIssue}
+    />
   {/if}
 </div>
 

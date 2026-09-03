@@ -1,9 +1,17 @@
 <script lang="ts">
   import { authService } from "../../services/authService";
-  import { Coffee, Mail, ArrowLeft, Send, KeyRound } from "lucide-svelte";
+  import {
+    Mail,
+    ArrowLeft,
+    Send,
+    Inbox,
+    ExternalLink,
+    Shield,
+  } from "lucide-svelte";
   import Button from "../../components/ui/Button.svelte";
   import Input from "../../components/ui/Input.svelte";
   import Alert from "../../components/ui/Alert.svelte";
+  import { DotPattern } from "$components/ui/dot-pattern";
 
   interface Props {
     onNavigate: (route: string) => void;
@@ -14,6 +22,7 @@
   let email = $state("");
   let emailError = $state<string | null>(null);
   let successMsg = $state<string | null>(null);
+  let previewUrl = $state<string | null>(null);
   let errorMsg = $state<string | null>(null);
   let loading = $state(false);
 
@@ -29,10 +38,14 @@
     loading = true;
     errorMsg = null;
     successMsg = null;
+    previewUrl = null;
 
     try {
       const res = await authService.forgotPassword(email.trim());
-      successMsg = res?.msg || "Tautan dan instruksi reset kata sandi telah dikirimkan ke email terdaftar Anda.";
+      successMsg =
+        res?.msg ||
+        "Tautan dan instruksi reset kata sandi telah dikirimkan ke email terdaftar Anda.";
+      previewUrl = res?.preview_url || null;
     } catch (err: any) {
       errorMsg =
         err?.response?.data?.msg ||
@@ -45,38 +58,80 @@
   };
 </script>
 
-<div class="min-h-screen bg-[#09090B] pattern-dots-dark relative flex flex-col justify-center py-10 sm:py-14 px-4 sm:px-6 lg:px-8 font-outfit-400 select-none overflow-x-hidden">
-  <!-- Ambient Lighting Effects -->
-  <div class="fixed top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#FF634A]/10 rounded-full blur-[120px] pointer-events-none"></div>
-  <div class="fixed bottom-10 left-10 w-72 h-72 bg-amber-950/20 rounded-full blur-[90px] pointer-events-none"></div>
+<div
+  class="relative min-h-screen w-full flex items-center justify-center bg-[#09090b] px-4 py-12 overflow-hidden font-sans selection:bg-[#FF634A]/30"
+>
+  <!-- Ambient Dot Pattern with Masking -->
+  <DotPattern
+    class="[mask-image:radial-gradient(800px_circle_at_center,white,transparent)] opacity-40 fill-zinc-500 pointer-events-none"
+    width={20}
+    height={20}
+    cr={1.2}
+  />
 
-  <div class="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
-    <!-- Brand Header -->
-    <div class="text-center space-y-3 mb-7">
-      <div class="w-14 h-14 bg-gradient-to-tr from-[#FF634A] to-[#FF8573] rounded-2xl flex items-center justify-center text-[#09090B] mx-auto shadow-xl shadow-[#FF634A]/25 shrink-0 border border-white/20">
-        <Coffee class="w-7 h-7 stroke-[2.5]" />
-      </div>
-      <div>
-        <span class="text-[10px] font-outfit-600 uppercase tracking-widest text-[#71717A] block">Pemulihan Kredensial</span>
-        <h1 class="text-2xl sm:text-3xl font-outfit-600 text-white tracking-tight mt-0.5">
-          Lupa Kata Sandi
+  <!-- Ambient Radiant Glow Orbs -->
+  <div class="absolute top-1/4 -left-32 h-96 w-96 rounded-full bg-[#FF634A]/10 blur-[128px] pointer-events-none"></div>
+  <div class="absolute bottom-1/4 -right-32 h-96 w-96 rounded-full bg-amber-500/10 blur-[128px] pointer-events-none"></div>
+
+  <!-- Background Mova Typography Watermark matching Logo (Heavy & Tight with Dot) -->
+  <div class="absolute inset-0 flex items-center justify-center pointer-events-none select-none z-0 overflow-hidden">
+    <span class="font-heading text-[12rem] sm:text-[18rem] md:text-[24rem] font-black tracking-[-0.035em] text-white/[0.045] leading-none select-none">
+      Mova<span class="text-[#FF634A]/30">.</span>
+    </span>
+  </div>
+
+  <div class="relative z-10 w-full max-w-md">
+    <!-- Main Card Container -->
+    <div
+      class="bg-[#131316]/90 backdrop-blur-xl p-8 sm:p-10 rounded-3xl border border-white/10 shadow-2xl shadow-black/80 space-y-5"
+    >
+      <!-- Heading Inside Card -->
+      <div class="text-center space-y-1.5 mb-2">
+        <h1
+          class="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-white"
+        >
+          Lupa Password ?
         </h1>
-        <p class="text-xs text-[#A1A1AA] mt-1 max-w-xs mx-auto">
-          Masukkan email terdaftar untuk menerima tautan pemulihan akses akun Anda
+        <p class="text-xs text-zinc-400 font-sans leading-relaxed">
+          Masukkan alamat email terdaftar untuk menerima tautan pemulihan kata
+          sandi akun Anda.
         </p>
       </div>
-    </div>
-
-    <!-- Main Card Container -->
-    <div class="bg-[#131316]/95 backdrop-blur-xl py-7 px-6 sm:px-8 rounded-3xl border border-[#24242A] shadow-2xl space-y-5">
       {#if successMsg}
         <Alert variant="success" title="Instruksi Terkirim">
           {successMsg}
         </Alert>
 
-        <div class="p-3.5 bg-[#1A1A1F] rounded-2xl border border-[#272730] text-center text-xs text-[#A1A1AA] space-y-1">
+        <div
+          class="p-3.5 bg-[#1A1A1F] rounded-2xl border border-[#272730] text-center text-xs text-[#A1A1AA] space-y-1"
+        >
           <p>Silakan periksa kotak masuk atau folder spam email Anda.</p>
         </div>
+
+        {#if previewUrl}
+          <div
+            class="p-4 bg-emerald-950/40 rounded-2xl border border-emerald-700/50 text-xs text-emerald-200 space-y-2.5"
+          >
+            <div class="flex items-center gap-2 text-emerald-400 font-bold">
+              <Inbox class="w-4 h-4" />
+              <span>Email Terkirim ke Ethereal SMTP</span>
+            </div>
+            <p class="text-[11px] text-zinc-300 leading-relaxed">
+              Email simulasi pemulihan kata sandi telah dikirim ke server
+              Ethereal Mailbox. Anda dapat membuka dan melihat pesan secara
+              langsung melalui tautan berikut:
+            </p>
+            <a
+              href={previewUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex items-center justify-center gap-1.5 w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors shadow-md"
+            >
+              <span>Buka Pesan di Ethereal Preview</span>
+              <ExternalLink class="w-3.5 h-3.5" />
+            </a>
+          </div>
+        {/if}
 
         <Button
           type="button"
@@ -125,10 +180,23 @@
         <button
           type="button"
           onclick={() => onNavigate("/login")}
-          class="inline-flex items-center gap-1.5 text-xs text-[#A1A1AA] hover:text-white font-outfit-600 transition-colors cursor-pointer py-1"
+          class="inline-flex items-center gap-1.5 text-xs text-[#A1A1AA] hover:text-[#FF8573] font-outfit-600 transition-colors cursor-pointer py-1"
         >
           <ArrowLeft class="w-3.5 h-3.5 text-[#FF634A]" /> Kembali ke Halaman Masuk
         </button>
+      </div>
+
+      <!-- Enterprise Restricted Notice Footer -->
+      <div class="pt-2 text-center space-y-1">
+        <div
+          class="flex items-center justify-center gap-1.5 text-[11px] text-zinc-500 font-medium"
+        >
+          <Shield class="w-3 h-3 text-zinc-600" />
+          <span>Akses Terbatas: Sistem Internal Perusahaan</span>
+        </div>
+        <p class="text-[10px] text-zinc-600">
+          Pemulihan akun hanya berlaku bagi akun yang telah terdaftar di MOVA.
+        </p>
       </div>
     </div>
   </div>

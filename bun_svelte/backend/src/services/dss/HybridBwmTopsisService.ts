@@ -33,6 +33,20 @@ export class HybridBwmTopsisService {
   /**
    * Execute Hybrid BWM-TOPSIS Zone Evaluation for user-selected zone IDs
    */
+  public async evaluate(options: {
+    zone_ids?: string[] | null;
+    time_slot?: string | null;
+    rider_lat?: number | null;
+    rider_lon?: number | null;
+    bwm_config_id?: string | null;
+    save_snapshot?: boolean;
+  } = {}): Promise<any> {
+    return this.evaluateZonesHybrid(options);
+  }
+
+  /**
+   * Execute Hybrid BWM-TOPSIS Zone Evaluation for user-selected zone IDs
+   */
   public async evaluateZonesHybrid(options: {
     zone_ids?: string[] | null;
     time_slot?: string | null;

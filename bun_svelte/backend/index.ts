@@ -11,6 +11,7 @@ import { fileURLToPath } from "url";
 import compression from "compression";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import { traceMiddleware } from "./src/middlewares/traceMiddleware.js";
 
 import { pool, env } from "./src/config/index.js";
 import authRoutes from "./src/routes/authRoutes.js";
@@ -35,6 +36,8 @@ import productRoutes from "./src/routes/productRoutes.js";
 import salesRoutes from "./src/routes/salesRoutes.js";
 import dashboardRoutes from "./src/routes/dashboardRoutes.js";
 import notificationRoutes from "./src/routes/notificationRoutes.js";
+import dataSyncRoutes from "./src/routes/dataSyncRoutes.js";
+import reportRoutes from "./src/routes/reportRoutes.js";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "./src/docs/swagger.js";
 
@@ -55,7 +58,8 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const server = http.createServer(app);
 
-// 0. Enable CORS Middleware
+// 0. Enable Trace & CORS Middleware
+app.use(traceMiddleware);
 app.use(
   cors({
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
@@ -74,7 +78,8 @@ app.use(
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "X-Request-Id"],
+    exposedHeaders: ["X-Request-Id"],
   })
 );
 
@@ -143,7 +148,7 @@ app.use(
   "/api/docs",
   swaggerUi.serve,
   swaggerUi.setup(swaggerSpec, {
-    customSiteTitle: "MantaKopi COZIS API Documentation",
+    customSiteTitle: "MOVA API Documentation - Move Where Demand Is.",
     customCss: ".swagger-ui .topbar { display: none }",
     swaggerOptions: {
       persistAuthorization: true,
@@ -179,17 +184,31 @@ app.use("/api/products", productRoutes);
 app.use("/api/sales", salesRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/data-sync", dataSyncRoutes);
+app.use("/api/reports", reportRoutes);
 
-// Global Centralized Error Handling Middleware
+// Global Centralized Error Handling Middleware (PART 00 Canonical Error Envelope)
 app.use((err: any, req: Request, res: Response, _next: NextFunction): any => {
   console.error("💥 Global Server Error:", err);
   const statusCode = err.statusCode || err.status || 500;
+  const errorCode = err.code || (statusCode === 400 ? "BAD_REQUEST" : statusCode === 401 ? "UNAUTHORIZED" : statusCode === 403 ? "FORBIDDEN" : statusCode === 404 ? "NOT_FOUND" : statusCode === 409 ? "CONFLICT" : statusCode === 422 ? "UNPROCESSABLE_ENTITY" : "INTERNAL_SERVER_ERROR");
+  const message = err.message || "Terjadi kesalahan internal pada server.";
+  const requestId = req.requestId || (req.headers["x-request-id"] as string) || `req-${Date.now()}`;
+
   return res.status(statusCode).json({
-    status: "error",
-    statusCode,
-    code: err.code || undefined,
-    msg: err.message || "Internal Server Error",
-    details: err.details || undefined,
+    success: false,
+    status: "error", // Backward-compatibility
+    statusCode,      // Backward-compatibility
+    msg: message,    // Backward-compatibility
+    error: {
+      code: errorCode,
+      message,
+      ...(err.details ? { details: err.details } : {}),
+    },
+    meta: {
+      timestamp: new Date().toISOString(),
+      request_id: requestId,
+    },
   });
 });
 

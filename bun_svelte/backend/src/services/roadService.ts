@@ -67,7 +67,8 @@ export class RoadService {
           ), '[]'::json)
         ) AS geojson
       FROM protocol_roads
-      WHERE restriction_type IS NULL OR restriction_type = 'PROHIBITED_ROAD';
+      WHERE (restriction_type IS NULL OR restriction_type = 'PROHIBITED_ROAD')
+        AND (is_active = true OR is_active IS NULL);
     `;
 
     let { rows } = await pool.query(query);
@@ -107,7 +108,8 @@ export class RoadService {
           ), '[]'::json)
         ) AS geojson
       FROM protocol_roads
-      WHERE restriction_type = 'PROHIBITED_TOLL_ROAD';
+      WHERE restriction_type = 'PROHIBITED_TOLL_ROAD'
+        AND (is_active = true OR is_active IS NULL);
     `;
 
     const { rows } = await pool.query(query);

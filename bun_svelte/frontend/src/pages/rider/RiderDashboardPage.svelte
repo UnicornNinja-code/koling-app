@@ -6,6 +6,11 @@
   import MediaProductCard from '../../components/ui/MediaProductCard.svelte';
   import RiderTopBar from '../../components/rider/RiderTopBar.svelte';
   import RiderQuickActionModal from '../../components/rider/RiderQuickActionModal.svelte';
+  import RiderDutyModal from '../../components/rider/RiderDutyModal.svelte';
+  import RiderArmadaClaimModal from '../../components/rider/RiderArmadaClaimModal.svelte';
+  import RiderCheckInModal from '../../components/rider/RiderCheckInModal.svelte';
+  import RiderPosModal from '../../components/rider/RiderPosModal.svelte';
+  import RiderCheckoutModal from '../../components/rider/RiderCheckoutModal.svelte';
   import { riderService, type RiderActiveSession } from '../../services/riderService';
   import { productService, type ProductItem } from '../../services/productService';
   import { dssService } from '../../services/dssService';
@@ -14,13 +19,16 @@
     Flame, 
     Compass, 
     TrendingUp, 
-    BatteryCharging, 
+    ShieldCheck, 
     Clock, 
     Coffee, 
     CheckCircle2, 
     ChevronRight,
     Sparkles,
-    ShieldAlert
+    ShieldAlert,
+    ShoppingBag,
+    MapPin,
+    Bike
   } from 'lucide-svelte';
 
   interface Props {
@@ -33,6 +41,13 @@
   let activeTab = $state('home');
   let isQuickModalOpen = $state(false);
   let isFavoriteHero = $state(false);
+
+  // Dedicated Workflow Modals State
+  let isDutyModalOpen = $state(false);
+  let isArmadaModalOpen = $state(false);
+  let isCheckInModalOpen = $state(false);
+  let isPosModalOpen = $state(false);
+  let isCheckoutModalOpen = $state(false);
 
   // Data States
   let sessionData = $state<RiderActiveSession | null>(null);
@@ -84,15 +99,36 @@
     }, 2500);
   };
 
-  const handleGpsCheckIn = async () => {
-    try {
-      await riderService.checkInZone(-7.4478, 112.7183);
-      orderSuccessNotice = 'GPS Check-in berhasil di Zona Operasional!';
-      setTimeout(() => { orderSuccessNotice = null; }, 3000);
-    } catch (err: any) {
-      orderSuccessNotice = err?.response?.data?.msg || 'Gagal check-in GPS.';
-      setTimeout(() => { orderSuccessNotice = null; }, 3000);
-    }
+  const handleSaleSuccess = (saleResult: any) => {
+    totalSalesToday += saleResult.totalAmount;
+    totalCupsSold += saleResult.totalCups;
+    orderSuccessNotice = `Penjualan ${saleResult.totalCups} cup (${saleResult.paymentMethod}) berhasil disimpan!`;
+    setTimeout(() => {
+      orderSuccessNotice = null;
+    }, 3000);
+  };
+
+  const handleCheckInSuccess = (result: any) => {
+    orderSuccessNotice = `Check-in Berhasil di ${result?.zone_name || 'Zona Tugas'}!`;
+    loadRiderData();
+    setTimeout(() => {
+      orderSuccessNotice = null;
+    }, 3000);
+  };
+
+  const handleClaimSuccess = (armada: any) => {
+    orderSuccessNotice = `Armada ${armada?.code || ''} berhasil diklaim (Status: IN_USE)!`;
+    loadRiderData();
+    setTimeout(() => {
+      orderSuccessNotice = null;
+    }, 3000);
+  };
+
+  const handleCheckoutSuccess = (result: any) => {
+    orderSuccessNotice = 'Sesi operasional berhasil ditutup & disetor!';
+    setTimeout(() => {
+      handleLogout();
+    }, 2000);
   };
 
   const handleLogout = () => {
@@ -139,9 +175,9 @@
         <!-- Expanded Metrics Inside Hero Bottom Card -->
         <div class="grid grid-cols-3 gap-2 text-center text-white">
           <div class="p-2 rounded-xl bg-white/5 border border-white/10 flex flex-col items-center">
-            <span class="text-[10px] text-zinc-400 font-medium">Baterai Armada</span>
+            <span class="text-[10px] text-zinc-400 font-medium">Status Armada</span>
             <span class="text-xs font-bold text-emerald-400 flex items-center gap-1 mt-0.5">
-              <BatteryCharging class="w-3.5 h-3.5" /> 92%
+              <ShieldCheck class="w-3.5 h-3.5" /> SIAP
             </span>
           </div>
 
@@ -228,25 +264,13 @@
               />
             {/each}
           {:else}
-            <!-- Fallback Mock Cards if API products loading -->
-            <MediaProductCard
-              title="Kopi Susu Gula Aren"
-              category="KOPI"
-              price={15000}
-              rating={4.9}
-              salesCount={48}
-              gradientPreset="from-rose-400/90 via-amber-300/80 to-purple-400/90"
-              onOrder={() => handleQuickOrder({ id: '1', name: 'Kopi Susu Aren', price: 15000 } as any)}
-            />
-            <MediaProductCard
-              title="Cold Brew Signature"
-              category="KOPI"
-              price={18000}
-              rating={4.8}
-              salesCount={32}
-              gradientPreset="from-sky-400/90 via-teal-300/80 to-indigo-400/90"
-              onOrder={() => handleQuickOrder({ id: '2', name: 'Cold Brew Signature', price: 18000 } as any)}
-            />
+            <div class="w-full py-8 text-center bg-[#131316] rounded-2xl border border-[#24242A] text-xs text-[#71717A]">
+              {#if loading}
+                <p>Memuat katalog produk...</p>
+              {:else}
+                <p>Belum ada produk aktif yang terdaftar di database.</p>
+              {/if}
+            </div>
           {/if}
         </div>
       </div>
@@ -343,7 +367,7 @@
 
             <button
               type="button"
-              onclick={handleGpsCheckIn}
+              onclick={() => (isCheckInModalOpen = true)}
               class="px-2.5 py-1 rounded-lg bg-[#FF634A]/15 text-[#FF634A] hover:bg-[#FF634A] hover:text-white text-[11px] font-bold transition-all border border-[#FF634A]/30 cursor-pointer"
             >
               Check-in
@@ -390,6 +414,37 @@
         </div>
       </div>
 
+      <!-- Operational Flow Quick Action Shortcuts -->
+      <div class="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onclick={() => (isDutyModalOpen = true)}
+          class="p-2.5 rounded-2xl bg-[#1A1A24] border border-[#2B2B3C] hover:border-[#FF634A]/50 flex items-center gap-2.5 text-left transition-all cursor-pointer active:scale-95"
+        >
+          <div class="w-8 h-8 rounded-xl bg-[#FF634A]/20 text-[#FF634A] flex items-center justify-center shrink-0">
+            <Clock class="w-4 h-4" />
+          </div>
+          <div>
+            <span class="text-xs font-bold text-white block">1. Presensi Hadir</span>
+            <span class="text-[10px] text-zinc-400">Plotting Zona SPK</span>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onclick={() => (isArmadaModalOpen = true)}
+          class="p-2.5 rounded-2xl bg-[#1A1A24] border border-[#2B2B3C] hover:border-emerald-500/50 flex items-center gap-2.5 text-left transition-all cursor-pointer active:scale-95"
+        >
+          <div class="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+            <Bike class="w-4 h-4" />
+          </div>
+          <div>
+            <span class="text-xs font-bold text-white block">2. Klaim Armada</span>
+            <span class="text-[10px] text-zinc-400">Inspeksi & Lock 3m</span>
+          </div>
+        </button>
+      </div>
+
       <button
         type="button"
         onclick={handleLogout}
@@ -419,10 +474,51 @@
     <RiderQuickActionModal
       isOpen={isQuickModalOpen}
       onClose={() => isQuickModalOpen = false}
-      onRecordSale={() => { isQuickModalOpen = false; activeTab = 'catalog'; }}
-      onGpsCheckIn={() => { isQuickModalOpen = false; handleGpsCheckIn(); }}
+      onRecordSale={() => { isQuickModalOpen = false; isPosModalOpen = true; }}
+      onGpsCheckIn={() => { isQuickModalOpen = false; isCheckInModalOpen = true; }}
       onReportIssue={() => { isQuickModalOpen = false; activeTab = 'profile'; }}
-      onCheckout={() => { isQuickModalOpen = false; handleLogout(); }}
+      onCheckout={() => { isQuickModalOpen = false; isCheckoutModalOpen = true; }}
+    />
+
+    <!-- 1. Presensi & Queue Modal -->
+    <RiderDutyModal
+      open={isDutyModalOpen}
+      onClose={() => isDutyModalOpen = false}
+      currentDutyStatus={sessionData?.duty?.status}
+      assignedZoneName={sessionData?.duty?.zone_name}
+      onDutyConfirmed={loadRiderData}
+      onProceedToArmada={() => (isArmadaModalOpen = true)}
+    />
+
+    <!-- 2. Armada Inspection & 180s Hold Modal -->
+    <RiderArmadaClaimModal
+      open={isArmadaModalOpen}
+      onClose={() => isArmadaModalOpen = false}
+      onClaimSuccess={handleClaimSuccess}
+    />
+
+    <!-- 3. GPS Geofence Check-in Modal -->
+    <RiderCheckInModal
+      open={isCheckInModalOpen}
+      onClose={() => isCheckInModalOpen = false}
+      zoneName={sessionData?.duty?.zone_name || 'Zona Tugas'}
+      onCheckInSuccess={handleCheckInSuccess}
+    />
+
+    <!-- 4. Mobile POS & Dynamic QRIS Modal -->
+    <RiderPosModal
+      open={isPosModalOpen}
+      onClose={() => isPosModalOpen = false}
+      onSaleRecorded={handleSaleSuccess}
+    />
+
+    <!-- 5. Shift Settlement & Checkout Modal -->
+    <RiderCheckoutModal
+      open={isCheckoutModalOpen}
+      onClose={() => isCheckoutModalOpen = false}
+      totalRevenueToday={totalSalesToday}
+      totalCupsSold={totalCupsSold}
+      onCheckoutSuccess={handleCheckoutSuccess}
     />
   {/snippet}
 </MobileFrame>

@@ -8,6 +8,7 @@ import { ZoneModel } from "../models/zoneModel.js";
 import { zoneRepository } from "../repositories/zoneRepository.js";
 import { SystemSettingModel } from "../models/systemSettingModel.js";
 import { operationalRuleService } from "./operationalRuleService.js";
+import { operationalContextService } from "./spatial/OperationalContextService.js";
 
 export class ZoneService {
   private static instance: ZoneService | null = null;
@@ -31,10 +32,11 @@ export class ZoneService {
           pr.highway_type,
           COALESCE(pr.restriction_type, 'PROHIBITED_ROAD') AS restriction_type
         FROM protocol_roads pr
-        WHERE ST_Intersects(
-          pr.geom,
-          ST_SetSRID(ST_GeomFromGeoJSON($1), 4326)
-        );
+        WHERE (pr.is_active = true OR pr.is_active IS NULL)
+          AND ST_Intersects(
+            pr.geom,
+            ST_SetSRID(ST_GeomFromGeoJSON($1), 4326)
+          );
       `;
 
       const { rows } = await pool.query(query, [polygonGeoJsonStr]);
@@ -160,27 +162,13 @@ export class ZoneService {
       max_lng: number;
     };
   }> {
-    const hubCity = await SystemSettingModel.getByKey("HUB_CITY_NAME");
-    const hubLat = await SystemSettingModel.getByKey("HUB_LATITUDE");
-    const hubLng = await SystemSettingModel.getByKey("HUB_LONGITUDE");
+    const opContext = await operationalContextService.getOperationalContext();
     const hubBuffer = await SystemSettingModel.getByKey("HUB_BOUNDS_BUFFER");
 
-    if (
-      !hubCity?.value ||
-      !hubCity.value.trim() ||
-      !hubLat?.value ||
-      !hubLng?.value ||
-      !hubBuffer?.value
-    ) {
-      const error: any = new Error("Hub spatial configuration is incomplete in system_settings.");
-      error.statusCode = 500;
-      throw error;
-    }
-
-    const cityName = hubCity.value.trim();
-    const latitude = Number(hubLat.value);
-    const longitude = Number(hubLng.value);
-    const boundsBuffer = Number(hubBuffer.value);
+    const cityName = opContext.hubCityName;
+    const latitude = opContext.latitude;
+    const longitude = opContext.longitude;
+    const boundsBuffer = Number(hubBuffer?.value || "0.25");
 
     if (
       !Number.isFinite(latitude) ||
@@ -292,24 +280,18 @@ export class ZoneService {
     hub_name: string;
     area_km2: number;
   }> {
-    const [hubLatSetting, hubLngSetting, hubRadiusSetting, hubNameSetting] = await Promise.all([
-      SystemSettingModel.getByKey("CENTRAL_HUB_LAT"),
-      SystemSettingModel.getByKey("CENTRAL_HUB_LNG"),
-      SystemSettingModel.getByKey("OPERATIONAL_RADIUS_KM"),
-      SystemSettingModel.getByKey("CENTRAL_HUB_NAME"),
-    ]);
-
-    const hubLat = parseFloat(hubLatSetting?.value || "-7.4478");
-    const hubLng = parseFloat(hubLngSetting?.value || "112.7183");
-    const radiusKm = parseFloat(hubRadiusSetting?.value || "12");
-    const hubName = hubNameSetting?.value || "Central Hub Sidoarjo";
+    const opContext = await operationalContextService.getOperationalContext();
+    const hubLat = opContext.latitude;
+    const hubLng = opContext.longitude;
+    const radiusKm = opContext.radiusKm;
+    const hubName = opContext.centralHubName;
 
     const query = `
       SELECT 
         ST_MaxDistance(
-          ST_SetSRID(ST_GeomFromGeoJSON($1), 4326)::geography,
-          ST_SetSRID(ST_MakePoint($2, $3), 4326)::geography
-        ) / 1000.0 AS max_distance_km,
+          ST_SetSRID(ST_GeomFromGeoJSON($1), 4326),
+          ST_SetSRID(ST_MakePoint($2, $3), 4326)
+        ) * 111.32 AS max_distance_km,
         ST_Area(
           ST_SetSRID(ST_GeomFromGeoJSON($1), 4326)::geography
         ) / 1000000.0 AS area_km2;

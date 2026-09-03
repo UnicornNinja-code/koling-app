@@ -254,6 +254,7 @@ export class POIWeatherService {
 
     return {
       status: "success",
+      city_name: cityName.toUpperCase(),
       hub_city_name: cityName.toUpperCase(),
       total_zones: filteredCentroids.length,
       hub_overview: {

@@ -87,6 +87,8 @@ export class POIRepository {
       LEFT JOIN poi_categories c ON p.category = c.name
       WHERE (c.is_active IS NULL OR c.is_active = true)
         AND p.status = 'APPROVED'
+        AND (p.is_active = true OR p.is_active IS NULL)
+        AND (p.operational_status = 'ELIGIBLE' OR p.operational_status IS NULL)
       ORDER BY p.name ASC;
     `;
     const { rows } = await this.pool.query(query);
@@ -176,7 +178,7 @@ export class POIRepository {
         AND p.logical_poi_id IS NOT NULL
         AND ST_Contains(
           ST_GeomFromGeoJSON($1), 
-          ST_SetSRID(ST_MakePoint(p.longitude, p.latitude), 4326)
+          p.geom
         );
     `;
     const { rows } = await this.pool.query(query, [geoJsonStr]);
@@ -215,7 +217,7 @@ export class POIRepository {
           AND p.logical_poi_id IS NOT NULL
           AND ST_Contains(
             ST_GeomFromGeoJSON($1), 
-            ST_SetSRID(ST_MakePoint(p.longitude, p.latitude), 4326)
+            p.geom
           )
         ORDER BY p.logical_poi_id, (p.duplicate_of IS NULL) DESC, p.created_at ASC, p.id ASC
       )
@@ -261,7 +263,7 @@ export class POIRepository {
         AND p.logical_poi_id IS NOT NULL
         AND ST_Contains(
           ST_GeomFromGeoJSON($1), 
-          ST_SetSRID(ST_MakePoint(p.longitude, p.latitude), 4326)
+          p.geom
         )
       ORDER BY p.logical_poi_id, (p.duplicate_of IS NULL) DESC, p.created_at ASC, p.id ASC;
     `;

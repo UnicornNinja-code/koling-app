@@ -4,7 +4,8 @@
  */
 
 import type { Request, Response, NextFunction } from "express";
-import { roadService, syncTollRoadsService } from "../services/roadService.js";
+import { roadService } from "../services/roadService.js";
+import { enqueueTollSyncJob } from "../queues/overpassQueue.js";
 
 export class RoadController {
   public async getProtocolRoads(req: Request, res: Response, next: NextFunction): Promise<any> {
@@ -27,8 +28,13 @@ export class RoadController {
 
   public async syncTollRoads(req: Request, res: Response, next: NextFunction): Promise<any> {
     try {
-      const result = await syncTollRoadsService();
-      return res.status(200).json(result);
+      const userId = (req as any).user?.id || null;
+      const result = await enqueueTollSyncJob({ userId });
+      return res.status(202).json({
+        status: "accepted",
+        job_id: result.jobId,
+        msg: "Sinkronisasi Jalan Tol Overpass berhasil dijadwalkan ke antrean latar belakang (BullMQ).",
+      });
     } catch (error) {
       return next(error);
     }

@@ -136,8 +136,7 @@ export class WeatherRepository {
    * Upsert cached weather payload into weathers table
    */
   public async saveCachedWeather(zoneId: number | string, weatherPayload: any): Promise<any> {
-    await this.pool.query(`DELETE FROM weathers WHERE zone_id = $1;`, [zoneId]);
-
+    // Preserve weather history for reporting and analytics; latest weather fetched via ORDER BY updated_at DESC
     const query = `
       INSERT INTO weathers (
         zone_id, timestamp, temperature_2m, relative_humidity_2m, 

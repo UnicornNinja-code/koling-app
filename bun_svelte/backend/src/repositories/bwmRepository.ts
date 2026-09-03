@@ -74,6 +74,8 @@ export class BwmRepository {
     worst_to_others,
     calculated_weights,
     consistency_ratio,
+    created_by,
+    created_by_name,
   }: {
     name?: string;
     best_criteria_id: string | number;
@@ -82,6 +84,8 @@ export class BwmRepository {
     worst_to_others: Record<string, number>;
     calculated_weights?: any;
     consistency_ratio?: number;
+    created_by?: string | null;
+    created_by_name?: string | null;
   }): Promise<any> {
     const client = await this.pool.connect();
     try {
@@ -97,9 +101,12 @@ export class BwmRepository {
           best_criteria_id, 
           worst_criteria_id, 
           best_to_others, 
-          worst_to_others
+          worst_to_others,
+          created_by,
+          created_by_name,
+          activated_at
         )
-        VALUES ($1, true, $2, $3, $4, $5)
+        VALUES ($1, true, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
         RETURNING *;
       `;
       const values = [
@@ -108,6 +115,8 @@ export class BwmRepository {
         worst_criteria_id,
         JSON.stringify(best_to_others),
         JSON.stringify(worst_to_others),
+        created_by || null,
+        created_by_name || null,
       ];
 
       const { rows } = await client.query(insertQuery, values);

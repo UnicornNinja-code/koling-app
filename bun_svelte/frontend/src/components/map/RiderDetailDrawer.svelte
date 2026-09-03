@@ -7,7 +7,6 @@
     MessageSquare, 
     Navigation, 
     Gauge, 
-    Battery, 
     Clock, 
     Truck, 
     ShoppingBag,
@@ -70,11 +69,11 @@
 
           <div class="p-3 rounded-xl bg-white border border-[#D2D2D4] shadow-xs">
             <div class="flex items-center gap-1.5 text-[#52525B] text-xs">
-              <Battery class="w-3.5 h-3.5 text-emerald-600" />
-              <span>Baterai HP</span>
+              <ShieldCheck class="w-3.5 h-3.5 text-emerald-600" />
+              <span>Status Tugas</span>
             </div>
             <div class="text-base font-extrabold text-[#18181B] mt-1">
-              {rider.battery || 94}%
+              {rider.status || 'CHECKED_IN'}
             </div>
           </div>
 

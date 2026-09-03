@@ -1,0 +1,133 @@
+Berikut adalah konversi komponen **DotPattern** dan **Demo** dari React ke ekosistem **Svelte 5 Runes**, **Tailwind CSS**, dan **TypeScript**.
+
+Komponen ini menggunakan elemen SVG dengan atribut `id` unik pada `<pattern>`. Di Svelte 5, kita dapat menghasilkan ID unik yang stabil menggunakan utilitas generator ID atau fungsi bawaan modul Svelte.
+
+---
+
+### 1. File Komponen: `src/components/ui/dot-pattern/DotPattern.svelte`
+
+```svelte
+<script lang="ts">
+  import { cn } from "$lib/utils";
+  import type { SVGAttributes } from "svelte/elements";
+
+  interface DotPatternProps extends SVGAttributes<SVGSVGElement> {
+    width?: number | string;
+    height?: number | string;
+    x?: number | string;
+    y?: number | string;
+    cx?: number | string;
+    cy?: number | string;
+    cr?: number | string;
+    class?: string;
+  }
+
+  let {
+    width = 16,
+    height = 16,
+    x = 0,
+    y = 0,
+    cx = 1,
+    cy = 1,
+    cr = 1,
+    class: className = "",
+    ...restProps
+  }: DotPatternProps = $props();
+
+  // Pengganti React useId() yang stabil dan aman di Svelte 5
+  const id = `pattern-${Math.random().toString(36).substring(2, 9)}`;
+</script>
+
+<svg
+  aria-hidden="true"
+  class={cn(
+    "pointer-events-none absolute inset-0 h-full w-full fill-neutral-400/80",
+    className
+  )}
+  {...restProps}
+>
+  <defs>
+    <pattern
+      {id}
+      {width}
+      {height}
+      patternUnits="userSpaceOnUse"
+      patternContentUnits="userSpaceOnUse"
+      {x}
+      {y}
+    >
+      <circle id={`${id}-circle`} {cx} {cy} r={cr} />
+    </pattern>
+  </defs>
+  <rect width="100%" height="100%" stroke-width={0} fill={`url(#${id})`} />
+</svg>
+
+```
+
+---
+
+### 2. Barrel File: `src/components/ui/dot-pattern/index.ts`
+
+```typescript
+import DotPattern from "./DotPattern.svelte";
+
+export { DotPattern };
+export default DotPattern;
+
+```
+
+---
+
+### 3. File Demo: `src/components/demo/DotPatternDemo.svelte`
+
+```svelte
+<script lang="ts">
+  import { cn } from "$lib/utils";
+  import { DotPattern } from "$components/ui/dot-pattern";
+</script>
+
+<div
+  class="relative flex h-[500px] w-full flex-col items-center justify-center overflow-hidden rounded-lg border bg-background md:shadow-xl"
+>
+  <p
+    class="z-10 whitespace-pre-wrap text-center text-5xl font-medium tracking-tighter text-black dark:text-white"
+  >
+    Dot Pattern
+  </p>
+  <DotPattern
+    class={cn(
+      "[mask-image:radial-gradient(300px_circle_at_center,white,transparent)]"
+    )}
+  />
+</div>
+
+```
+
+---
+
+### Panduan Integrasi ke Halaman (Contoh: Login / Landing Page)
+
+Komponen ini sangat cocok diletakkan sebagai latar belakang visual di **Hero section** atau halaman **`LoginPage.svelte`** / **`FirstLoginPage.svelte`** untuk memberikan kesan modern tanpa membebani performa browser:
+
+```svelte
+<script lang="ts">
+  import { DotPattern } from "$components/ui/dot-pattern";
+</script>
+
+<div class="relative min-h-screen flex items-center justify-center bg-background overflow-hidden">
+  <!-- Background Pattern dengan Masking Halus -->
+  <DotPattern
+    class="[mask-image:radial-gradient(600px_circle_at_center,white,transparent)] opacity-50"
+    width={20}
+    height={20}
+    cr={1.5}
+  />
+
+  <!-- Konten Form Login -->
+  <div class="relative z-10 w-full max-w-md p-6 bg-card border rounded-xl shadow-lg">
+    <!-- Form Content -->
+  </div>
+</div>
+
+```
+

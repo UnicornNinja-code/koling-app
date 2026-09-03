@@ -2,6 +2,7 @@
   import { authStore } from '../../lib/stores/auth.svelte';
   import type { Snippet } from 'svelte';
   import { notificationService, type NotificationItem } from '../../services/notificationService';
+  import { setupStore } from '../../lib/stores/setupStore.svelte';
   import { onMount } from 'svelte';
 
   interface Props {
@@ -66,20 +67,38 @@
     isCollapsed = compactSidebar;
   });
 
-  const navItems = [
-    { label: 'Dashboard', route: '/dashboard', iconClass: 'ri-dashboard-3-line', activeIconClass: 'ri-dashboard-3-fill' },
-    { label: 'Map Ops', route: '/map', iconClass: 'ri-map-2-line', activeIconClass: 'ri-map-2-fill' },
-    { label: 'User Admin', route: '/users', iconClass: 'ri-team-line', activeIconClass: 'ri-team-fill' },
-    { label: 'Zona Wilayah', route: '/zones', iconClass: 'ri-road-map-line', activeIconClass: 'ri-road-map-fill' },
-    { label: 'DSS TOPSIS', route: '/dss', iconClass: 'ri-calculator-line', activeIconClass: 'ri-calculator-fill' },
-    { label: 'Armada Gerobak', route: '/fleet', iconClass: 'ri-e-bike-2-line', activeIconClass: 'ri-e-bike-2-fill' },
-    { label: 'Katalog Menu', route: '/catalog', iconClass: 'ri-cup-line', activeIconClass: 'ri-cup-fill' },
-    { label: 'Plotting Rute', route: '/distribution', iconClass: 'ri-layout-grid-line', activeIconClass: 'ri-layout-grid-fill' },
-    { label: 'Laporan & Audit', route: '/reports', iconClass: 'ri-file-chart-line', activeIconClass: 'ri-file-chart-fill' },
-    { label: 'Pengaturan', route: '/settings', iconClass: 'ri-settings-4-line', activeIconClass: 'ri-settings-4-fill' },
+  const allNavItems = [
+    { label: 'Dashboard', route: '/dashboard', iconClass: 'ri-dashboard-3-line', activeIconClass: 'ri-dashboard-3-fill', roles: ['SUPERADMIN', 'MANAGEMENT', 'SUPERVISOR'] },
+    { label: 'Map Ops', route: '/map', iconClass: 'ri-map-2-line', activeIconClass: 'ri-map-2-fill', roles: ['SUPERADMIN', 'MANAGEMENT', 'SUPERVISOR'] },
+    { label: 'Zona Wilayah', route: '/zones', iconClass: 'ri-road-map-line', activeIconClass: 'ri-road-map-fill', roles: ['SUPERADMIN', 'SUPERVISOR'] },
+    { label: 'Eksplorasi POI', route: '/pois', iconClass: 'ri-building-line', activeIconClass: 'ri-building-fill', roles: ['SUPERADMIN', 'SUPERVISOR'] },
+    { label: 'DSS TOPSIS', route: '/dss', iconClass: 'ri-calculator-line', activeIconClass: 'ri-calculator-fill', roles: ['SUPERADMIN', 'SUPERVISOR'] },
+    { label: 'Plotting Rute', route: '/distribution', iconClass: 'ri-layout-grid-line', activeIconClass: 'ri-layout-grid-fill', roles: ['SUPERADMIN', 'SUPERVISOR'] },
+    { label: 'Armada Gerobak', route: '/fleet', iconClass: 'ri-e-bike-2-line', activeIconClass: 'ri-e-bike-2-fill', roles: ['SUPERADMIN', 'MANAGEMENT', 'SUPERVISOR'] },
+    { label: 'User Admin', route: '/users', iconClass: 'ri-team-line', activeIconClass: 'ri-team-fill', roles: ['SUPERADMIN', 'MANAGEMENT'] },
+    { label: 'Katalog Menu', route: '/catalog', iconClass: 'ri-cup-line', activeIconClass: 'ri-cup-fill', roles: ['SUPERADMIN', 'MANAGEMENT'] },
+    { label: 'Laporan Settlement', route: '/reports', iconClass: 'ri-file-chart-line', activeIconClass: 'ri-file-chart-fill', roles: ['SUPERADMIN', 'MANAGEMENT', 'SUPERVISOR'] },
+    { label: 'Audit Forensik', route: '/audit', iconClass: 'ri-shield-check-line', activeIconClass: 'ri-shield-check-fill', roles: ['SUPERADMIN'] },
+    { label: 'Pengaturan Hub', route: '/settings', iconClass: 'ri-settings-4-line', activeIconClass: 'ri-settings-4-fill', roles: ['SUPERADMIN'] },
   ];
 
+  const navItems = $derived.by(() => {
+    const role = authStore.user?.role || 'SUPERADMIN';
+    return allNavItems.filter((item) => item.roles.includes(role));
+  });
+
   const handleNavClick = (route: string) => {
+    // Route guard: Jika inisialisasi sistem belum selesai, arahkan ke /setup
+    if (setupStore.isSetupRequired && authStore.user?.role === 'SUPERADMIN') {
+      if (route !== '/dashboard' && route !== '/setup') {
+        onNavigate('/setup');
+        mobileMenuOpen = false;
+        userDropdownOpen = false;
+        notificationOpen = false;
+        return;
+      }
+    }
+
     onNavigate(route);
     mobileMenuOpen = false;
     userDropdownOpen = false;
@@ -89,6 +108,9 @@
   const handleLogout = async () => {
     userDropdownOpen = false;
     await authStore.logout();
+    if (typeof window !== 'undefined') {
+      window.history.replaceState({}, '', '/login');
+    }
     onNavigate('/login');
   };
 
@@ -130,8 +152,8 @@
           <i class="ri-cup-fill text-2xl font-bold"></i>
         </div>
         <div>
-          <span class="text-[10px] font-outfit-600 uppercase tracking-widest text-[#71717A] leading-none block">COZIS Intelligence</span>
-          <h1 class="text-sm sm:text-base font-outfit-600 text-white leading-none mt-0.5">Coffee on Wheels</h1>
+          <span class="text-[10px] font-outfit-600 uppercase tracking-widest text-[#FF8573] leading-none block">Move Where Demand Is.</span>
+          <h1 class="text-sm sm:text-base font-outfit-600 text-white leading-none mt-0.5">MOVA</h1>
         </div>
       </button>
     </div>
@@ -339,6 +361,26 @@
         </button>
       </div>
 
+      <!-- Setup Incomplete Indicator Callout -->
+      {#if setupStore.isSetupRequired && authStore.user?.role === 'SUPERADMIN' && !isCollapsed}
+        <div class="mx-3 my-2 p-3 rounded-2xl bg-[#FF634A]/10 border border-[#FF634A]/30 text-xs space-y-2">
+          <div class="flex items-center gap-1.5 text-[#FF8573] font-outfit-600">
+            <span class="w-2 h-2 rounded-full bg-[#FF634A] animate-pulse"></span>
+            <span>Setup Diperlukan</span>
+          </div>
+          <p class="text-[10px] text-[#A1A1AA] leading-relaxed">
+            Selesaikan konfigurasi awal sistem untuk mengaktifkan seluruh modul.
+          </p>
+          <button
+            type="button"
+            onclick={() => handleNavClick('/setup')}
+            class="w-full py-1.5 px-2 rounded-xl text-[10px] font-outfit-600 text-white bg-[#FF634A] hover:bg-[#E54E36] transition-colors flex items-center justify-center gap-1 shadow-md shadow-[#FF634A]/20 cursor-pointer"
+          >
+            <span>Buka Setup Wizard →</span>
+          </button>
+        </div>
+      {/if}
+
       <!-- Navigation List -->
       <nav class="flex-1 py-3 px-3 space-y-1.5 overflow-y-auto">
         {#each navItems as item}
@@ -378,7 +420,7 @@
               <div class="w-8 h-8 rounded-xl bg-[#FF634A] flex items-center justify-center text-[#09090B]">
                 <i class="ri-cup-fill text-lg font-bold"></i>
               </div>
-              <span class="text-sm font-outfit-600 text-white">Menu COZIS</span>
+              <span class="text-sm font-outfit-600 text-white">Menu MOVA</span>
             </div>
             <button 
               onclick={() => mobileMenuOpen = false}

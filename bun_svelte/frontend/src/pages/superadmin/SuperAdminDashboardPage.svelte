@@ -21,12 +21,21 @@
 
   import SyncWeatherModal from '../../components/dashboard/SyncWeatherModal.svelte';
   import RecalculateDssModal from '../../components/dashboard/RecalculateDssModal.svelte';
+  import QuickAlertPanel from '../../components/dashboard/QuickAlertPanel.svelte';
+  import { setupStore } from '../../lib/stores/setupStore.svelte';
+  import { confirmModal } from '../../lib/stores/confirmModal.svelte';
+  import { authStore } from '../../lib/stores/auth.svelte';
 
   interface Props {
     onNavigate: (route: string) => void;
-  }
+  } 
 
   let { onNavigate }: Props = $props();
+
+  let userRole = $derived(authStore.role);
+  let isSuperAdmin = $derived(userRole === 'SUPERADMIN');
+  let isManagement = $derived(userRole === 'MANAGEMENT');
+  let isSupervisor = $derived(userRole === 'SUPERVISOR');
 
   let loading = $state(true);
   let summary = $state<DashboardSummary | null>(null);
@@ -131,169 +140,289 @@
         ...activities.slice(0, 19),
       ];
     });
+
+    // Check system initialization state from PostgreSQL (Superadmin redirect guard)
+    if (isSuperAdmin) {
+      setupStore.checkStatus().then((status) => {
+        if (status && (status.status === 'REQUIRED' || status.status === 'IN_PROGRESS')) {
+          onNavigate('/first-setup');
+        }
+      });
+    }
   });
+
+  const handleTriggerWeatherSync = async () => {
+    await confirmModal.verify({
+      context: 'WEATHER_SYNC_BROADCAST',
+      targetName: 'Satelit Cuaca Sidoarjo & Sekitarnya',
+      onConfirm: async () => {
+        await dashboardService.syncWeather();
+        await loadDashboardData();
+      },
+    });
+  };
+
+  const handleTriggerDssRecalculate = async () => {
+    await confirmModal.verify({
+      context: 'DSS_RECALIBRATE',
+      targetName: 'Kalibrasi Bobot Standar Sidoarjo (BWM-TOPSIS)',
+      onConfirm: async () => {
+        await dssService.calculateBwmWeights({
+          name: 'Konfigurasi Bobot BWM Kalibrasi Sidoarjo',
+          best_criteria_id: '1',
+          worst_criteria_id: '5',
+          best_to_others: { '1': 1, '2': 2, '3': 3, '4': 4, '5': 7, '6': 5 },
+          worst_to_others: { '1': 7, '2': 5, '3': 4, '4': 3, '5': 1, '6': 2 },
+        });
+        await loadDashboardData();
+      },
+    });
+  };
 </script>
 
-<div class="space-y-5 pb-8 font-outfit-400">
-  <!-- TOP TOOLBAR: Breadcrumb & Quick Action Bar with Split-Pill Design -->
-  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#24242A]">
-    <div>
-      <div class="text-[11px] font-outfit-600 text-[#71717A] uppercase tracking-wider">Super Admin Workspace</div>
-      <h2 class="text-xl sm:text-2xl lg:text-3xl font-outfit-600 text-white tracking-tight leading-tight">
-        Executive Dashboard
-      </h2>
+<div class="relative min-h-full font-outfit-400 select-none">
+  <div class="space-y-5 pb-8">
+    <!-- TOP TOOLBAR: Breadcrumb & Quick Action Bar with Split-Pill Design -->
+    <div
+      class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#24242A]"
+    >
+      <div>
+        <div class="flex items-center gap-2">
+          <span
+            class="text-[11px] font-outfit-600 text-[#71717A] uppercase tracking-wider"
+          >
+            {isSuperAdmin
+              ? "Super Admin Workspace"
+              : isManagement
+                ? "Management Portal"
+                : "Operational Command"}
+          </span>
+          {#if isSuperAdmin}
+            {#if setupStore.isCompleted}
+              <span
+                class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-800/40 text-[10px] font-mono font-bold text-emerald-400 shadow-xs"
+              >
+                <span
+                  class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"
+                ></span>
+                SYSTEM ONLINE
+              </span>
+            {:else}
+              <span
+                class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-950/60 border border-amber-800/40 text-[10px] font-mono font-bold text-amber-400 shadow-xs"
+              >
+                <span
+                  class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"
+                ></span>
+                SETUP REQUIRED
+              </span>
+            {/if}
+          {/if}
+        </div>
+        <h2
+          class="text-xl sm:text-2xl lg:text-3xl font-outfit-600 text-white tracking-tight leading-tight mt-0.5"
+        >
+          {isSuperAdmin
+            ? "Executive Dashboard"
+            : isManagement
+              ? "Business Overview"
+              : "Operational Dashboard"}
+        </h2>
+      </div>
+
+      <!-- Quick Action Bar (Role-Tailored) -->
+      <div class="flex flex-wrap items-center gap-2">
+        {#if isSuperAdmin || isSupervisor}
+          <!-- Sync Cuaca Pill -->
+          <button
+            onclick={handleTriggerWeatherSync}
+            class="pill-btn-dark text-xs cursor-pointer"
+          >
+            <span class="px-3 py-1.5 flex items-center gap-1.5 font-outfit-600">
+              <i class="bx bx-cloud-lightning text-amber-400"></i>
+              <span>Cuaca</span>
+            </span>
+          </button>
+        {/if}
+
+        {#if isSuperAdmin}
+          <!-- Hitung Ulang DSS Pill -->
+          <button
+            onclick={handleTriggerDssRecalculate}
+            class="pill-btn-dark text-xs cursor-pointer"
+          >
+            <span class="px-3 py-1.5 flex items-center gap-1.5 font-outfit-600">
+              <i class="bx bx-compass text-blue-400"></i>
+              <span>DSS Engine</span>
+            </span>
+          </button>
+        {/if}
+
+        {#if isSuperAdmin || isManagement}
+          <!-- Katalog Pill (White Button) -->
+          <button
+            onclick={() => onNavigate("/catalog")}
+            class="pill-btn-white text-xs font-outfit-600"
+          >
+            <span class="px-3.5 py-1.5 flex items-center gap-1.5">
+              <i class="bx bx-coffee text-sm text-[#FF634A]"></i>
+              <span>Katalog Menu</span>
+            </span>
+          </button>
+        {/if}
+
+        {#if isSuperAdmin || isManagement}
+          <!-- Tambah User Pill (Orange Gradient Accent) -->
+          <button
+            onclick={() => onNavigate("/users")}
+            class="pill-btn-orange text-xs font-outfit-600"
+          >
+            <span class="px-3.5 py-1.5 flex items-center gap-1.5 text-white">
+              <i class="bx bx-user-plus text-base"></i>
+              <span>Kelola User</span>
+            </span>
+          </button>
+        {/if}
+
+        {#if isSupervisor}
+          <!-- Plotting Rider Action -->
+          <button
+            onclick={() => onNavigate("/distribution")}
+            class="pill-btn-orange text-xs font-outfit-600"
+          >
+            <span class="px-3.5 py-1.5 flex items-center gap-1.5 text-white">
+              <i class="bx bx-map-pin text-base"></i>
+              <span>Plotting Rider</span>
+            </span>
+          </button>
+        {/if}
+      </div>
     </div>
 
-    <!-- Quick Action Bar (Pill Buttons as in screenshot) -->
-    <div class="flex flex-wrap items-center gap-2">
-      <!-- Sync Cuaca Pill -->
-      <button
-        onclick={() => weatherModalOpen = true}
-        class="pill-btn-dark text-xs"
-      >
-        <span class="px-3 py-1.5 flex items-center gap-1.5 font-outfit-600">
-          <i class="bx bx-cloud-lightning text-amber-400"></i>
-          <span>Cuaca</span>
-        </span>
-      </button>
-
-      <!-- Hitung Ulang DSS Pill -->
-      <button
-        onclick={() => dssModalOpen = true}
-        class="pill-btn-dark text-xs"
-      >
-        <span class="px-3 py-1.5 flex items-center gap-1.5 font-outfit-600">
-          <i class="bx bx-compass text-blue-400"></i>
-          <span>DSS Engine</span>
-        </span>
-      </button>
-
-      <!-- Katalog Pill (White Button) -->
-      <button
-        onclick={() => onNavigate('/catalog')}
-        class="pill-btn-white text-xs font-outfit-600"
-      >
-        <span class="px-3.5 py-1.5 flex items-center gap-1.5">
-          <i class="bx bx-coffee text-sm text-[#FF634A]"></i>
-          <span>Katalog Menu</span>
-        </span>
-      </button>
-
-      <!-- Tambah User Pill (Orange Gradient Accent) -->
-      <button
-        onclick={() => onNavigate('/users')}
-        class="pill-btn-orange text-xs font-outfit-600"
-      >
-        <span class="px-3.5 py-1.5 flex items-center gap-1.5 text-white">
-          <i class="bx bx-user-plus text-base"></i>
-          <span>Tambah User</span>
-        </span>
-      </button>
-    </div>
-  </div>
-
-  <!-- SECTION 1: 4 KPI CARDS (Penjualan Hari Ini di posisi paling kiri) -->
-  <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-    <StatCard
-      title="Penjualan Hari Ini"
-      value={`Rp ${((summary?.financials?.total_revenue || 0)).toLocaleString('id-ID')}`}
-      subtitle={`${summary?.financials?.total_units_sold ?? 0} Cup (${summary?.financials?.total_transactions ?? 0} Trx)`}
-      trendBadge="Realtime"
-      trendType="success"
-      iconClass="bx bx-shopping-bag"
-      iconColor="text-[#FF634A] bg-[#FF634A]/10 border border-[#FF634A]/20"
-      {loading}
+    <!-- SECTION 0.5: QUICK ALERT CENTER (Perimeter Lapangan, Geofence, Baterai) -->
+    <QuickAlertPanel
+      {onNavigate}
+      fleetAlertsCount={summary?.fleet?.maintenance_units || 0}
     />
 
-    <StatCard
-      title="Bobot BWM (CR)"
-      value={`ξ* ${(dssConfig?.consistency_ratio ?? 0.042).toFixed(3)}`}
-      subtitle={`Best: ${dssConfig?.best_criterion || 'POTENSI_PASAR'} • Worst: ${dssConfig?.worst_criterion || 'JARAK_HUB'}`}
-      trendBadge={(dssConfig?.consistency_ratio ?? 0.042) <= 0.1 || dssConfig?.is_consistent ? "Konsisten" : "Kalibrasi"}
-      trendType={(dssConfig?.consistency_ratio ?? 0.042) <= 0.1 || dssConfig?.is_consistent ? "success" : "danger"}
-      pulseBadge={(dssConfig?.consistency_ratio ?? 0.042) <= 0.1 || dssConfig?.is_consistent}
-      iconClass="bx bx-compass"
-      iconColor="text-purple-400 bg-purple-950/40 border border-purple-800/40"
-      {loading}
-    />
+    <!-- SECTION 1: 4 KPI CARDS -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <StatCard
+        title="Penjualan Hari Ini"
+        value={`Rp ${(summary?.financials?.total_revenue || 0).toLocaleString("id-ID")}`}
+        subtitle={`${summary?.financials?.total_units_sold ?? 0} Cup (${summary?.financials?.total_transactions ?? 0} Trx)`}
+        trendBadge="Realtime"
+        trendType="success"
+        iconClass="bx bx-shopping-bag"
+        iconColor="text-[#FF634A] bg-[#FF634A]/10 border border-[#FF634A]/20"
+        {loading}
+      />
 
-    <StatCard
-      title="Rider Bertugas"
-      value={`${summary?.operations?.assigned_riders ?? summary?.operations?.checked_in_riders ?? 0} / ${summary?.operations?.registered_riders ?? 0}`}
-      subtitle="Sinyal GPS Bertugas"
-      trendBadge="● LIVE"
-      trendType="success"
-      pulseBadge
-      iconClass="bx bx-map-pin"
-      iconColor="text-emerald-400 bg-emerald-950/40 border border-emerald-800/40"
-      {loading}
-    />
+      {#if isManagement}
+        <StatCard
+          title="Zona Operasional"
+          value={`${summary?.operations?.total_active_zones ?? 0} Zona`}
+          subtitle="Wilayah Terbuka Hari Ini"
+          trendBadge="Aktif"
+          trendType="success"
+          iconClass="bx bx-map-alt"
+          iconColor="text-blue-400 bg-blue-950/40 border border-blue-800/40"
+          {loading}
+        />
+      {:else}
+        <StatCard
+          title="Bobot BWM (CR)"
+          value={`ξ* ${(dssConfig?.consistency_ratio ?? 0.042).toFixed(3)}`}
+          subtitle={`Best: ${dssConfig?.best_criterion || "POTENSI_PASAR"} • Worst: ${dssConfig?.worst_criterion || "JARAK_HUB"}`}
+          trendBadge={(dssConfig?.consistency_ratio ?? 0.042) <= 0.1 ||
+          dssConfig?.is_consistent
+            ? "Konsisten"
+            : "Kalibrasi"}
+          trendType={(dssConfig?.consistency_ratio ?? 0.042) <= 0.1 ||
+          dssConfig?.is_consistent
+            ? "success"
+            : "danger"}
+          pulseBadge={(dssConfig?.consistency_ratio ?? 0.042) <= 0.1 ||
+            dssConfig?.is_consistent}
+          iconClass="bx bx-compass"
+          iconColor="text-purple-400 bg-purple-950/40 border border-purple-800/40"
+          {loading}
+        />
+      {/if}
 
-    <StatCard
-      title="Armada Digunakan"
-      value={`${summary?.fleet?.in_use_units ?? 0} / ${summary?.fleet?.total_units ?? 0}`}
-      subtitle={`Utilisasi Armada (${summary?.fleet?.utilization_rate_percentage ?? 0}%)`}
-      trendBadge={`${summary?.fleet?.maintenance_units ?? 0} Servis`}
-      trendType={summary?.fleet?.maintenance_units ? "warning" : "neutral"}
-      iconClass="bx bx-cycling"
-      iconColor="text-amber-400 bg-amber-950/40 border border-amber-800/40"
-      {loading}
-    />
-  </div>
+      <StatCard
+        title="Rider Bertugas"
+        value={`${summary?.operations?.assigned_riders ?? summary?.operations?.checked_in_riders ?? 0} / ${summary?.operations?.registered_riders ?? 0}`}
+        subtitle="Sinyal GPS Bertugas"
+        trendBadge="● LIVE"
+        trendType="success"
+        pulseBadge
+        iconClass="bx bx-map-pin"
+        iconColor="text-emerald-400 bg-emerald-950/40 border border-emerald-800/40"
+        {loading}
+      />
 
-  <!-- SECTION 1.5: HUB ATMOSPHERIC WEATHER RADAR WIDGET -->
-  <HubAtmosphericRadarCard
-    onSyncRequest={loadDashboardData}
-  />
-
-  <!-- SECTION 1.6: SYSTEM READINESS ORCHESTRATION WIDGET -->
-  <SystemReadinessWidget
-    {onNavigate}
-  />
-
-  <!-- SECTION 2: GRID ROW 1 (Sales Trend Chart + Produk Terlaris Leaderboard) -->
-  <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
-    <div class="lg:col-span-8">
-      <SalesChart
-        trendData={salesTrend}
-        {range}
-        {startDate}
-        {endDate}
-        onRangeChange={handleRangeChange}
+      <StatCard
+        title="Armada Digunakan"
+        value={`${summary?.fleet?.in_use_units ?? 0} / ${summary?.fleet?.total_units ?? 0}`}
+        subtitle={`Utilisasi Armada (${summary?.fleet?.utilization_rate_percentage ?? 0}%)`}
+        trendBadge={`${summary?.fleet?.maintenance_units ?? 0} Servis`}
+        trendType={summary?.fleet?.maintenance_units ? "warning" : "neutral"}
+        iconClass="bx bx-cycling"
+        iconColor="text-amber-400 bg-amber-950/40 border border-amber-800/40"
         {loading}
       />
     </div>
 
-    <div class="lg:col-span-4">
-      <TopSellingProductsCard
-        products={productPerformance}
-        {loading}
-        onViewAll={() => onNavigate('/catalog')}
-      />
-    </div>
-  </div>
+    <!-- SECTION 1.5: HUB ATMOSPHERIC WEATHER RADAR WIDGET -->
+    <HubAtmosphericRadarCard onSyncRequest={loadDashboardData} />
 
-  <!-- SECTION 3: GRID ROW 2 (Mini-Map Sebaran Live + DSS Engine Health + Activity Stream) -->
-  <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
-    <div class="lg:col-span-6">
-      <DashboardMiniMap
-        onOpenFullMap={() => onNavigate('/map')}
-      />
+    {#if isSuperAdmin}
+      <!-- SECTION 1.6: SYSTEM READINESS ORCHESTRATION WIDGET (Super Admin Only) -->
+      <SystemReadinessWidget {onNavigate} />
+    {/if}
+
+    <!-- SECTION 2: GRID ROW 1 (Sales Trend Chart + Produk Terlaris Leaderboard) -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      <div class="lg:col-span-8">
+        <SalesChart
+          trendData={salesTrend}
+          {range}
+          {startDate}
+          {endDate}
+          onRangeChange={handleRangeChange}
+          {loading}
+        />
+      </div>
+
+      <div class="lg:col-span-4">
+        <TopSellingProductsCard
+          products={productPerformance}
+          {loading}
+          onViewAll={() => onNavigate("/catalog")}
+        />
+      </div>
     </div>
 
-    <div class="lg:col-span-3">
-      <DssStatusCard
-        {dssConfig}
-        onRecalculateClick={() => dssModalOpen = true}
-        {loading}
-      />
-    </div>
+    <!-- SECTION 3: GRID ROW 2 (Mini-Map Sebaran Live + DSS Engine Health + Activity Stream) -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      <div class={isManagement ? "lg:col-span-8" : "lg:col-span-6"}>
+        <DashboardMiniMap onOpenFullMap={() => onNavigate("/map")} />
+      </div>
 
-    <div class="lg:col-span-3">
-      <ActivityFeed
-        {activities}
-        onClear={() => activities = []}
-      />
+      {#if !isManagement}
+        <div class="lg:col-span-3">
+          <DssStatusCard
+            {dssConfig}
+            onRecalculateClick={() => (dssModalOpen = true)}
+            {loading}
+          />
+        </div>
+      {/if}
+
+      <div class={isManagement ? "lg:col-span-4" : "lg:col-span-3"}>
+        <ActivityFeed {activities} onClear={() => (activities = [])} />
+      </div>
     </div>
   </div>
 </div>
@@ -301,12 +430,12 @@
 <!-- Modal Dialogs -->
 <SyncWeatherModal
   isOpen={weatherModalOpen}
-  onClose={() => weatherModalOpen = false}
+  onClose={() => (weatherModalOpen = false)}
   onSuccess={loadDashboardData}
 />
 
 <RecalculateDssModal
   isOpen={dssModalOpen}
-  onClose={() => dssModalOpen = false}
+  onClose={() => (dssModalOpen = false)}
   onSuccess={loadDashboardData}
 />

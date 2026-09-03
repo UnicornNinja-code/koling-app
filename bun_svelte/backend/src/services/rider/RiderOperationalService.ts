@@ -9,6 +9,7 @@ import { productRepository } from "../../repositories/productRepository.js";
 import { addArmadaHoldReleaseJob, removeArmadaHoldReleaseJob } from "../../queues/armadaHoldQueue.js";
 import { broadcastArmadaHeld, broadcastArmadaReleased } from "../../socket/armadaLockSocketHandler.js";
 import { eventPublisher } from "../../events/eventPublisher.js";
+import { redisGeoService } from "../lbs/RedisGeoService.js";
 
 export class RiderOperationalService {
   private static instance: RiderOperationalService | null = null;
@@ -54,7 +55,7 @@ export class RiderOperationalService {
   }
 
   /**
-   * Inspect & Hold Armada (Ticket-Booking Temporary Lock - 5 Minutes)
+   * Inspect & Hold Armada (Ticket-Booking Temporary Lock - 3 Minutes / 180 Seconds)
    */
   public async inspectAndHoldArmada({
     riderId,
@@ -69,13 +70,13 @@ export class RiderOperationalService {
       throw error;
     }
 
-    const heldArmada = await this.repo.holdArmadaUnit({ riderId, armadaId, holdMinutes: 5 });
-    console.log(`🔒 [HOLD LOCK] Unit Armada ${heldArmada.code} sementara dikunci untuk Rider ${riderId} selama 5 menit.`);
+    const heldArmada = await this.repo.holdArmadaUnit({ riderId, armadaId, holdMinutes: 3 });
+    console.log(`🔒 [HOLD LOCK] Unit Armada ${heldArmada.code} sementara dikunci untuk Rider ${riderId} selama 3 menit.`);
 
     await addArmadaHoldReleaseJob({
       armadaId: heldArmada.id,
       riderId,
-      delayMs: 5 * 60 * 1000,
+      delayMs: 3 * 60 * 1000,
     });
 
     broadcastArmadaHeld({
@@ -108,25 +109,23 @@ export class RiderOperationalService {
     }
 
     const released = await this.repo.cancelArmadaHold({ riderId, armadaId });
-    if (!released) {
-      const error: any = new Error("Unit armada tidak dalam status reservasi Anda.");
-      error.statusCode = 400;
-      throw error;
+    if (released) {
+      await removeArmadaHoldReleaseJob(released.id || armadaId);
+      broadcastArmadaReleased({
+        armadaId: released.id,
+        code: released.code,
+      });
+      console.log(`🔓 [CANCEL HOLD] Reservasi unit Armada ${released.code} dibatalkan oleh Rider ${riderId}.`);
     }
 
-    await removeArmadaHoldReleaseJob(released.id || armadaId);
-
-    broadcastArmadaReleased({ armadaId: released.id || armadaId, code: released.code });
-
-    console.log(`🔓 [RELEASE LOCK] Reservasi Unit Armada ${released.code} dibatalkan dan kembali ketersediaannya.`);
     return {
-      message: `Klaim unit ${released.code} dibatalkan. Ketersediaan armada dikembalikan seperti semula.`,
+      message: "Reservasi armada dibatalkan. Armada kembali tersedia untuk dipilih.",
       armada: released,
     };
   }
 
   /**
-   * Confirm Final Claim on Armada
+   * Confirm Permanent Armada Claim with Checklist Verification
    */
   public async confirmArmadaClaim({
     riderId,
@@ -146,9 +145,9 @@ export class RiderOperationalService {
     }
 
     const sessionRes = await this.getRiderActiveSession(riderId);
-    const assignmentId = sessionRes.session?.assignment_id || null;
+    const assignmentId = sessionRes.session?.assignment_id;
 
-    const claimed = await this.repo.confirmArmadaClaim({
+    const claimedArmada = await this.repo.confirmArmadaClaim({
       riderId,
       armadaId,
       assignmentId,
@@ -156,25 +155,25 @@ export class RiderOperationalService {
       notes,
     });
 
-    await removeArmadaHoldReleaseJob(claimed.id || armadaId);
+    await removeArmadaHoldReleaseJob(claimedArmada.id || armadaId);
 
     eventPublisher.publishArmadaClaimed({
-      armadaId: claimed.id || armadaId,
-      code: claimed.code,
+      armadaId: claimedArmada.id,
+      code: claimedArmada.code,
       riderId,
       riderName: sessionRes.session?.rider_name || "Rider",
     });
 
-    console.log(`✅ [CONFIRM CLAIM] Rider ${riderId} resmi mengklaim Unit Armada ${claimed.code} (Status: IN_USE).`);
+    console.log(`🚚 [CLAIM ARMADA] Unit Armada ${claimedArmada.code} resmi diklaim oleh Rider ${riderId} (Status: IN_USE).`);
 
     return {
-      message: `Selamat! Unit Armada ${claimed.code} berhasil diklaim. Silakan berkendara menuju zona tugas.`,
-      armada: claimed,
+      message: `Armada ${claimedArmada.code} berhasil diklaim. Selamat bertugas!`,
+      armada: claimedArmada,
     };
   }
 
   /**
-   * Check-in Rider GPS coordinates to zone polygon
+   * Validate GPS Location and Check-in to Assigned Zone Polygon via PostGIS ST_Covers
    */
   public async checkInToZone({
     riderId,
@@ -186,14 +185,14 @@ export class RiderOperationalService {
     lon: number | string;
   }): Promise<any> {
     if (!riderId || lat === undefined || lon === undefined) {
-      const error: any = new Error("Rider ID dan koordinat GPS (lat, lon) harus diisi.");
+      const error: any = new Error("Rider ID, Latitude, dan Longitude harus diisi untuk Check-in.");
       error.statusCode = 400;
       throw error;
     }
 
     const sessionRes = await this.getRiderActiveSession(riderId);
     if (!sessionRes.has_active_session) {
-      const error: any = new Error("Anda tidak memiliki penugasan zona aktif hari ini.");
+      const error: any = new Error("Anda tidak memiliki sesi penugasan zona aktif hari ini.");
       error.statusCode = 400;
       throw error;
     }
@@ -232,12 +231,16 @@ export class RiderOperationalService {
     riderId,
     productId,
     quantity,
+    paymentMethod = "CASH",
+    idempotencyKey,
     lat,
     lon,
   }: {
     riderId: number | string;
     productId: number | string;
     quantity: number | string;
+    paymentMethod?: string;
+    idempotencyKey?: string;
     lat?: number;
     lon?: number;
   }): Promise<any> {
@@ -293,6 +296,7 @@ export class RiderOperationalService {
       quantity: qty,
       unitPrice,
       totalPrice,
+      paymentMethod,
       lat,
       lon,
     });
@@ -311,7 +315,7 @@ export class RiderOperationalService {
       totalPrice,
     });
 
-    console.log(`💰 [SALES LOG] Rider ${riderId} mencatat penjualan ${qty}x ${product.name} (Total: Rp${totalPrice.toLocaleString("id-ID")}).`);
+    console.log(`💰 [SALES LOG] Rider ${riderId} mencatat penjualan ${qty}x ${product.name} (${paymentMethod} - Total: Rp${totalPrice.toLocaleString("id-ID")}).`);
 
     return {
       message: "Data penjualan produk berhasil dicatat.",
@@ -320,6 +324,7 @@ export class RiderOperationalService {
         product_name: product.name,
         unit_price: unitPrice,
         total_price: totalPrice,
+        payment_method: paymentMethod,
       },
     };
   }
@@ -360,11 +365,19 @@ export class RiderOperationalService {
     returnStatus = "ACTIVE",
     inspectionCondition = {},
     notes = "",
+    remainingCups = 0,
+    actualCashSubmitted = 0,
+    discrepancyAmount = 0,
+    discrepancyReason = "",
   }: {
     riderId: number | string;
     returnStatus?: string;
     inspectionCondition?: Record<string, any>;
     notes?: string;
+    remainingCups?: number;
+    actualCashSubmitted?: number;
+    discrepancyAmount?: number;
+    discrepancyReason?: string;
   }): Promise<any> {
     if (!riderId) {
       const error: any = new Error("Rider ID harus diisi.");
@@ -387,7 +400,14 @@ export class RiderOperationalService {
       returnStatus,
       inspectionCondition,
       notes,
+      remainingCups,
+      actualCashSubmitted,
+      discrepancyAmount,
+      discrepancyReason,
     });
+
+    // Cleanup live location radar from Redis
+    await redisGeoService.removeRiderLocation(riderId);
 
     eventPublisher.publishRiderCheckedOut({
       assignmentId: session.assignment_id,
@@ -397,7 +417,7 @@ export class RiderOperationalService {
       zoneName: session.zone_name,
       armadaId: session.armada_id,
       armadaCode: checkoutResult.armada_code,
-      returnStatus,
+      returnStatus: checkoutResult.armada_status || returnStatus,
     });
 
     if (session.armada_id) {
@@ -407,7 +427,7 @@ export class RiderOperationalService {
       });
     }
 
-    console.log(`🏁 [CHECKOUT SESSION] Sesi operasional Rider ${riderId} ditutup. Armada dikembalikan dengan status '${returnStatus}'.`);
+    console.log(`🏁 [CHECKOUT SESSION] Sesi operasional Rider ${riderId} ditutup. Armada dikembalikan dengan status '${checkoutResult.armada_status || returnStatus}'.`);
 
     return {
       message: "Sesi operasional berhasil ditutup. Terima kasih atas kerja keras Anda hari ini!",

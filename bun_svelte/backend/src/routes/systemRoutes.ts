@@ -4,7 +4,13 @@
  */
 
 import express from "express";
-import { getSystemReadiness, updateSystemSettings } from "../controllers/systemSettingController.js";
+import {
+  getSystemReadiness,
+  updateSystemSettings,
+  getSetupStatus,
+  saveSetupStep,
+  applySystemSetup,
+} from "../controllers/systemSettingController.js";
 import { authenticateToken } from "../middlewares/authMiddleware.js";
 import { checkRole } from "../middlewares/roleMiddleware.js";
 
@@ -27,6 +33,27 @@ router.put(
   authenticateToken,
   checkRole(["SUPERADMIN", "MANAGEMENT"]),
   updateSystemSettings
+);
+
+// First-Run System Setup / Initial Configuration Wizard Gate
+router.get(
+  "/setup-status",
+  authenticateToken,
+  getSetupStatus
+);
+
+router.post(
+  "/setup-step",
+  authenticateToken,
+  checkRole(["SUPERADMIN"]),
+  saveSetupStep
+);
+
+router.post(
+  "/apply-setup",
+  authenticateToken,
+  checkRole(["SUPERADMIN"]),
+  applySystemSetup
 );
 
 export default router;

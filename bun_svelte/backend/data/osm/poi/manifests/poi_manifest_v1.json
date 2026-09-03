@@ -1,0 +1,10 @@
+{
+  "dataset": "poi",
+  "version": 1,
+  "source": "INITIAL_DATABASE_BASELINE",
+  "fetched_at": "2026-09-02T03:58:21.609Z",
+  "feature_count": 3,
+  "checksum_sha256": "4eaa59fde985eae435b7eccc4d97dd81ece0525dcc29365ae22e81fdcfcf8d57",
+  "validation_status": "VALIDATED",
+  "status": "ACTIVE"
+}

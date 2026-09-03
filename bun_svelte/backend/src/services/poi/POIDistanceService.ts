@@ -7,6 +7,8 @@ import { SystemSettingModel } from "../../models/systemSettingModel.js";
 import { zoneRepository, ZoneRepository } from "../../repositories/zoneRepository.js";
 import { pool } from "../../config/database.js";
 
+import { operationalContextService } from "../spatial/OperationalContextService.js";
+
 export class POIDistanceService {
   private static instance: POIDistanceService | null = null;
   private repo: ZoneRepository;
@@ -27,16 +29,11 @@ export class POIDistanceService {
   }
 
   /**
-   * Helper to get default Hub coordinates from System Settings
+   * Helper to get default Hub coordinates from Operational Context
    */
   public async getHubCoordinates(): Promise<{ latitude: number; longitude: number }> {
-    const latSetting = await SystemSettingModel.getByKey("HUB_LATITUDE");
-    const lonSetting = await SystemSettingModel.getByKey("HUB_LONGITUDE");
-
-    const latitude = parseFloat(latSetting?.setting_value || latSetting?.value || "-7.397402184098715");
-    const longitude = parseFloat(lonSetting?.setting_value || lonSetting?.value || "112.71195887495875");
-
-    return { latitude, longitude };
+    const context = await operationalContextService.getOperationalContext();
+    return { latitude: context.latitude, longitude: context.longitude };
   }
 
   /**

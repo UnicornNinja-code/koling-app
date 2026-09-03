@@ -148,6 +148,7 @@ export const distributionService = {
     execution_type?: string;
     allocations: ProposedAllocation[];
     unassigned_riders?: UnassignedRider[];
+    snapshot_hash?: string;
   }): Promise<{ msg?: string; message?: string; run: any; assignments: any[] }> => {
     const res = await axiosInstance.post('/distribution/confirm', data);
     return res.data;
@@ -164,6 +165,17 @@ export const distributionService = {
     armada_id?: string;
   }): Promise<{ msg?: string; message?: string; assignment: AssignmentItem }> => {
     const res = await axiosInstance.post('/distribution/manual', data);
+    return res.data;
+  },
+
+  emergencySwap: async (data: {
+    previous_rider_id: string;
+    new_rider_id: string;
+    incident_type: string;
+    notes?: string;
+    armada_action?: "KEEP_ARMADA" | "SWAP_ARMADA" | string;
+  }): Promise<any> => {
+    const res = await axiosInstance.post('/distribution/emergency-swap', data);
     return res.data;
   },
 

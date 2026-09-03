@@ -100,4 +100,48 @@ export const userService = {
     const res = await axiosInstance.post(`/users/${id}/resend-invitation`);
     return res.data;
   },
+
+  /**
+   * Get user preferences (map basemap, notifications, sound effects)
+   */
+  getUserPreferences: async (): Promise<{
+    map_basemap?: string;
+    theme?: string;
+    enable_sound_effects?: boolean;
+    enable_push_notifications?: boolean;
+  }> => {
+    const res = await axiosInstance.get("/users/preferences");
+    return res.data?.preferences || {};
+  },
+
+  /**
+   * Update user preferences
+   */
+  updateUserPreferences: async (preferences: {
+    map_basemap?: string;
+    theme?: string;
+    enable_sound_effects?: boolean;
+    enable_push_notifications?: boolean;
+  }): Promise<any> => {
+    const res = await axiosInstance.put("/users/preferences", preferences);
+    return res.data;
+  },
+
+  /**
+   * Get authenticated user profile details
+   * GET /api/users/profile
+   */
+  getProfile: async (): Promise<UserAccountItem> => {
+    const res = await axiosInstance.get("/users/profile");
+    return res.data?.user || res.data;
+  },
+
+  /**
+   * Change authenticated user password
+   * PUT /api/users/change-password
+   */
+  changePassword: async (payload: { old_password?: string; current_password?: string; new_password?: string; password?: string }): Promise<{ msg: string }> => {
+    const res = await axiosInstance.put("/users/change-password", payload);
+    return res.data;
+  },
 };

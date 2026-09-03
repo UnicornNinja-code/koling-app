@@ -42,7 +42,17 @@ export const poiCategoryService = {
    * Update time-based crowd scores for single category
    */
   updateTimeScores: async (id: number | string, timeScores: PoiTimeScores): Promise<any> => {
-    const res = await axiosInstance.put(`/poi-categories/${id}/time-scores`, { time_scores: timeScores });
+    const res = await axiosInstance.put(`/poi-categories/${id}/time-scores`, {
+      PAGI: timeScores.pagi,
+      SIANG: timeScores.siang,
+      SORE: timeScores.sore,
+      MALAM: timeScores.malam,
+      time_scores: timeScores,
+      score_pagi: timeScores.pagi,
+      score_siang: timeScores.siang,
+      score_sore: timeScores.sore,
+      score_malam: timeScores.malam,
+    });
     return res.data;
   },
 

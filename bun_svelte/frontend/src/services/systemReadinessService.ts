@@ -25,6 +25,7 @@ export interface SystemReadinessReport {
   items: ReadinessItem[];
   hub_config: {
     name: string;
+    city_name?: string;
     address: string;
     latitude: number;
     longitude: number;
@@ -55,6 +56,7 @@ export const systemReadinessService = {
 
   updateSettings: async (data: {
     hub_name?: string;
+    hub_city_name?: string;
     hub_address?: string;
     hub_latitude?: number;
     hub_longitude?: number;
@@ -63,6 +65,33 @@ export const systemReadinessService = {
     toll_road_prohibited?: boolean;
   }): Promise<{ msg: string; report: SystemReadinessReport }> => {
     const res = await axiosInstance.put('/system/settings', data);
+    return res.data;
+  },
+
+  /**
+   * System health status check
+   * GET /api/health
+   */
+  getHealth: async (): Promise<{ status: string; timestamp: string; database?: string; redis?: string }> => {
+    const res = await axiosInstance.get('/health');
+    return res.data;
+  },
+
+  /**
+   * Get system operational rules
+   * GET /api/system-settings/operational-rules
+   */
+  getOperationalRules: async (): Promise<any> => {
+    const res = await axiosInstance.get('/system-settings/operational-rules');
+    return res.data;
+  },
+
+  /**
+   * Update system operational rules
+   * PATCH /api/system-settings/operational-rules
+   */
+  updateOperationalRules: async (rules: any): Promise<{ msg: string; rules: any }> => {
+    const res = await axiosInstance.patch('/system-settings/operational-rules', rules);
     return res.data;
   },
 };

@@ -1,0 +1,525 @@
+Berikut adalah konversi lengkap komponen **Dashboard Sidebar**, **Workspace Switcher**, **Recursive NavItem (dengan collapsible sub-menu)**, dan **Command Search Dialog** ke tech stack target Anda: **Svelte 5 Runes**, **Tailwind CSS**, **Lucide Svelte**, dan **TypeScript**.
+
+Komponen ini dirancang modular dan cocok dijadikan fondasi tata letak dashboard SuperAdmin, Management, maupun Supervisor.
+
+---
+
+### 1. File Tipe Data: `src/components/layout/sidebar/types.ts`
+
+```typescript
+import type { Component } from "svelte";
+
+export interface NavItemData {
+  id: string;
+  title: string;
+  icon: Component<{ size?: number; strokeWidth?: number; class?: string }>;
+  badge?: number | string;
+  shortcut?: string;
+  children?: NavItemData[];
+}
+
+export interface NavGroupData {
+  heading?: string;
+  items: NavItemData[];
+}
+
+```
+
+---
+
+### 2. Komponen Item Navigasi Rekursif: `src/components/layout/sidebar/SidebarNavItem.svelte`
+
+Menggunakan `$state` untuk status buka/tutup sub-menu, `$derived` untuk mengecek *active state*, dan pemanggilan diri sendiri secara rekursif (`svelte:self`) untuk menangani kedalaman anak item tak terbatas.
+
+```svelte
+<script lang="ts">
+  import { ChevronRight } from "lucide-svelte";
+  import type { NavItemData } from "./types";
+
+  let {
+    item,
+    activeId,
+    onSelect,
+    level = 0,
+  }: {
+    item: NavItemData;
+    activeId: string;
+    onSelect: (id: string) => void;
+    level?: number;
+  } = $props();
+
+  let isOpen = $state(false);
+  let isActive = $derived(activeId === item.id);
+  let hasChildren = $derived(Boolean(item.children && item.children.length > 0));
+
+  function handleClick() {
+    if (hasChildren) {
+      isOpen = !isOpen;
+    } else {
+      onSelect(item.id);
+    }
+  }
+</script>
+
+<div class="flex flex-col w-full">
+  <button
+    type="button"
+    class={`group flex w-full items-center justify-between px-2.5 py-[7px] rounded-[6px] cursor-pointer transition-all duration-200 select-none text-left
+      ${
+        isActive
+          ? "bg-black/5 dark:bg-white/10 text-foreground font-medium"
+          : "text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5 hover:text-foreground/90"
+      }
+    `}
+    style="padding-left: {level * 12 + 10}px;"
+    onclick={handleClick}
+  >
+    <div class="flex items-center gap-2.5 min-w-0">
+      {#snippet renderIcon()}
+        {@const Icon = item.icon}
+        <Icon
+          class={`size-4 shrink-0 transition-colors ${
+            isActive
+              ? "text-foreground"
+              : "text-muted-foreground/70 group-hover:text-foreground/70"
+          }`}
+          strokeWidth={1.5}
+        />
+      {/snippet}
+      {@render renderIcon()}
+      <span class="text-[13px] tracking-wide truncate">
+        {item.title}
+      </span>
+    </div>
+
+    <div class="flex items-center gap-2 shrink-0">
+      {#if item.shortcut}
+        <kbd
+          class="hidden group-hover:inline-flex items-center justify-center h-5 px-1.5 text-[10px] font-medium font-mono text-muted-foreground/60 bg-background/50 border border-border/50 rounded-[4px] shadow-xs"
+        >
+          {item.shortcut}
+        </kbd>
+      {/if}
+
+      {#if item.badge !== undefined}
+        <span
+          class="flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[10px] font-medium rounded-full bg-primary/10 text-primary"
+        >
+          {item.badge}
+        </span>
+      {/if}
+
+      {#if hasChildren}
+        <ChevronRight
+          class="size-3.5 text-muted-foreground/50 transition-transform duration-200 {isOpen ? 'rotate-90' : ''}"
+          strokeWidth={2}
+        />
+      {/if}
+    </div>
+  </button>
+
+  {#if hasChildren && item.children}
+    <div
+      class="grid transition-[grid-template-rows,opacity] duration-300 ease-in-out {isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}"
+    >
+      <div class="overflow-hidden min-h-0 relative flex flex-col gap-0.5 mt-0.5">
+        <div
+          class="absolute top-0 bottom-0 border-l border-black/5 dark:border-white/5"
+          style="left: {level * 12 + 17.5}px;"
+        ></div>
+        {#each item.children as child (child.id)}
+          <svelte:self
+            item={child}
+            {activeId}
+            {onSelect}
+            level={level + 1}
+          />
+        {/each}
+      </div>
+    </div>
+  {/if}
+</div>
+
+```
+
+---
+
+### 3. Komponen Workspace Switcher: `src/components/layout/sidebar/WorkspaceSwitcher.svelte`
+
+```svelte
+<script lang="ts">
+  import { ChevronDown } from "lucide-svelte";
+
+  let {
+    selected = $bindable("Acme Corp"),
+    onSelect,
+  }: {
+    selected?: string;
+    onSelect?: (ws: string) => void;
+  } = $props();
+
+  let isOpen = $state(false);
+  const workspaces = ["Acme Corp", "Personal Workspace", "Client Sandbox"];
+
+  function handlePick(ws: string) {
+    selected = ws;
+    onSelect?.(ws);
+    isOpen = false;
+  }
+</script>
+
+<div class="relative">
+  <button
+    type="button"
+    onclick={() => (isOpen = !isOpen)}
+    class="flex w-full items-center justify-between px-2 py-2 mb-4 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer transition-colors select-none group text-left"
+  >
+    <div class="flex items-center gap-3 min-w-0">
+      <div
+        class="w-8 h-8 rounded-[6px] bg-primary text-primary-foreground flex items-center justify-center font-semibold text-[13px] shadow-sm shrink-0"
+      >
+        {selected.charAt(0)}
+      </div>
+      <div class="flex flex-col overflow-hidden">
+        <span class="text-[13px] font-medium leading-none mb-1 text-foreground truncate max-w-[120px]">
+          {selected}
+        </span>
+        <span class="text-[11px] text-muted-foreground leading-none">Pro Plan</span>
+      </div>
+    </div>
+    <ChevronDown
+      class="w-4 h-4 text-muted-foreground/50 group-hover:text-foreground/70 transition-colors shrink-0"
+      strokeWidth={1.5}
+    />
+  </button>
+
+  {#if isOpen}
+    <div
+      role="presentation"
+      class="fixed inset-0 z-40"
+      onclick={() => (isOpen = false)}
+    ></div>
+    <div
+      class="absolute top-[52px] left-0 w-full bg-card border border-border/50 rounded-lg shadow-xl z-50 py-1 flex flex-col gap-0.5 animate-in fade-in zoom-in-95 duration-100"
+    >
+      {#each workspaces as ws}
+        <button
+          type="button"
+          onclick={() => handlePick(ws)}
+          class="px-3 py-2 mx-1 text-[13px] rounded-md text-left transition-colors {selected === ws ? 'bg-primary/10 text-primary font-medium' : 'text-foreground/80 hover:bg-black/5 dark:hover:bg-white/5'}"
+        >
+          {ws}
+        </button>
+      {/each}
+      <div class="h-px bg-border/50 my-1 mx-2"></div>
+      <button
+        type="button"
+        class="px-3 py-2 mx-1 text-[13px] text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5 rounded-md cursor-pointer flex items-center gap-2 transition-colors text-left"
+      >
+        <span class="text-[16px] leading-none mb-0.5">+</span> Create Workspace
+      </button>
+    </div>
+  {/if}
+</div>
+
+```
+
+---
+
+### 4. Komponen Utama Sidebar: `src/components/layout/sidebar/DashboardSidebar.svelte`
+
+```svelte
+<script lang="ts">
+  import WorkspaceSwitcher from "./WorkspaceSwitcher.svelte";
+  import SidebarNavItem from "./SidebarNavItem.svelte";
+  import type { NavGroupData, NavItemData } from "./types";
+  import {
+    Search,
+    LayoutDashboard,
+    Inbox,
+    Activity,
+    FolderKanban,
+    Hash,
+    Calendar,
+    Users,
+    Globe,
+    CreditCard,
+    Terminal,
+    Blocks,
+    Settings,
+    LogOut,
+  } from "lucide-svelte";
+
+  let {
+    class: className = "",
+    activeId = $bindable("home"),
+    onSelect,
+    activeWorkspace = $bindable("Acme Corp"),
+    onWorkspaceSelect,
+  }: {
+    class?: string;
+    activeId?: string;
+    onSelect?: (id: string) => void;
+    activeWorkspace?: string;
+    onWorkspaceSelect?: (ws: string) => void;
+  } = $props();
+
+  const navGroups: NavGroupData[] = [
+    {
+      items: [
+        { id: "search", title: "Search", icon: Search, shortcut: "⌘K" },
+        { id: "home", title: "Home", icon: LayoutDashboard },
+        { id: "inbox", title: "Inbox", icon: Inbox, badge: 12 },
+        { id: "analytics", title: "Analytics", icon: Activity },
+      ],
+    },
+    {
+      heading: "Workspace",
+      items: [
+        {
+          id: "projects",
+          title: "Projects",
+          icon: FolderKanban,
+          children: [
+            { id: "p-active", title: "Active", icon: Hash },
+            { id: "p-archived", title: "Archived", icon: Hash },
+          ],
+        },
+        { id: "calendar", title: "Calendar", icon: Calendar },
+        {
+          id: "team",
+          title: "Team",
+          icon: Users,
+          children: [
+            { id: "t-design", title: "Designers", icon: Hash },
+            { id: "t-eng", title: "Engineering", icon: Hash },
+            { id: "t-product", title: "Product", icon: Hash },
+          ],
+        },
+        {
+          id: "customers",
+          title: "Customers",
+          icon: Globe,
+          children: [
+            { id: "c-enterprise", title: "Enterprise", icon: Hash },
+            { id: "c-smb", title: "SMB", icon: Hash },
+          ],
+        },
+        { id: "finance", title: "Finance", icon: CreditCard },
+      ],
+    },
+    {
+      heading: "Developers",
+      items: [
+        { id: "api", title: "API Keys", icon: Terminal },
+        { id: "webhooks", title: "Webhooks", icon: Blocks },
+      ],
+    },
+  ];
+
+  const bottomItems: NavItemData[] = [
+    { id: "settings", title: "Settings", icon: Settings, shortcut: "⌘," },
+    { id: "logout", title: "Log out", icon: LogOut },
+  ];
+
+  function handleSelect(id: string) {
+    activeId = id;
+    onSelect?.(id);
+  }
+</script>
+
+<div class="flex flex-col w-[260px] h-full bg-card/50 border-r border-border/50 p-3 font-sans {className}">
+  <WorkspaceSwitcher
+    bind:selected={activeWorkspace}
+    {onWorkspaceSelect}
+  />
+
+  <div class="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] flex flex-col gap-4 mt-2">
+    {#each navGroups as group, idx (idx)}
+      <div class="flex flex-col gap-0.5">
+        {#if group.heading}
+          <span class="px-2.5 mb-1 text-[11px] font-semibold tracking-wider text-muted-foreground/50 uppercase">
+            {group.heading}
+          </span>
+        {/if}
+        {#each group.items as item (item.id)}
+          <SidebarNavItem
+            {item}
+            {activeId}
+            onSelect={handleSelect}
+          />
+        {/each}
+      </div>
+    {/each}
+  </div>
+
+  <div class="mt-auto pt-4 border-t border-border/50 flex flex-col gap-0.5">
+    {#each bottomItems as item (item.id)}
+      <SidebarNavItem
+        {item}
+        {activeId}
+        onSelect={handleSelect}
+      />
+    {/each}
+  </div>
+</div>
+
+```
+
+---
+
+### 5. Komponen Demo Interaktif Lengkap: `src/components/demo/DashboardSidebarDemo.svelte`
+
+Mengintegrasikan tombol collapse sidebar, breadcrumb workspace aktif, dan modal pencarian (*Command Search Palette*).
+
+```svelte
+<script lang="ts">
+  import DashboardSidebar from "$components/layout/sidebar/DashboardSidebar.svelte";
+  import { PanelLeftClose, PanelLeftOpen, Search, Command, X } from "lucide-svelte";
+
+  let isOpen = $state(true);
+  let activeId = $state("home");
+  let activeWorkspace = $state("Acme Corp");
+  let isSearchOpen = $state(false);
+
+  function handleSelect(id: string) {
+    if (id === "search") {
+      isSearchOpen = true;
+      return;
+    }
+    activeId = id;
+  }
+
+  // Keyboard shortcut cmd+k / ctrl+k untuk membuka pencarian
+  function handleKeyDown(e: KeyboardEvent) {
+    if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      e.preventDefault();
+      isSearchOpen = !isSearchOpen;
+    }
+    if (e.key === "Escape") {
+      isSearchOpen = false;
+    }
+  }
+</script>
+
+<svelte:window onkeydown={handleKeyDown} />
+
+<div class="flex flex-col items-center justify-center w-full min-h-[700px] bg-background p-4 md:p-8">
+  <div class="relative w-full max-w-5xl h-[700px] bg-card rounded-xl border border-border/50 flex overflow-hidden shadow-sm ring-1 ring-black/5 dark:ring-white/5">
+    <!-- Collapsible Sidebar Container -->
+    <div
+      class="h-full transition-all duration-300 ease-in-out shrink-0 overflow-hidden bg-card/50 border-r border-border/50 {isOpen ? 'w-[260px] opacity-100' : 'w-0 opacity-0 border-none'}"
+    >
+      <DashboardSidebar
+        class="w-[260px] border-none bg-transparent"
+        bind:activeId
+        bind:activeWorkspace
+        onSelect={handleSelect}
+      />
+    </div>
+
+    <!-- Main Workspace Area -->
+    <div class="flex-1 bg-black/[0.02] dark:bg-white/[0.02] flex flex-col min-w-0 transition-all duration-300">
+      <!-- Header Bar -->
+      <div class="h-14 border-b border-border/50 flex items-center px-4 justify-between bg-card shrink-0">
+        <div class="flex items-center gap-3">
+          <button
+            type="button"
+            onclick={() => (isOpen = !isOpen)}
+            aria-label="Toggle sidebar"
+            class="p-1.5 rounded-md text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5 hover:text-foreground transition-colors"
+          >
+            {#if isOpen}
+              <PanelLeftClose class="size-[18px]" strokeWidth={1.5} />
+            {:else}
+              <PanelLeftOpen class="size-[18px]" strokeWidth={1.5} />
+            {/if}
+          </button>
+          <div class="flex items-center gap-2 text-sm text-muted-foreground">
+            <span class="truncate">{activeWorkspace}</span>
+            <span>/</span>
+            <span class="font-medium text-foreground capitalize truncate">{activeId}</span>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <div class="w-64 h-8 bg-black/5 dark:bg-white/5 rounded-md hidden md:block"></div>
+          <div class="w-8 h-8 bg-primary/10 rounded-full border border-primary/20"></div>
+        </div>
+      </div>
+
+      <!-- Main Body Content Placeholder -->
+      <div class="p-6 md:p-8 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <div class="flex items-center justify-between mb-8">
+          <div class="w-48 h-8 bg-black/5 dark:bg-white/5 rounded-md"></div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div class="h-32 bg-card rounded-xl border border-border/50 shadow-sm"></div>
+          <div class="h-32 bg-card rounded-xl border border-border/50 shadow-sm"></div>
+        </div>
+
+        <div class="w-full bg-card rounded-xl border border-border/50 shadow-sm p-6">
+          <div class="w-1/3 h-5 bg-black/5 dark:bg-white/5 rounded-md mb-6"></div>
+          <div class="w-full h-px bg-border/50 mb-6"></div>
+
+          <div class="flex flex-col gap-4">
+            <div class="w-full h-12 bg-black/5 dark:bg-white/5 rounded-lg"></div>
+            <div class="w-full h-12 bg-black/5 dark:bg-white/5 rounded-lg"></div>
+            <div class="w-full h-12 bg-black/5 dark:bg-white/5 rounded-lg"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Command Search Modal -->
+    {#if isSearchOpen}
+      <div class="absolute inset-0 z-50 flex items-start justify-center pt-[15vh] bg-background/40 backdrop-blur-sm px-4">
+        <div
+          role="presentation"
+          class="absolute inset-0"
+          onclick={() => (isSearchOpen = false)}
+        ></div>
+        <div
+          class="relative w-full max-w-xl bg-card border border-border/50 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+        >
+          <div class="flex items-center px-4 border-b border-border/50">
+            <Search class="size-[18px] text-muted-foreground/70 mr-3 shrink-0" strokeWidth={1.5} />
+            <input
+              type="text"
+              class="flex-1 bg-transparent py-4 outline-none text-[14px] text-foreground placeholder:text-muted-foreground/50"
+              placeholder="Search projects, docs, or actions..."
+            />
+            <button
+              type="button"
+              onclick={() => (isSearchOpen = false)}
+              class="hidden sm:inline-flex items-center justify-center h-5 px-1.5 ml-2 text-[10px] font-medium font-mono text-muted-foreground/70 bg-black/5 dark:bg-white/10 border border-black/10 dark:border-white/10 rounded-[4px] cursor-pointer hover:text-foreground hover:bg-black/10 dark:hover:bg-white/20 transition-colors"
+            >
+              ESC
+            </button>
+            <button
+              type="button"
+              onclick={() => (isSearchOpen = false)}
+              aria-label="Close search"
+              class="ml-3 p-1 rounded-md text-muted-foreground/70 hover:bg-black/5 dark:hover:bg-white/10 hover:text-foreground transition-colors"
+            >
+              <X class="size-[18px]" strokeWidth={1.5} />
+            </button>
+          </div>
+          <div class="p-2 py-8 flex flex-col items-center justify-center">
+            <Command class="size-6 text-muted-foreground/30 mb-2" strokeWidth={1.5} />
+            <p class="text-[13px] text-muted-foreground font-medium">Type a command or search...</p>
+          </div>
+        </div>
+      </div>
+    {/if}
+  </div>
+</div>
+
+```
+
+---
+
+### 6. Integrasi dengan Role-Based Sidebar MOVA (FE PART 00)
+
+Struktur data `navGroups` di atas dapat langsung disesuaikan secara dinamis berdasarkan peran yang aktif (`user.role` dari `auth.svelte.ts`):

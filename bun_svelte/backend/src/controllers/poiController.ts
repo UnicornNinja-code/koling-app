@@ -20,11 +20,19 @@ import {
   getZoneC4ScoreService,
   getZoneC5ScoreService,
 } from "../services/poiService.js";
+import { enqueuePoiSyncJob } from "../queues/overpassQueue.js";
 
 export const syncCityPois = async (req: Request, res: Response): Promise<any> => {
   try {
-    const result = await syncCityPoisService();
-    return res.status(200).json(result);
+    const userId = (req as any).user?.id || null;
+    const requestedCity = (req.body?.city_name || req.query?.city_name) as string | undefined;
+    const result = await enqueuePoiSyncJob({ userId, cityName: requestedCity || null });
+    return res.status(202).json({
+      status: "accepted",
+      job_id: result.jobId,
+      city_name: result.cityName,
+      msg: `Sinkronisasi POI Overpass untuk '${result.cityName}' berhasil dijadwalkan ke antrean latar belakang (BullMQ).`,
+    });
   } catch (error: any) {
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({ msg: error.message || "Internal server error" });

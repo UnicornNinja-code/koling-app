@@ -1,0 +1,10 @@
+{
+  "dataset": "toll_roads",
+  "version": 1,
+  "source": "INITIAL_DATABASE_BASELINE",
+  "fetched_at": "2026-09-02T03:58:21.639Z",
+  "feature_count": 1,
+  "checksum_sha256": "4090c2f39458b1ce874149bc03ae57b63a5677c385679a5e86d006f8e49a33d3",
+  "validation_status": "VALIDATED",
+  "status": "ACTIVE"
+}

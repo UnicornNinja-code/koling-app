@@ -1,21 +1,44 @@
 /*
  * captcha.ts
- * Self-Hosted High-Performance SVG CAPTCHA Generator with HMAC Signature in TypeScript
- * Works 100% offline without external dependencies.
+ * Self-Hosted High-Performance SVG CAPTCHA Generator with HMAC-SHA256 & Redis Single-Use
+ * MOVA Security Layer (100% first-party, zero external dependencies)
  */
 
-import { createHmac, randomBytes } from "crypto";
-
-const CAPTCHA_SECRET = process.env.CAPTCHA_SECRET || "cozis_captcha_secure_salt_2026_key";
-const CAPTCHA_TTL_MS = 5 * 60 * 1000; // 5 minutes
+import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "crypto";
+import { redisClient } from "../config/redis.js";
+import { env } from "../config/env.js";
 
 export interface CaptchaChallenge {
   captcha_id: string;
   svg: string;
+  issued_at: number;
   expires_at: number;
+  ttl_seconds: number;
+}
+
+export interface StoredCaptchaPayload {
+  challenge: string;
+  issued_at: number;
+  expires_at: number;
+  signature: string;
+  status: "unused" | "consumed";
+}
+
+export interface CaptchaVerificationResult {
+  valid: boolean;
+  reason?: "MISSING" | "EXPIRED" | "REPLAY" | "INVALID_SIGNATURE" | "WRONG_ANSWER";
+  msg: string;
 }
 
 export class CaptchaUtil {
+  private static getSecret(): string {
+    return env.SECURITY?.CAPTCHA_SECRET || process.env.CAPTCHA_SECRET || "mova_captcha_hmac_secret_salt_2026";
+  }
+
+  private static getTTL(): number {
+    return env.SECURITY?.CAPTCHA_TTL_SECONDS || Number(process.env.CAPTCHA_TTL_SECONDS) || 60;
+  }
+
   /**
    * Generate random 5-character alphanumeric text (excluding confusing chars like 0, O, 1, I, l)
    */
@@ -88,57 +111,193 @@ export class CaptchaUtil {
   }
 
   /**
-   * Create signed HMAC token
+   * Compute HMAC-SHA256 signature for canonical challenge payload
+   * canonical: captcha_id.challenge.issued_at.expires_at
    */
-  private static signPayload(text: string, expiresAt: number): string {
-    const payload = `${text.toUpperCase()}:${expiresAt}`;
-    const hmac = createHmac("sha256", CAPTCHA_SECRET).update(payload).digest("hex");
-    return Buffer.from(JSON.stringify({ text: text.toUpperCase(), exp: expiresAt, sig: hmac })).toString("base64url");
+  public static computeSignature(
+    captchaId: string,
+    challenge: string,
+    issuedAt: number,
+    expiresAt: number,
+    secretOverride?: string
+  ): string {
+    const secret = secretOverride || this.getSecret();
+    const canonicalPayload = `${captchaId}.${challenge.toUpperCase()}.${issuedAt}.${expiresAt}`;
+    return createHmac("sha256", secret).update(canonicalPayload).digest("hex");
   }
 
   /**
-   * Generate a fresh CAPTCHA challenge
+   * Generate a fresh Single-Use CAPTCHA challenge backed by Redis
    */
-  public static generate(): CaptchaChallenge {
-    const text = this.generateRandomText(5);
-    const expiresAt = Date.now() + CAPTCHA_TTL_MS;
-    const captchaId = this.signPayload(text, expiresAt);
-    const svg = this.generateSvg(text);
+  public static async generate(oldCaptchaId?: string): Promise<CaptchaChallenge> {
+    // Invalidate old challenge if requested (refresh flow)
+    if (oldCaptchaId) {
+      await this.invalidate(oldCaptchaId);
+    }
+
+    const captchaId = randomUUID();
+    const challenge = this.generateRandomText(5);
+    const ttlSeconds = this.getTTL();
+    const issuedAt = Math.floor(Date.now() / 1000);
+    const expiresAt = issuedAt + ttlSeconds;
+
+    const signature = this.computeSignature(captchaId, challenge, issuedAt, expiresAt);
+    const svg = this.generateSvg(challenge);
+
+    const payload: StoredCaptchaPayload = {
+      challenge: challenge.toUpperCase(),
+      issued_at: issuedAt,
+      expires_at: expiresAt,
+      signature,
+      status: "unused",
+    };
+
+    // Store in Redis with TTL matching expiration
+    try {
+      await redisClient.set(`captcha:${captchaId}`, JSON.stringify(payload), {
+        EX: ttlSeconds,
+      });
+    } catch (err: any) {
+      console.warn("⚠️ Gagal menyimpan CAPTCHA ke Redis:", err.message);
+    }
 
     return {
       captcha_id: captchaId,
       svg,
+      issued_at: issuedAt,
       expires_at: expiresAt,
+      ttl_seconds: ttlSeconds,
     };
   }
 
   /**
-   * Verify provided CAPTCHA answer
+   * Verify provided CAPTCHA answer with single-use consumption and replay protection
    */
-  public static verify(captchaId: string, answer: string): boolean {
-    if (!captchaId || !answer) return false;
+  public static async verify(captchaId?: string, answer?: string): Promise<CaptchaVerificationResult> {
+    if (!captchaId || !answer) {
+      return {
+        valid: false,
+        reason: "MISSING",
+        msg: "Kode CAPTCHA dan ID tantangan wajib diisi.",
+      };
+    }
 
+    const cleanId = String(captchaId).trim();
+    const cleanAnswer = String(answer).trim().toUpperCase();
+
+    // 1. Replay Check: Check if previously consumed
     try {
-      const decoded = JSON.parse(Buffer.from(captchaId, "base64url").toString("utf8"));
-      const { text, exp, sig } = decoded;
-
-      if (!text || !exp || !sig) return false;
-
-      // Check expiration
-      if (Date.now() > exp) {
-        return false;
+      const isConsumed = await redisClient.get(`captcha:consumed:${cleanId}`);
+      if (isConsumed) {
+        return {
+          valid: false,
+          reason: "REPLAY",
+          msg: "Kode CAPTCHA telah digunakan sebelumnya. Silakan muat kode baru.",
+        };
       }
+    } catch (err: any) {
+      console.warn("⚠️ Gagal memeriksa tombstone consumed CAPTCHA:", err.message);
+    }
 
-      // Verify HMAC Signature
-      const expectedSig = createHmac("sha256", CAPTCHA_SECRET).update(`${text}:${exp}`).digest("hex");
-      if (sig !== expectedSig) {
-        return false;
+    // 2. Atomic Get and Delete to prevent concurrent double-consumption
+    let rawData: string | null = null;
+    try {
+      if (typeof (redisClient as any).getDel === "function") {
+        rawData = await (redisClient as any).getDel(`captcha:${cleanId}`);
+      } else {
+        const luaScript = `
+          local val = redis.call('GET', KEYS[1])
+          if val then
+            redis.call('DEL', KEYS[1])
+          end
+          return val
+        `;
+        rawData = (await (redisClient as any).eval(luaScript, { keys: [`captcha:${cleanId}`] })) as string | null;
       }
+    } catch (err: any) {
+      console.warn("⚠️ Gagal mengambil CAPTCHA dari Redis:", err.message);
+    }
 
-      // Check text match (case-insensitive)
-      return text.trim().toUpperCase() === answer.trim().toUpperCase();
+    // If key not found in Redis, it is expired or never existed
+    if (!rawData) {
+      return {
+        valid: false,
+        reason: "EXPIRED",
+        msg: "Kode CAPTCHA tidak valid atau telah kedaluwarsa.",
+      };
+    }
+
+    // Immediately register tombstone for the remaining TTL window to explicitly flag replays
+    try {
+      await redisClient.set(`captcha:consumed:${cleanId}`, "1", { EX: this.getTTL() });
+    } catch (err: any) {
+      console.warn("⚠️ Gagal menyetel tombstone CAPTCHA:", err.message);
+    }
+
+    let stored: StoredCaptchaPayload;
+    try {
+      stored = JSON.parse(rawData);
     } catch {
-      return false;
+      return {
+        valid: false,
+        reason: "EXPIRED",
+        msg: "Format payload CAPTCHA rusak.",
+      };
+    }
+
+    // 3. Expiration Check
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (nowSec > stored.expires_at) {
+      return {
+        valid: false,
+        reason: "EXPIRED",
+        msg: "Kode CAPTCHA telah kedaluwarsa. Silakan refresh CAPTCHA.",
+      };
+    }
+
+    // 4. Constant-Time HMAC Signature Verification
+    const expectedSig = this.computeSignature(cleanId, stored.challenge, stored.issued_at, stored.expires_at);
+    const sigBuf = Buffer.from(stored.signature, "hex");
+    const expSigBuf = Buffer.from(expectedSig, "hex");
+
+    if (sigBuf.length !== expSigBuf.length || !timingSafeEqual(sigBuf, expSigBuf)) {
+      return {
+        valid: false,
+        reason: "INVALID_SIGNATURE",
+        msg: "Tanda tangan kriptografi CAPTCHA tidak valid.",
+      };
+    }
+
+    // 5. Constant-Time Answer Comparison
+    const storedChallenge = String(stored.challenge || "").trim().toUpperCase();
+    const ansBuf = Buffer.from(cleanAnswer);
+    const storedBuf = Buffer.from(storedChallenge);
+
+    if (ansBuf.length !== storedBuf.length || !timingSafeEqual(ansBuf, storedBuf)) {
+      return {
+        valid: false,
+        reason: "WRONG_ANSWER",
+        msg: "Kode CAPTCHA yang Anda masukkan salah.",
+      };
+    }
+
+    return {
+      valid: true,
+      msg: "Verifikasi CAPTCHA berhasil.",
+    };
+  }
+
+  /**
+   * Explicitly invalidate a CAPTCHA challenge (e.g. on client refresh)
+   */
+  public static async invalidate(captchaId?: string): Promise<void> {
+    if (!captchaId) return;
+    try {
+      const cleanId = String(captchaId).trim();
+      await redisClient.del(`captcha:${cleanId}`);
+      await redisClient.set(`captcha:consumed:${cleanId}`, "1", { EX: this.getTTL() });
+    } catch (err: any) {
+      console.warn("⚠️ Gagal membatalkan CAPTCHA:", err.message);
     }
   }
 }

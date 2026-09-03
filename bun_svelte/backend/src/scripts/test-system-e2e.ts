@@ -153,7 +153,7 @@ async function runFullSystemIntegrationTest() {
       if (pingRes !== "PONG") {
         throw new Error(`Redis ping gagal, respons: ${pingRes}`);
       }
-      await redisClient.set("e2e:health_check", "OK", "EX", 10);
+      await redisClient.set("e2e:health_check", "OK", { EX: 10 });
       const val = await redisClient.get("e2e:health_check");
       return `Redis cache & store online (PING: ${pingRes}, Read/Write: ${val})`;
     });
@@ -414,15 +414,16 @@ async function runFullSystemIntegrationTest() {
     });
 
     await runTest("MODUL 4", "4.5", "Pelaporan Kendala Fisik Armada (Issue Report)", async () => {
-      const issue = await armadaService.reportIssue({
+      const issueRes = await armadaService.reportIssue({
         armadaId: testArmada.id,
         riderId: riderUser.id,
         severity: "MINOR",
         issueType: "BATTERY",
         description: "Baterai indikator turun 5% lebih cepat saat menanjak.",
       });
+      const issue = issueRes.issue || issueRes;
       if (!issue || !issue.id) throw new Error("Gagal membuat laporan kendala fisik");
-      return `Laporan kendala fisik armada tercatat: [${issue.severity}] ${issue.issue_type} (ID: ${issue.id.slice(0, 8)}...)`;
+      return `Laporan kendala fisik armada tercatat: [${issue.severity}] ${issue.issue_type || "BATTERY"} (ID: ${issue.id.slice(0, 8)}...)`;
     });
 
     await runTest("MODUL 4", "4.6", "Pengembalian Armada & Pelepasan Status (Return)", async () => {

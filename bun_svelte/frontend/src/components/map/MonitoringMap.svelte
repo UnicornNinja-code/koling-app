@@ -15,7 +15,6 @@
     CloudRain,
     Wind,
     Droplets,
-    Battery,
     Navigation,
     ShieldAlert,
     ShieldCheck,
@@ -38,9 +37,18 @@
     createBasemapLayer, 
     getBasemapProviders 
   } from '../../lib/mapProviders';
+  import { mapPreferences } from '../../lib/stores/mapPreferences.svelte';
   import { getSocket } from '../../lib/socket';
   import RiderDetailDrawer from './RiderDetailDrawer.svelte';
   import BroadcastAlertModal from './BroadcastAlertModal.svelte';
+  import MapTimeSlotBar from './panels/MapTimeSlotBar.svelte';
+  import MapFloatingToolbar from './panels/MapFloatingToolbar.svelte';
+  import MapSearchPanel from './panels/MapSearchPanel.svelte';
+  import MapLayersPanel from './panels/MapLayersPanel.svelte';
+  import MapRidersPanel from './panels/MapRidersPanel.svelte';
+  import MapWeatherPanel from './panels/MapWeatherPanel.svelte';
+  import MapLegendPanel from './panels/MapLegendPanel.svelte';
+  import MapBasemapPanel from './panels/MapBasemapPanel.svelte';
 
   interface Props {
     onNavigate?: (route: string) => void;
@@ -62,8 +70,8 @@
   let poiLayerGroup: any = null;
   let searchPinLayerGroup: any = null;
 
-  // State: Basemap Selection
-  let selectedBasemapId = $state('openmaptiles-dark');
+  // State: Basemap Selection (Synchronized with mapPreferences)
+  let selectedBasemapId = $state(mapPreferences.state.basemapId);
   let basemapProviders = $derived(getBasemapProviders());
 
   // State: Layers Checkboxes
@@ -278,6 +286,7 @@
   const switchBasemap = (providerId: string) => {
     if (!mapInstance || !L) return;
     selectedBasemapId = providerId;
+    mapPreferences.setBasemap(providerId);
 
     if (currentTileLayer) {
       mapInstance.removeLayer(currentTileLayer);
@@ -294,10 +303,13 @@
 
     L = (await import('leaflet')).default;
 
+    const initialLat = zoneConfig?.hub_latitude || -7.2575;
+    const initialLng = zoneConfig?.hub_longitude || 112.7521;
+
     mapInstance = L.map(mapElement, {
       zoomControl: false,
       attributionControl: false,
-    }).setView([-7.4450, 112.7150], 13);
+    }).setView([initialLat, initialLng], 13);
 
     const { layer } = createBasemapLayer(L, selectedBasemapId);
     currentTileLayer = layer;
@@ -382,9 +394,9 @@
 
     if (!layerHub || !zoneConfig) return;
 
-    const hubLat = zoneConfig.hub_latitude || -7.397402;
-    const hubLng = zoneConfig.hub_longitude || 112.711958;
-    const hubName = zoneConfig.hub_city_name || 'Sidoarjo';
+    const hubLat = zoneConfig.hub_latitude || -7.2575;
+    const hubLng = zoneConfig.hub_longitude || 112.7521;
+    const hubName = zoneConfig.hub_city_name || 'Surabaya';
 
     // 1. Buffer Coverage Circle (12km radius operasional)
     L.circle([hubLat, hubLng], {
@@ -627,13 +639,24 @@
   const loadAllSpatialData = async () => {
     loading = true;
     try {
-      const [zonesRes, ridersRes, protoRoadsRes, tollRoadsRes, poisRes, configRes] = await Promise.allSettled([
+      // 1. Fetch zone configuration first to obtain authoritative Hub location
+      try {
+        const config = await mapService.getZoneConfig();
+        if (config) zoneConfig = config;
+      } catch (cErr) {
+        console.warn('Gagal memuat zone config:', cErr);
+      }
+
+      const hubLat = zoneConfig?.hub_latitude || -7.2575;
+      const hubLng = zoneConfig?.hub_longitude || 112.7521;
+
+      // 2. Concurrently fetch all spatial layers using active Hub coordinates
+      const [zonesRes, ridersRes, protoRoadsRes, tollRoadsRes, poisRes] = await Promise.allSettled([
         mapService.getAllZones(),
-        mapService.getNearbyRiders(-7.4450, 112.7150, 50000),
+        mapService.getNearbyRiders(hubLat, hubLng, 50000),
         mapService.getProtocolRoads(),
         mapService.getTollRoads(),
         mapService.getPOIs(),
-        mapService.getZoneConfig(),
       ]);
 
       if (zonesRes.status === 'fulfilled' && zonesRes.value) realZones = zonesRes.value;
@@ -641,7 +664,6 @@
       if (protoRoadsRes.status === 'fulfilled' && protoRoadsRes.value) protocolRoadsGeoJson = protoRoadsRes.value;
       if (tollRoadsRes.status === 'fulfilled' && tollRoadsRes.value) tollRoadsGeoJson = tollRoadsRes.value;
       if (poisRes.status === 'fulfilled' && poisRes.value) realPois = poisRes.value;
-      if (configRes.status === 'fulfilled' && configRes.value) zoneConfig = configRes.value;
 
       renderZones();
       renderHub();
@@ -649,6 +671,11 @@
       renderTollRoads();
       renderPois();
       renderRiders(activeRiders);
+
+      // Center map to Hub if no zones exist yet
+      if (mapInstance && (!realZones || realZones.length === 0)) {
+        mapInstance.setView([hubLat, hubLng], 13);
+      }
     } catch (err) {
       console.error('💥 Gagal memuat data spasial monitoring:', err);
     } finally {
@@ -658,12 +685,13 @@
 
   const fetchWeatherData = async () => {
     try {
-      const wRes = await mapService.getHubWeather('sidoarjo');
+      const city = (zoneConfig?.hub_city_name || 'surabaya').toLowerCase();
+      const wRes = await mapService.getHubWeather(city);
       if (wRes) {
         weatherData = wRes;
       }
     } catch (err) {
-      console.warn('Gagal memuat info cuaca Sidoarjo:', err);
+      console.warn('Gagal memuat info cuaca:', err);
     }
   };
 
@@ -841,7 +869,20 @@
   const handleZoomOut = () => mapInstance?.zoomOut();
   const fitAllBounds = () => {
     if (!mapInstance) return;
-    mapInstance.setView([-7.4450, 112.7150], 13);
+    if (realZones && realZones.length > 0 && L) {
+      const allCoords: [number, number][] = [];
+      realZones.forEach((z) => {
+        const pts = parsePolygonToLatLngs(z.polygon);
+        allCoords.push(...pts);
+      });
+      if (allCoords.length > 0) {
+        mapInstance.fitBounds(L.latLngBounds(allCoords), { padding: [35, 35] });
+        return;
+      }
+    }
+    const hubLat = zoneConfig?.hub_latitude || -7.2575;
+    const hubLng = zoneConfig?.hub_longitude || 112.7521;
+    mapInstance.setView([hubLat, hubLng], 13);
   };
 
   // Reactive layer toggles
@@ -890,625 +931,92 @@
   <!-- TOP-LEFT: PANEL FILTER TIME SLOTS AT VERY TOP-LEFT, WITH VERTICAL TOOLBAR & SUBPANEL UNDERNEATH -->
   <div class="absolute top-4 left-4 z-30 flex flex-col items-start gap-2.5 max-w-[calc(100vw-2rem)] sm:max-w-none">
     
-    <!-- 1. PANEL FILTER TIME SLOTS (C3: PAGI, SIANG, SORE, MALAM) AT VERY TOP-LEFT -->
-    <div class="h-11 bg-[#131316]/95 backdrop-blur-xl border border-[#2E2E38] rounded-3xl shadow-2xl px-2 sm:px-3 flex items-center gap-2 text-white shrink-0">
-      
-      <!-- Time Slot Switcher Pills -->
-      <div class="flex items-center gap-1 bg-[#18181D] p-0.5 rounded-2xl border border-[#24242A]">
-        {#each (['pagi', 'siang', 'sore', 'malam'] as const) as slotKey}
-          {@const def = timeSlotDefinitions[slotKey]}
-          {@const isSelected = selectedTimeSlotKey === slotKey}
-          <button
-            onclick={() => selectedTimeSlotKey = slotKey}
-            class="px-2.5 py-1 rounded-xl text-xs font-outfit-600 transition-all cursor-pointer flex items-center gap-1.5
-            {isSelected ? 'bg-[#FF634A] text-white shadow-md' : 'text-[#71717A] hover:text-white'}"
-          >
-            <i class="{def.icon}"></i>
-            <span>{def.name}</span>
-          </button>
-        {/each}
-      </div>
+    <MapTimeSlotBar
+      {selectedTimeSlotKey}
+      {timeSlotDefinitions}
+      onSelectSlot={(slotKey) => selectedTimeSlotKey = slotKey}
+      onBackToDashboard={onNavigate ? () => onNavigate('/dashboard') : undefined}
+    />
 
-      <!-- Operational Context Summary & Peak Toggle -->
-      <div class="hidden xl:flex items-center gap-2 text-[11px] text-[#A1A1AA]">
-        <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-        <span class="truncate max-w-[170px]">{activeTimeSlot.desc}</span>
-      </div>
-
-      <button
-        onclick={() => poiFilterCategory = poiFilterCategory === 'PEAK_ONLY' ? 'ALL' : 'PEAK_ONLY'}
-        class="px-2.5 py-1 rounded-xl text-[10px] font-bold border transition-colors cursor-pointer
-        {poiFilterCategory === 'PEAK_ONLY' 
-          ? 'bg-rose-950 text-rose-400 border-rose-800/60' 
-          : 'bg-[#18181D] text-zinc-300 border-[#2E2E38] hover:text-white'}"
-      >
-        {poiFilterCategory === 'PEAK_ONLY' ? '🔥 Hotspots Saja' : '⚡ Filter Hotspots'}
-      </button>
-    </div>
-
-    <!-- 2. VERTICAL TOOLBAR & ATTACHED DYNAMIC SUB-PANEL (Directly below Time Slots) -->
+    <!-- 2. VERTICAL TOOLBAR & ATTACHED DYNAMIC SUB-PANEL -->
     <div class="flex items-start gap-2.5">
       <!-- VERTICAL FLOATING TOOLBAR DOCK -->
-      <div class="flex flex-col gap-1.5 p-1.5 bg-[#131316]/95 backdrop-blur-xl border border-[#2E2E38] rounded-3xl shadow-2xl text-white shrink-0">
-        
-        <!-- Pencarian & Lokasi -->
-        <button
-          onclick={() => togglePanel('search')}
-          class="relative w-10 h-10 rounded-2xl flex items-center justify-center transition-all cursor-pointer
-          {activePanel === 'search' 
-            ? 'bg-[#FF634A] text-white shadow-lg shadow-orange-950/50' 
-            : 'text-[#A1A1AA] hover:text-white hover:bg-[#1F1F24]'}"
-          title="Pencarian & Geocoding Lokasi"
-        >
-          <Search class="w-4 h-4" />
-        </button>
-
-        <!-- Filter & Layer Spasial -->
-        <button
-          onclick={() => togglePanel('layers')}
-          class="relative w-10 h-10 rounded-2xl flex items-center justify-center transition-all cursor-pointer
-          {activePanel === 'layers' 
-            ? 'bg-[#FF634A] text-white shadow-lg shadow-orange-950/50' 
-            : 'text-[#A1A1AA] hover:text-white hover:bg-[#1F1F24]'}"
-          title="Filter & Layer Spasial"
-        >
-          <Layers3 class="w-4 h-4" />
-        </button>
-
-        <!-- Panel Rider Bertugas -->
-        <button
-          onclick={() => togglePanel('riders')}
-          class="relative w-10 h-10 rounded-2xl flex items-center justify-center transition-all cursor-pointer
-          {activePanel === 'riders' 
-            ? 'bg-[#FF634A] text-white shadow-lg shadow-orange-950/50' 
-            : 'text-[#A1A1AA] hover:text-white hover:bg-[#1F1F24]'}"
-          title="Daftar Rider Bertugas"
-        >
-          <Radio class="w-4 h-4" />
-          {#if activeRiders.length > 0}
-            <span class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 text-white text-[9px] font-extrabold flex items-center justify-center shadow-xs">
-              {activeRiders.length}
-            </span>
-          {/if}
-        </button>
-
-        <!-- Cuaca Hub Sidoarjo -->
-        <button
-          onclick={() => togglePanel('weather')}
-          class="relative w-10 h-10 rounded-2xl flex items-center justify-center transition-all cursor-pointer
-          {activePanel === 'weather' 
-            ? 'bg-[#FF634A] text-white shadow-lg shadow-orange-950/50' 
-            : 'text-[#A1A1AA] hover:text-white hover:bg-[#1F1F24]'}"
-          title="Informasi Cuaca Hub Sidoarjo"
-        >
-          <Cloud class="w-4 h-4 text-sky-400" />
-        </button>
-
-        <!-- Legenda Simbol & POI -->
-        <button
-          onclick={() => togglePanel('legend')}
-          class="relative w-10 h-10 rounded-2xl flex items-center justify-center transition-all cursor-pointer
-          {activePanel === 'legend' 
-            ? 'bg-[#FF634A] text-white shadow-lg shadow-orange-950/50' 
-            : 'text-[#A1A1AA] hover:text-white hover:bg-[#1F1F24]'}"
-          title="Legenda Simbol & Warna POI"
-        >
-          <i class="ri-information-line text-lg"></i>
-        </button>
-
-        <!-- Gaya Peta (OpenMapTiles) -->
-        <button
-          onclick={() => togglePanel('basemap')}
-          class="relative w-10 h-10 rounded-2xl flex items-center justify-center transition-all cursor-pointer
-          {activePanel === 'basemap' 
-            ? 'bg-[#FF634A] text-white shadow-lg shadow-orange-950/50' 
-            : 'text-[#A1A1AA] hover:text-white hover:bg-[#1F1F24]'}"
-          title="Gaya Peta (OpenMapTiles / Satelit)"
-        >
-          <i class="ri-earth-line text-lg"></i>
-        </button>
-      </div>
+      <MapFloatingToolbar
+        {activePanel}
+        activeRidersCount={activeRiders.length}
+        onTogglePanel={togglePanel}
+      />
 
       <!-- DYNAMIC ACTIVE SUB-PANEL -->
       {#if activePanel !== null}
         <div class="w-80 sm:w-88 bg-[#131316]/98 backdrop-blur-xl border border-[#2E2E38] rounded-3xl shadow-2xl p-3.5 text-white max-h-[calc(100vh-180px)] overflow-y-auto space-y-3 animate-in fade-in slide-in-from-left-3">
           
-          <!-- SUB-PANEL: PENCARIAN -->
           {#if activePanel === 'search'}
-            <div class="space-y-3">
-              <div class="flex items-center justify-between border-b border-[#24242A] pb-2">
-                <div class="flex items-center gap-2">
-                  <Search class="w-4 h-4 text-[#FF634A]" />
-                  <h4 class="text-xs font-extrabold text-white">Pencarian Spasial Sidoarjo</h4>
-                </div>
-                <button onclick={() => activePanel = null} class="text-[#71717A] hover:text-white cursor-pointer p-0.5">
-                  <X class="w-4 h-4" />
-                </button>
-              </div>
-
-              <div class="relative flex items-center bg-[#18181D] border border-[#2E2E38] rounded-2xl p-1 focus-within:border-[#FF634A]">
-                <Search class="w-3.5 h-3.5 text-[#71717A] ml-2 shrink-0" />
-                <input
-                  type="text"
-                  bind:value={searchQuery}
-                  onkeydown={(e) => e.key === 'Enter' && handlePerformSearch()}
-                  oninput={() => {
-                    if (searchQuery.trim().length >= 2) handlePerformSearch();
-                  }}
-                  placeholder="Cari zona, jalan, POI, alamat Sidoarjo..."
-                  class="w-full px-2 py-1 text-xs bg-transparent border-none focus:outline-none text-white placeholder:text-[#71717A]"
-                />
-                {#if searchQuery}
-                  <button onclick={clearSearchPin} class="p-1 text-[#71717A] hover:text-white cursor-pointer">
-                    <X class="w-3.5 h-3.5" />
-                  </button>
-                {/if}
-                <button
-                  onclick={handlePerformSearch}
-                  class="p-1.5 bg-[#FF634A] hover:bg-[#FF4D30] text-white rounded-xl cursor-pointer"
-                  title="Cari"
-                >
-                  {#if isSearching}
-                    <RefreshCw class="w-3.5 h-3.5 animate-spin" />
-                  {:else}
-                    <ArrowRight class="w-3.5 h-3.5" />
-                  {/if}
-                </button>
-              </div>
-
-              {#if activePinnedLocation}
-                <div class="p-2.5 rounded-2xl bg-[#1C1C22] border border-[#2E2E38] flex items-center justify-between">
-                  <div class="flex items-center gap-2 min-w-0">
-                    <MapPin class="w-4 h-4 text-[#FF634A] shrink-0" />
-                    <div class="min-w-0">
-                      <span class="text-[10px] text-[#8E8E93] block">Lokasi Tersorot di Peta</span>
-                      <span class="text-xs font-bold text-white truncate block">{activePinnedLocation.title}</span>
-                    </div>
-                  </div>
-                  <button
-                    onclick={clearSearchPin}
-                    class="px-2 py-1 text-[10px] text-rose-400 bg-rose-950/40 rounded-lg hover:bg-rose-950 cursor-pointer"
-                  >
-                    Hapus Pin
-                  </button>
-                </div>
-              {/if}
-
-              {#if searchResults.length > 0}
-                <div class="space-y-1.5 max-h-64 overflow-y-auto">
-                  <span class="text-[10px] font-bold uppercase tracking-wider text-[#71717A] block">
-                    Hasil ({searchResults.length})
-                  </span>
-                  {#each searchResults as item}
-                    <button
-                      onclick={() => selectSearchResult(item)}
-                      class="w-full p-2 text-left rounded-2xl hover:bg-[#1F1F24] transition-colors flex items-start gap-2.5 cursor-pointer border border-[#24242A] hover:border-[#383846]"
-                    >
-                      <div class="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 mt-0.5" style="background-color: {item.color}20; color: {item.color};">
-                        {#if item.type === 'ZONE'}
-                          <i class="ri-shape-line text-xs"></i>
-                        {:else if item.type === 'ROAD'}
-                          <i class="ri-road-map-line text-xs"></i>
-                        {:else if item.type === 'POI'}
-                          <i class="ri-map-pin-line text-xs"></i>
-                        {:else}
-                          <i class="ri-navigation-line text-xs"></i>
-                        {/if}
-                      </div>
-
-                      <div class="min-w-0 flex-1">
-                        <div class="flex items-center gap-1.5">
-                          <span class="font-outfit-600 text-xs text-white truncate">{item.title}</span>
-                          <span class="px-1.5 py-0.2 rounded text-[9px] font-bold" style="background-color: {item.color}20; color: {item.color};">
-                            {item.badge}
-                          </span>
-                        </div>
-                        <p class="text-[10px] text-[#8E8E93] truncate mt-0.5">{item.subtitle}</p>
-                      </div>
-                    </button>
-                  {/each}
-                </div>
-              {/if}
-            </div>
-          {/if}
-
-          <!-- SUB-PANEL: FILTER & LAYER SPASIAL -->
-          {#if activePanel === 'layers'}
-            <div class="space-y-3">
-              <div class="flex items-center justify-between border-b border-[#24242A] pb-2">
-                <div class="flex items-center gap-2">
-                  <Layers3 class="w-4 h-4 text-[#FF634A]" />
-                  <h4 class="text-xs font-extrabold text-white">Filter & Layer Spasial</h4>
-                </div>
-                <button onclick={() => activePanel = null} class="text-[#71717A] hover:text-white cursor-pointer p-0.5">
-                  <X class="w-4 h-4" />
-                </button>
-              </div>
-
-              <div class="space-y-2 text-xs text-[#A1A1AA]">
-                <span class="text-[10px] font-bold uppercase tracking-wider text-[#71717A] block">Layer Peta Aktif</span>
-
-                <label class="flex items-center justify-between p-2 rounded-xl bg-[#18181D] border border-[#24242A] cursor-pointer hover:text-white">
-                  <span class="flex items-center gap-2">
-                    <input type="checkbox" bind:checked={layerHub} onchange={renderHub} class="accent-[#FF634A] rounded cursor-pointer" />
-                    <span class="text-[#FF634A] font-bold">Central HUB ({zoneConfig?.hub_city_name || 'Sidoarjo'})</span>
-                  </span>
-                  <span class="px-2 py-0.5 rounded bg-[#FF634A]/15 text-[#FF634A] text-[10px] font-bold border border-[#FF634A]/40">
-                    Pusat Ops
-                  </span>
-                </label>
-
-                <label class="flex items-center justify-between p-2 rounded-xl bg-[#18181D] border border-[#24242A] cursor-pointer hover:text-white">
-                  <span class="flex items-center gap-2">
-                    <input type="checkbox" bind:checked={layerRiders} onchange={() => renderRiders(activeRiders)} class="accent-[#10B981] rounded cursor-pointer" />
-                    <span>Rider Bertugas</span>
-                  </span>
-                  <span class="px-2 py-0.5 rounded bg-emerald-950/60 text-emerald-400 text-[10px] font-bold border border-emerald-800/40">
-                    {activeRiders.length} Aktif
-                  </span>
-                </label>
-
-                <label class="flex items-center justify-between p-2 rounded-xl bg-[#18181D] border border-[#24242A] cursor-pointer hover:text-white">
-                  <span class="flex items-center gap-2">
-                    <input type="checkbox" bind:checked={layerZones} onchange={renderZones} class="accent-[#FF634A] rounded cursor-pointer" />
-                    <span>Poligon Zona</span>
-                  </span>
-                  <span class="px-2 py-0.5 rounded bg-[#FF634A]/15 text-[#FF634A] text-[10px] font-bold border border-[#FF634A]/40">
-                    {realZones.length} Area
-                  </span>
-                </label>
-
-                <label class="flex items-center justify-between p-2 rounded-xl bg-[#18181D] border border-[#24242A] cursor-pointer hover:text-white">
-                  <span class="flex items-center gap-2">
-                    <input type="checkbox" bind:checked={layerProtocolRoads} onchange={renderProtocolRoads} class="accent-[#F59E0B] rounded cursor-pointer" />
-                    <span class="text-amber-400">Jalan Protokol</span>
-                  </span>
-                  <span class="px-2 py-0.5 rounded bg-amber-950/60 text-amber-400 text-[10px] font-bold border border-amber-800/40">
-                    {protocolRoadsGeoJson?.features ? `${protocolRoadsGeoJson.features.length} Ruas` : '0 Ruas'}
-                  </span>
-                </label>
-
-                <label class="flex items-center justify-between p-2 rounded-xl bg-[#18181D] border border-[#24242A] cursor-pointer hover:text-white">
-                  <span class="flex items-center gap-2">
-                    <input type="checkbox" bind:checked={layerTollRoads} onchange={renderTollRoads} class="accent-[#EF4444] rounded cursor-pointer" />
-                    <span class="text-rose-400">Jalan Tol</span>
-                  </span>
-                  <span class="px-2 py-0.5 rounded bg-rose-950/60 text-rose-400 text-[10px] font-bold border border-rose-800/40">
-                    {tollRoadsGeoJson?.features ? `${tollRoadsGeoJson.features.length} Ruas` : '0 Ruas'}
-                  </span>
-                </label>
-
-                <label class="flex items-center justify-between p-2 rounded-xl bg-[#18181D] border border-[#24242A] cursor-pointer hover:text-white">
-                  <span class="flex items-center gap-2">
-                    <input type="checkbox" bind:checked={layerPoi} onchange={renderPois} class="accent-purple-500 rounded cursor-pointer" />
-                    <span>Titik POI Overpass</span>
-                  </span>
-                  <span class="px-2 py-0.5 rounded bg-purple-950/60 text-purple-400 text-[10px] font-bold border border-purple-800/40">
-                    {realPois.length} Titik
-                  </span>
-                </label>
-              </div>
-
-              <!-- POI Category Filter -->
-              <div class="space-y-1.5 pt-2 border-t border-[#24242A]">
-                <span class="text-[10px] font-bold uppercase tracking-wider text-[#71717A] block">Filter Kategori POI C3</span>
-                <div class="grid grid-cols-2 gap-1">
-                  <button
-                    onclick={() => { poiFilterCategory = 'ALL'; renderPois(); }}
-                    class="p-1.5 rounded-xl text-[10px] font-outfit-600 text-left cursor-pointer border
-                    {poiFilterCategory === 'ALL' ? 'bg-[#FF634A] text-white border-[#FF634A]' : 'bg-[#18181D] text-[#A1A1AA] border-[#24242A] hover:text-white'}"
-                  >
-                    Semua Kategori
-                  </button>
-                  <button
-                    onclick={() => { poiFilterCategory = 'PEAK_ONLY'; renderPois(); }}
-                    class="p-1.5 rounded-xl text-[10px] font-outfit-600 text-left cursor-pointer border
-                    {poiFilterCategory === 'PEAK_ONLY' ? 'bg-rose-950 text-rose-400 border-rose-800' : 'bg-[#18181D] text-[#A1A1AA] border-[#24242A] hover:text-white'}"
-                  >
-                    🔥 Jam Puncak Saja
-                  </button>
-                  {#each Object.entries(categoryCrowdProfiles) as [key, prof]}
-                    <button
-                      onclick={() => { poiFilterCategory = (poiFilterCategory === key ? 'ALL' : key as any); renderPois(); }}
-                      class="p-1.5 rounded-xl text-[10px] font-outfit-600 text-left cursor-pointer border truncate flex items-center gap-1.5
-                      {poiFilterCategory === key ? 'bg-[#2E2E38] text-white border-blue-500' : 'bg-[#18181D] text-[#A1A1AA] border-[#24242A] hover:text-white'}"
-                    >
-                      <span class="w-2 h-2 rounded-full shrink-0" style="background-color: {prof.color};"></span>
-                      <span class="truncate">{prof.label.split(' ')[0]}</span>
-                    </button>
-                  {/each}
-                </div>
-              </div>
-            </div>
-          {/if}
-
-          <!-- SUB-PANEL: DAFTAR RIDER BERTUGAS -->
-          {#if activePanel === 'riders'}
-            <div class="space-y-3">
-              <div class="flex items-center justify-between border-b border-[#24242A] pb-2">
-                <div class="flex items-center gap-2">
-                  <Radio class="w-4 h-4 text-emerald-400 animate-pulse" />
-                  <div>
-                    <h4 class="text-xs font-extrabold text-white">Rider Bertugas</h4>
-                    <span class="text-[10px] text-[#8E8E93]">{activeRiders.length} Unit Armada Terhubung</span>
-                  </div>
-                </div>
-                <button onclick={() => activePanel = null} class="text-[#71717A] hover:text-white cursor-pointer p-0.5">
-                  <X class="w-4 h-4" />
-                </button>
-              </div>
-
-              <!-- Search Rider -->
-              <div class="relative flex items-center">
-                <Search class="w-3.5 h-3.5 text-[#71717A] absolute left-2.5" />
-                <input
-                  type="text"
-                  bind:value={riderSearchQuery}
-                  placeholder="Cari rider / plat nomor..."
-                  class="w-full pl-8 pr-2.5 py-1 text-xs bg-[#18181D] border border-[#2E2E38] rounded-xl focus:outline-none focus:border-[#FF634A] text-white placeholder:text-[#71717A]"
-                />
-              </div>
-
-              <!-- Riders List -->
-              <div class="space-y-2 max-h-72 overflow-y-auto pr-1">
-                {#if filteredRiders.length === 0}
-                  <div class="py-8 text-center text-xs text-[#71717A] space-y-1">
-                    <i class="ri-user-unfollow-line text-2xl text-zinc-600"></i>
-                    <p>Tidak ada rider aktif yang sesuai.</p>
-                  </div>
-                {:else}
-                  {#each filteredRiders as r}
-                    {@const isBreach = r.status === 'BREACH'}
-                    <button
-                      onclick={() => focusRider(r)}
-                      class="w-full p-2.5 rounded-2xl border transition-all text-left flex flex-col gap-1.5 cursor-pointer
-                      {isBreach 
-                        ? 'bg-rose-950/20 border-rose-800/40 hover:bg-rose-950/30' 
-                        : 'bg-[#18181D] border-[#24242A] hover:border-[#FF634A]/50 hover:bg-[#202027]'}"
-                    >
-                      <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-2 min-w-0">
-                          <div class="w-7 h-7 rounded-xl flex items-center justify-center font-bold text-xs shrink-0
-                          {isBreach ? 'bg-rose-600 text-white' : 'bg-[#2E2E38] text-white'}">
-                            {r.name ? r.name.charAt(0).toUpperCase() : 'R'}
-                          </div>
-                          <div class="min-w-0">
-                            <span class="font-outfit-600 text-xs text-white truncate block">{r.name}</span>
-                            <span class="text-[10px] text-[#71717A] font-mono">{r.plateNumber || 'W 1234 COZ'}</span>
-                          </div>
-                        </div>
-
-                        <div>
-                          {#if isBreach}
-                            <span class="px-2 py-0.5 rounded-lg bg-rose-950/80 text-rose-400 text-[9px] font-extrabold border border-rose-800/60 animate-pulse">
-                              BREACH
-                            </span>
-                          {:else}
-                            <span class="px-2 py-0.5 rounded-lg bg-emerald-950/60 text-emerald-400 text-[9px] font-extrabold border border-emerald-800/40">
-                              ON DUTY
-                            </span>
-                          {/if}
-                        </div>
-                      </div>
-
-                      <div class="flex items-center justify-between text-[10px] text-[#A1A1AA] pt-1 border-t border-[#24242A]">
-                        <div class="flex items-center gap-1 text-zinc-300 truncate max-w-[130px]">
-                          <i class="ri-map-pin-2-line text-[#FF634A]"></i>
-                          <span class="truncate">{r.zoneName || 'Zona Sidoarjo'}</span>
-                        </div>
-
-                        <div class="flex items-center gap-2 font-mono shrink-0">
-                          <span class="text-sky-400">
-                            {r.speed || 12} km/h
-                          </span>
-                          <span class="flex items-center gap-0.5 text-emerald-400">
-                            <Battery class="w-3 h-3" /> {r.battery || 90}%
-                          </span>
-                        </div>
-                      </div>
-                    </button>
-                  {/each}
-                {/if}
-              </div>
-
-              <!-- Broadcast Button inside Rider Panel -->
-              <button
-                onclick={() => broadcastModalOpen = true}
-                class="w-full py-2 bg-[#FF634A] hover:bg-[#FF4D30] text-white rounded-xl text-xs font-outfit-600 flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-md"
-              >
-                <i class="ri-broadcast-line text-sm"></i>
-                <span>Kirim Broadcast ke Semua Rider</span>
-              </button>
-            </div>
-          {/if}
-
-          <!-- SUB-PANEL: CUACA HUB SIDOARJO & ATRIBUT LENGKAP WEATHERS -->
-          {#if activePanel === 'weather'}
-            <div class="space-y-3">
-              <div class="flex items-center justify-between border-b border-[#24242A] pb-2">
-                <div class="flex items-center gap-2">
-                  <Cloud class="w-4 h-4 text-sky-400" />
-                  <div>
-                    <h4 class="text-xs font-extrabold text-white">Radar Cuaca HUB {zoneConfig?.hub_city_name || 'Sidoarjo'}</h4>
-                    <span class="text-[10px] text-[#8E8E93]">Tabel Weathers Open-Meteo Satelit</span>
-                  </div>
-                </div>
-                <button onclick={() => activePanel = null} class="text-[#71717A] hover:text-white cursor-pointer p-0.5">
-                  <X class="w-4 h-4" />
-                </button>
-              </div>
-
-              <!-- 4 Grid Parameter Atmosferik (from 'weathers' table) -->
-              <div class="grid grid-cols-2 gap-2 text-xs">
-                <!-- 1. Suhu & Apparent Temp -->
-                <div class="p-2.5 bg-[#18181D] rounded-xl border border-[#24242A] space-y-1">
-                  <span class="text-[10px] text-[#71717A] uppercase font-bold flex items-center justify-between">
-                    <span>Suhu Udara</span>
-                    <Sun class="w-3 h-3 text-amber-400" />
-                  </span>
-                  <div class="text-lg font-bold text-white font-mono">
-                    {weatherData?.hub_overview?.avg_temperature_c ?? 30.5}°C
-                  </div>
-                  <span class="text-[9px] text-[#A1A1AA] block">
-                    Terasa: {(weatherData?.hub_overview as any)?.apparent_temperature_c ?? 32}°C
-                  </span>
-                </div>
-
-                <!-- 2. Peluang Hujan (C4 Cost) -->
-                <div class="p-2.5 bg-[#18181D] rounded-xl border border-[#24242A] space-y-1">
-                  <span class="text-[10px] text-[#71717A] uppercase font-bold flex items-center justify-between">
-                    <span>Peluang Hujan (C4)</span>
-                    <CloudRain class="w-3 h-3 text-blue-400" />
-                  </span>
-                  <div class="text-lg font-bold text-blue-400 font-mono">
-                    {weatherData?.hub_overview?.max_rain_probability_percent ?? 0}%
-                  </div>
-                  <span class="text-[9px] text-blue-400/80 block">
-                    Curah: {(weatherData?.hub_overview as any)?.precipitation_rain_mm ?? 0} mm
-                  </span>
-                </div>
-
-                <!-- 3. Kelembaban & Titik Embun -->
-                <div class="p-2.5 bg-[#18181D] rounded-xl border border-[#24242A] space-y-1">
-                  <span class="text-[10px] text-[#71717A] uppercase font-bold flex items-center justify-between">
-                    <span>Kelembaban Udara</span>
-                    <Droplets class="w-3 h-3 text-cyan-400" />
-                  </span>
-                  <div class="text-lg font-bold text-white font-mono">
-                    {(weatherData?.hub_overview as any)?.relative_humidity_2m ?? 65}%
-                  </div>
-                  <span class="text-[9px] text-[#A1A1AA] block">
-                    Titik Embun: {(weatherData?.hub_overview as any)?.dew_point_2m ?? 23.4}°C
-                  </span>
-                </div>
-
-                <!-- 4. Kondisi Cuaca & WMO Code -->
-                <div class="p-2.5 bg-[#18181D] rounded-xl border border-[#24242A] space-y-1">
-                  <span class="text-[10px] text-[#71717A] uppercase font-bold flex items-center justify-between">
-                    <span>Kondisi WMO</span>
-                    <Cloud class="w-3 h-3 text-[#FF634A]" />
-                  </span>
-                  <div class="text-xs font-bold text-[#FF634A] truncate">
-                    {weatherData?.hub_overview?.weather_condition ?? 'Cerah Berawan'}
-                  </div>
-                  <span class="text-[9px] text-[#A1A1AA] block">
-                    Kode WMO: {weatherData?.hub_overview?.weather_code ?? 2}
-                  </span>
-                </div>
-              </div>
-
-              <!-- Daftar Cuaca per Zona Spasial -->
-              {#if weatherData?.zones_weather_list && weatherData.zones_weather_list.length > 0}
-                <div class="space-y-1.5 pt-2 border-t border-[#24242A]">
-                  <span class="text-[10px] font-bold uppercase tracking-wider text-[#71717A] block">
-                    Skor Cuaca C4 per Zona ({weatherData.zones_weather_list.length})
-                  </span>
-                  <div class="space-y-1 max-h-40 overflow-y-auto pr-1">
-                    {#each weatherData.zones_weather_list as zw}
-                      <div class="p-2 rounded-xl bg-[#18181D] border border-[#24242A] flex items-center justify-between text-xs">
-                        <div>
-                          <strong class="text-zinc-200 block text-[11px]">{zw.zone_name}</strong>
-                          <span class="text-[10px] text-[#71717A]">{zw.weather_condition} • {zw.temperature_c}°C</span>
-                        </div>
-                        <div class="text-right">
-                          <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold {zw.rain_probability_percent > 50 ? 'bg-rose-950 text-rose-400' : 'bg-blue-950 text-blue-400'}">
-                            C4: {zw.rain_probability_percent}%
-                          </span>
-                        </div>
-                      </div>
-                    {/each}
-                  </div>
-                </div>
-              {/if}
-
-              <!-- Sync Button -->
-              <button
-                onclick={handleSyncWeather}
-                disabled={syncingWeather}
-                class="w-full py-2 bg-[#262630] hover:bg-[#323240] text-white rounded-xl text-xs font-outfit-600 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <RefreshCw class="w-3.5 h-3.5 {syncingWeather ? 'animate-spin' : ''}" />
-                <span>{syncingWeather ? 'Menyinkronkan...' : 'Sinkronkan Cuaca Open-Meteo'}</span>
-              </button>
-            </div>
-          {/if}
-
-          <!-- SUB-PANEL: LEGENDA SIMBOL & POI C3 -->
-          {#if activePanel === 'legend'}
-            <div class="space-y-3">
-              <div class="flex items-center justify-between border-b border-[#24242A] pb-2">
-                <div class="flex items-center gap-1.5 text-white font-extrabold text-xs">
-                  <i class="ri-information-line text-[#FF634A]"></i>
-                  <span>Legenda Simbol & POI C3</span>
-                </div>
-                <button onclick={() => activePanel = null} class="text-[#71717A] hover:text-white cursor-pointer p-0.5">
-                  <X class="w-4 h-4" />
-                </button>
-              </div>
-
-              <div class="space-y-1.5 text-[11px]">
-                <span class="text-[10px] font-bold uppercase tracking-wider text-[#71717A]">Kategori POI Potensial</span>
-                <div class="grid grid-cols-2 gap-1.5">
-                  {#each Object.entries(categoryCrowdProfiles) as [key, prof]}
-                    <div class="p-1.5 rounded-xl bg-[#18181D] border border-[#24242A] flex items-center gap-1.5">
-                      <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: {prof.color};"></span>
-                      <span class="text-[10px] font-outfit-600 text-zinc-300 truncate">{prof.label}</span>
-                    </div>
-                  {/each}
-                </div>
-              </div>
-
-              <div class="space-y-1.5 pt-2 border-t border-[#24242A] text-[11px]">
-                <span class="text-[10px] font-bold uppercase tracking-wider text-[#71717A]">Batas & Jalur Larangan</span>
-                
-                <div class="p-1.5 rounded-xl bg-[#18181D] border border-[#24242A] flex items-center justify-between">
-                  <div class="flex items-center gap-2">
-                    <span class="w-3.5 h-1 border-b-2 border-dashed border-[#F59E0B]"></span>
-                    <span class="text-[10px] text-zinc-300">Jalan Protokol</span>
-                  </div>
-                  <span class="text-[9px] font-bold text-amber-400">Dilarang Mangkal</span>
-                </div>
-
-                <div class="p-1.5 rounded-xl bg-[#18181D] border border-[#24242A] flex items-center justify-between">
-                  <div class="flex items-center gap-2">
-                    <span class="w-3.5 h-1 bg-[#EF4444] rounded"></span>
-                    <span class="text-[10px] text-zinc-300">Jalan Tol</span>
-                  </div>
-                  <span class="text-[9px] font-bold text-rose-400">Terlarang Total</span>
-                </div>
-              </div>
-            </div>
-          {/if}
-
-          <!-- SUB-PANEL: GAYA PETA -->
-          {#if activePanel === 'basemap'}
-            <div class="space-y-3">
-              <div class="flex items-center justify-between border-b border-[#24242A] pb-2">
-                <div class="flex items-center gap-2">
-                  <i class="ri-earth-line text-[#FF634A]"></i>
-                  <h4 class="text-xs font-extrabold text-white">Pilih Gaya Peta (Tiles)</h4>
-                </div>
-                <button onclick={() => activePanel = null} class="text-[#71717A] hover:text-white cursor-pointer p-0.5">
-                  <X class="w-4 h-4" />
-                </button>
-              </div>
-
-              <div class="space-y-1.5">
-                {#each basemapProviders as p}
-                  {@const isSelected = selectedBasemapId === p.id}
-                  <button
-                    onclick={() => switchBasemap(p.id)}
-                    class="w-full p-2 rounded-2xl border transition-all text-left flex items-center justify-between cursor-pointer
-                    {isSelected ? 'bg-[#FF634A]/15 border-[#FF634A] text-white' : 'bg-[#18181D] border-[#24242A] text-zinc-400 hover:text-white'}"
-                  >
-                    <span class="text-xs font-outfit-600">{p.name}</span>
-                    {#if isSelected}
-                      <Check class="w-4 h-4 text-[#FF634A]" />
-                    {/if}
-                  </button>
-                {/each}
-              </div>
-            </div>
+            <MapSearchPanel
+              {searchQuery}
+              {isSearching}
+              {searchResults}
+              {activePinnedLocation}
+              hubCityName={zoneConfig?.hub_city_name}
+              onClose={() => activePanel = null}
+              onSearchInput={(val) => {
+                searchQuery = val;
+                if (val.trim().length >= 2) handlePerformSearch();
+              }}
+              onPerformSearch={handlePerformSearch}
+              onSelectResult={selectSearchResult}
+              onClearPin={clearSearchPin}
+            />
+          {:else if activePanel === 'layers'}
+            <MapLayersPanel
+              {layerHub}
+              {layerRiders}
+              {layerZones}
+              {layerProtocolRoads}
+              {layerTollRoads}
+              {layerPoi}
+              activeRidersCount={activeRiders.length}
+              activeZonesCount={realZones.length}
+              hubCityName={zoneConfig?.hub_city_name}
+              {poiFilterCategory}
+              onClose={() => activePanel = null}
+              onToggleHub={(val) => { layerHub = val; renderHub(); }}
+              onToggleRiders={(val) => { layerRiders = val; renderRiders(activeRiders); }}
+              onToggleZones={(val) => { layerZones = val; renderZones(); }}
+              onToggleProtocolRoads={(val) => { layerProtocolRoads = val; renderProtocolRoads(); }}
+              onToggleTollRoads={(val) => { layerTollRoads = val; renderTollRoads(); }}
+              onTogglePoi={(val) => { layerPoi = val; renderPois(); }}
+              onChangePoiFilter={(cat) => poiFilterCategory = cat}
+            />
+          {:else if activePanel === 'riders'}
+            <MapRidersPanel
+              {activeRiders}
+              onClose={() => activePanel = null}
+              onSelectRider={(rider) => {
+                selectedRider = rider;
+                drawerOpen = true;
+              }}
+              onOpenBroadcast={() => broadcastModalOpen = true}
+            />
+          {:else if activePanel === 'weather'}
+            <MapWeatherPanel
+              {weatherData}
+              {syncingWeather}
+              hubCityName={zoneConfig?.hub_city_name}
+              onClose={() => activePanel = null}
+              onSyncWeather={handleSyncWeather}
+            />
+          {:else if activePanel === 'legend'}
+            <MapLegendPanel
+              onClose={() => activePanel = null}
+            />
+          {:else if activePanel === 'basemap'}
+            <MapBasemapPanel
+              {basemapProviders}
+              {selectedBasemapId}
+              onClose={() => activePanel = null}
+              onSelectBasemap={switchBasemap}
+            />
           {/if}
 
         </div>

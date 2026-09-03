@@ -1,0 +1,28 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            112.71,
+            -7.44
+          ],
+          [
+            112.72,
+            -7.45
+          ]
+        ]
+      },
+      "properties": {
+        "id": "osm:way:toll-a",
+        "name": "Toll A (Updated)",
+        "highway": "motorway",
+        "restriction_type": "PROHIBITED_TOLL_ROAD",
+        "metadata": {}
+      }
+    }
+  ]
+}

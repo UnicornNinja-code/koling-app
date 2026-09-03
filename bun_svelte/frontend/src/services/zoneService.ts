@@ -25,12 +25,14 @@ export interface ZoneItem {
 }
 
 export interface ZoneConfig {
-  default_hub: { lat: number; lng: number };
-  max_zone_radius_km: number;
-  min_zone_area_km2: number;
-  max_zone_area_km2: number;
-  toll_road_prohibited: boolean;
-  protocol_road_prohibited: boolean;
+  default_hub?: { lat: number; lng: number };
+  hub_latitude?: number;
+  hub_longitude?: number;
+  max_zone_radius_km?: number;
+  min_zone_area_km2?: number;
+  max_zone_area_km2?: number;
+  toll_road_prohibited?: boolean;
+  protocol_road_prohibited?: boolean;
 }
 
 export interface ZoneValidationResult {

@@ -138,7 +138,9 @@
     if (bounds.isValid()) {
       mapInstance.fitBounds(bounds, { padding: [15, 15] });
     } else {
-      mapInstance.setView([-7.4450, 112.7150], 13);
+      const hubLat = zoneConfig?.hub_latitude || -7.2575;
+      const hubLng = zoneConfig?.hub_longitude || 112.7521;
+      mapInstance.setView([hubLat, hubLng], 13);
     }
   };
 
@@ -151,7 +153,7 @@
       mapInstance = L.map(mapContainer, {
         zoomControl: false,
         attributionControl: false,
-      }).setView([-7.4450, 112.7150], 13);
+      }).setView([-7.2575, 112.7521], 13);
 
       const { layer } = createBasemapLayer(L, 'openmaptiles-dark');
       layer.addTo(mapInstance);

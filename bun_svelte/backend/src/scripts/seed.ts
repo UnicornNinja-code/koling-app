@@ -45,8 +45,8 @@ async function seedCleanData() {
       ALTER TABLE pois DROP COLUMN IF EXISTS zone_id;
     `);
 
-    // 2. Akun Pengguna Utama (Clean RBAC)
-    console.log("⏳ Seeding Akun Pengguna Utama (Superadmin, Supervisor, Riders)...");
+    // 2. Akun Pengguna Utama (Hanya 1 Akun Root Superadmin untuk Fresh Bootstrap)
+    console.log("⏳ Seeding Akun Root Super Admin...");
     const defaultPasswordHash = await bcrypt.hash("password123", 10);
 
     const usersData = [
@@ -56,72 +56,25 @@ async function seedCleanData() {
         password: defaultPasswordHash,
         name: "Super Admin System",
         role: "SUPERADMIN",
-      },
-      {
-        email: "management@kopikeliling.com",
-        username: "management",
-        password: defaultPasswordHash,
-        name: "Manajemen Operasional",
-        role: "MANAGEMENT",
-      },
-      {
-        email: "supervisor@kopikeliling.com",
-        username: "supervisor1",
-        password: defaultPasswordHash,
-        name: "Supervisor Operasional",
-        role: "SUPERVISOR",
-      },
-      {
-        email: "rider@kopikeliling.com",
-        username: "rider1",
-        password: defaultPasswordHash,
-        name: "Doni Pratama",
-        role: "RIDER",
-      },
-      {
-        email: "rider2@kopikeliling.com",
-        username: "rider2",
-        password: defaultPasswordHash,
-        name: "Dimas Kurniawan",
-        role: "RIDER",
-      },
-      {
-        email: "rider3@kopikeliling.com",
-        username: "rider3",
-        password: defaultPasswordHash,
-        name: "Ahmad Fauzi",
-        role: "RIDER",
-      },
-      {
-        email: "rider4@kopikeliling.com",
-        username: "rider4",
-        password: defaultPasswordHash,
-        name: "Rizky Ramadhan",
-        role: "RIDER",
-      },
-      {
-        email: "rider5@kopikeliling.com",
-        username: "rider5",
-        password: defaultPasswordHash,
-        name: "Eko Setiawan",
-        role: "RIDER",
+        first_login: true, // Wajib ganti password saat pertama login
       },
     ];
 
     for (const u of usersData) {
       const query = `
-        INSERT INTO users (email, username, password, name, role, is_active)
-        VALUES ($1, $2, $3, $4, $5::"Role", true)
+        INSERT INTO users (email, username, password, name, role, is_active, first_login)
+        VALUES ($1, $2, $3, $4, $5::"Role", true, $6)
         ON CONFLICT (email) DO UPDATE SET
-          username = EXCLUDED.username,
-          password = EXCLUDED.password,
-          name = EXCLUDED.name,
-          role = EXCLUDED.role,
-          is_active = true;
+          username    = EXCLUDED.username,
+          password    = EXCLUDED.password,
+          name        = EXCLUDED.name,
+          role        = EXCLUDED.role,
+          is_active   = true,
+          first_login = EXCLUDED.first_login;
       `;
-      await pool.query(query, [u.email, u.username, u.password, u.name, u.role]);
+      await pool.query(query, [u.email, u.username, u.password, u.name, u.role, u.first_login]);
     }
-    console.log(`✅ ${usersData.length} akun pengguna utama berhasil disiapkan.`);
+    console.log(`✅ Akun root Super Admin berhasil disiapkan: superadmin@kopikeliling.com (first_login: true)`);
 
     // 3. Kriteria SPK BWM-TOPSIS Standard
     console.log("⏳ Seeding Kriteria SPK Standar...");
@@ -205,11 +158,17 @@ async function seedCleanData() {
     // 5. Konfigurasi Sistem (System Settings)
     console.log("⏳ Seeding Konfigurasi Sistem...");
     const settingsData = [
+      { key: "SYSTEM_NAME", value: "MantaKopi COZIS", description: "Nama Resmi Sistem Operasional" },
       { key: "HUB_CITY_NAME", value: "Sidoarjo", description: "Nama Kota Hub/Gudang Operasional" },
-      { key: "HUB_LATITUDE", value: "-7.397402184098715", description: "Koordinat Hub Sidoarjo (Latitude)" },
-      { key: "HUB_LONGITUDE", value: "112.71195887495875", description: "Koordinat Hub Sidoarjo (Longitude)" },
+      { key: "HUB_LATITUDE", value: "-7.4478", description: "Koordinat Central Hub Sidoarjo (Latitude)" },
+      { key: "HUB_LONGITUDE", value: "112.7183", description: "Koordinat Central Hub Sidoarjo (Longitude)" },
       { key: "HUB_BOUNDS_BUFFER", value: "0.15", description: "Buffer Wilayah Spasial Operasional" },
       { key: "DEFAULT_DSS_ACTIVE", value: "true", description: "Status aktif default SPK" },
+      { key: "SYSTEM_INITIALIZED", value: "false", description: "Status Inisialisasi Pertama Sistem (First-Run)" },
+      { key: "SYSTEM_SETUP_CURRENT_STEP", value: "IDENTITY", description: "Tahapan Wizard Inisialisasi Sistem" },
+      { key: "OPERATING_HOURS_START", value: "06:00", description: "Jam Mulai Operasi Harian" },
+      { key: "OPERATING_HOURS_END", value: "22:00", description: "Jam Selesai Operasi Harian" },
+      { key: "OPERATIONAL_RADIUS_KM", value: "12", description: "Radius Maksimal Operasi dari Hub (KM)" },
     ];
 
     for (const s of settingsData) {
@@ -249,15 +208,15 @@ async function seedCleanData() {
     }
     console.log(`✅ ${productsData.length} master produk disiapkan.`);
 
-    // 7. Master Unit Armada Operasional Real
-    console.log("⏳ Seeding Master Armada...");
+    // 7. Master Unit Armada Operasional (Semua unit AVAILABLE / ACTIVE siap pakai)
+    console.log("⏳ Seeding Master Armada (Kondisi Bersih - Siap Pakai)...");
     const armadasData = [
-      { code: "ARM-ML-001", type: "MOTOR_LISTRIK", status: "IN_USE" },
-      { code: "ARM-ML-002", type: "MOTOR_LISTRIK", status: "IN_USE" },
-      { code: "ARM-ML-003", type: "MOTOR_LISTRIK", status: "IN_USE" },
-      { code: "ARM-GB-001", type: "GEROBAK", status: "IN_USE" },
+      { code: "ARM-ML-001", type: "MOTOR_LISTRIK", status: "ACTIVE" },
+      { code: "ARM-ML-002", type: "MOTOR_LISTRIK", status: "ACTIVE" },
+      { code: "ARM-ML-003", type: "MOTOR_LISTRIK", status: "ACTIVE" },
+      { code: "ARM-GB-001", type: "GEROBAK", status: "ACTIVE" },
       { code: "ARM-GB-002", type: "GEROBAK", status: "ACTIVE" },
-      { code: "ARM-GB-003", type: "GEROBAK", status: "MAINTENANCE" },
+      { code: "ARM-GB-003", type: "GEROBAK", status: "ACTIVE" },
     ];
 
     for (const a of armadasData) {
@@ -270,9 +229,9 @@ async function seedCleanData() {
       `;
       await pool.query(query, [a.code, a.type, a.status]);
     }
-    console.log(`✅ ${armadasData.length} unit armada operasional disiapkan.`);
+    console.log(`✅ ${armadasData.length} unit armada operasional disiapkan (seluruh unit ACTIVE).`);
 
-    // 8. Master Zona Operasional
+    // 8. Master Zona Operasional (4 Poligon Dasar Sidoarjo)
     console.log("⏳ Seeding Master Zona Operasional...");
     const zonesData = [
       {
@@ -334,106 +293,29 @@ async function seedCleanData() {
     }
     console.log(`✅ ${insertedZones.length} master zona operasional disiapkan.`);
 
-    // 9. Zone Assignments & Duty Queue for Today
-    console.log("⏳ Seeding Penugasan Zona & Antrean Tugas Rider...");
-    const ridersRes = await pool.query("SELECT id, name FROM users WHERE role = 'RIDER' ORDER BY name;");
-    const riders = ridersRes.rows;
-    const today = new Date().toISOString().split("T")[0];
-
-    if (riders.length > 0 && insertedZones.length > 0) {
-      for (let i = 0; i < Math.min(riders.length, insertedZones.length); i++) {
-        const r = riders[i];
-        const z = insertedZones[i % insertedZones.length];
-
-        await pool.query(`
-          INSERT INTO zone_assignments (rider_id, zone_id, assignment_date, status, check_in_time)
-          VALUES ($1, $2, $3::date, 'CHECKED_IN', CURRENT_TIMESTAMP)
-          ON CONFLICT DO NOTHING;
-        `, [r.id, z.id, today]);
-
-        await pool.query(`
-          INSERT INTO rider_duty_queues (rider_id, duty_date, status)
-          VALUES ($1, $2::date, 'PLOTTED')
-          ON CONFLICT DO NOTHING;
-        `, [r.id, today]);
-      }
-    }
-    console.log(`✅ ${riders.length} penugasan rider aktif berhasil disiapkan.`);
-
-    // 10. Seeding Realistic Sales Logs for Today & 30 Days Trend
-    console.log("⏳ Seeding Transaksi Penjualan Historis 30 Hari...");
-    const products = insertedProducts;
-
-    if (riders.length > 0 && products.length > 0 && insertedZones.length > 0) {
-      for (let dayOffset = 30; dayOffset >= 0; dayOffset--) {
-        const txDate = new Date(Date.now() - dayOffset * 24 * 60 * 60 * 1000);
-        const txCount = dayOffset === 0 ? 32 : Math.floor(22 + Math.random() * 20);
-
-        for (let t = 0; t < txCount; t++) {
-          const rider = riders[t % riders.length];
-          const prod = products[t % products.length];
-          const zone = insertedZones[t % insertedZones.length];
-          const qty = Math.floor(1 + Math.random() * 3);
-          const unitPrice = prod.price || 18000;
-          const totalPrice = qty * unitPrice;
-
-          await pool.query(`
-            INSERT INTO sales_logs (rider_id, product_id, qty, unit_price, total_price, latitude, longitude, zone_id, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);
-          `, [
-            rider.id,
-            prod.id,
-            qty,
-            unitPrice,
-            totalPrice,
-            -7.4450 + (Math.random() - 0.5) * 0.01,
-            112.7150 + (Math.random() - 0.5) * 0.01,
-            zone.id,
-            txDate.toISOString(),
-          ]);
-        }
-      }
-    }
-    console.log(`✅ Data transaksi penjualan historis 30 hari berhasil di-generate.`);
-
-    // 11. Seeding In-App Notifications
-    console.log("⏳ Seeding Notifikasi Sistem...");
+    // 9. Seeding In-App Notifications (1 Welcome Notification)
+    console.log("⏳ Seeding Notifikasi Awal Sistem...");
     const { rows: adminRows } = await pool.query(`SELECT id FROM users WHERE role = 'SUPERADMIN' LIMIT 1;`);
     if (adminRows.length > 0) {
       const superadminId = adminRows[0].id;
-      const sampleNotifs = [
-        {
-          user_id: superadminId,
-          title: "Sistem Inisialisasi Berhasil",
-          message: "Seluruh 4 zona PostGIS, 885 jalan protokol, dan 692 jalan tol telah aktif.",
-        },
-        {
-          user_id: superadminId,
-          title: "Sinkronisasi Cuaca Satelit",
-          message: "Data Open-Meteo Sidoarjo berhasil diperbarui untuk seluruh zona operasional.",
-        },
-        {
-          user_id: superadminId,
-          title: "Kalibrasi Bobot BWM",
-          message: "Konfigurasi BWM aktif: Best Potensi Pasar, Worst Jarak Hub (CR: 0.042).",
-        },
-      ];
-      for (const n of sampleNotifs) {
-        await pool.query(
-          `INSERT INTO notifications (user_id, title, message, is_read) VALUES ($1, $2, $3, false);`,
-          [n.user_id, n.title, n.message]
-        );
-      }
-      console.log(`✅ ${sampleNotifs.length} notifikasi in-app disiapkan.`);
+      await pool.query(
+        `INSERT INTO notifications (user_id, title, message, is_read) VALUES ($1, $2, $3, false);`,
+        [
+          superadminId,
+          "Sistem MantaKopi COZIS Bersih & Siap Digunakan",
+          "Database berhasil direset. Silakan mulai dengan konfigurasi zona, pembagian armada, atau undang staf baru.",
+        ]
+      );
+      console.log(`✅ 1 notifikasi selamat datang disiapkan.`);
     }
 
-    // 12. Seeding Data Spasial Jalan Protokol (PostGIS)
+    // 10. Seeding Data Spasial Jalan Protokol & Tol (PostGIS)
     console.log("⏳ Seeding Lapisan Spasial Jalan Protokol (PostGIS)...");
     const roadRes = await syncProtocolRoadsService(false);
     console.log(`✅ ${roadRes.totalRoads} ruas jalan protokol aktif terdaftar di PostGIS.`);
 
     console.log("\n==================================================");
-    console.log("🎉 SEEDING MASTER & OPERASIONAL DATA SELESAI SUKSES!");
+    console.log("🎉 SEEDING CLEAN MASTER DATA SELESAI SUKSES!");
     console.log("==================================================\n");
   } catch (error: any) {
     console.error("❌ Gagal melakukan Seeding Data:", error.message);
@@ -442,4 +324,5 @@ async function seedCleanData() {
   }
 }
 
+export { seedCleanData };
 seedCleanData();

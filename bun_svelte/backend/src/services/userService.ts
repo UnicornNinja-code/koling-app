@@ -106,13 +106,14 @@ export const createUserService = async (
     email: email.trim().toLowerCase(),
     role: role as UserRole,
     password: hashedPassword,
-    isActive: false, // Default: Pending Activation
+    isActive: false,     // Default: Pending Activation
+    firstLogin: true,    // Must set own password on first login
   });
 
   // 1. Generate secure 48-hour invitation token
   const invitationToken = crypto.randomBytes(32).toString("hex");
   const resetId = crypto.randomUUID();
-  const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 jam
+  const expiresAt = new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000); // Tanpa kadaluarsa
 
   await PasswordResetTokenModel.create({
     id: resetId,
@@ -128,8 +129,8 @@ export const createUserService = async (
   const html = `
     <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; background: #131316; color: #f4f4f5; border-radius: 16px; border: 1px solid #272730;">
       <div style="text-align: center; margin-bottom: 20px;">
-        <h1 style="color: #FF634A; margin: 0; font-size: 24px;">☕ MantaKopi COZIS</h1>
-        <p style="color: #a1a1aa; font-size: 13px; margin-top: 4px;">Coffee Zone Intelligence & Spatial Decision Support System</p>
+        <h1 style="color: #FF634A; margin: 0; font-size: 24px;">☕ MOVA</h1>
+        <p style="color: #a1a1aa; font-size: 13px; margin-top: 4px;">Move Where Demand Is. — Mobile Operations & Visibility Analytics</p>
       </div>
       <div style="background: #18181D; padding: 20px; border-radius: 12px; border: 1px solid #272730;">
         <h2 style="color: #fff; font-size: 18px; margin-top: 0;">Halo, ${name}! 👋</h2>
@@ -150,7 +151,7 @@ export const createUserService = async (
         </p>
       </div>
       <p style="color: #71717a; font-size: 11px; text-align: center; margin-top: 20px;">
-        © 2026 MantaKopi COZIS.
+        © 2026 MOVA. Move Where Demand Is.
       </p>
     </div>
   `;
@@ -159,7 +160,7 @@ export const createUserService = async (
   try {
     mailResult = await sendMail({
       to: email,
-      subject: `🚀 Undangan Bergabung & Aktivasi Akun ${roleLabel} — MantaKopi COZIS`,
+      subject: `🚀 Undangan Bergabung & Aktivasi Akun ${roleLabel} — MOVA`,
       html,
       text: `Halo ${name}, Anda diundang bergabung sebagai ${roleLabel}. Buka link berikut untuk aktivasi akun: ${activationUrl}`,
     });
@@ -208,7 +209,7 @@ export const resendInvitationService = async (userId: number | string, currentUs
 
   const invitationToken = crypto.randomBytes(32).toString("hex");
   const resetId = crypto.randomUUID();
-  const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 jam
+  const expiresAt = new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000); // Tanpa kadaluarsa
 
   await PasswordResetTokenModel.create({
     id: resetId,
@@ -223,8 +224,8 @@ export const resendInvitationService = async (userId: number | string, currentUs
   const html = `
     <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; background: #131316; color: #f4f4f5; border-radius: 16px; border: 1px solid #272730;">
       <div style="text-align: center; margin-bottom: 20px;">
-        <h1 style="color: #FF634A; margin: 0; font-size: 24px;">☕ MantaKopi COZIS</h1>
-        <p style="color: #a1a1aa; font-size: 13px; margin-top: 4px;">Coffee Zone Intelligence & Spatial Decision Support System</p>
+        <h1 style="color: #FF634A; margin: 0; font-size: 24px;">☕ MOVA</h1>
+        <p style="color: #a1a1aa; font-size: 13px; margin-top: 4px;">Move Where Demand Is. — Mobile Operations & Visibility Analytics</p>
       </div>
       <div style="background: #18181D; padding: 20px; border-radius: 12px; border: 1px solid #272730;">
         <h2 style="color: #fff; font-size: 18px; margin-top: 0;">Halo, ${targetUser.name}! 👋</h2>
@@ -248,7 +249,7 @@ export const resendInvitationService = async (userId: number | string, currentUs
   try {
     mailResult = await sendMail({
       to: targetUser.email,
-      subject: `🚀 Tautan Aktivasi Akun ${roleLabel} — MantaKopi COZIS`,
+      subject: `🚀 Tautan Aktivasi Akun ${roleLabel} — MOVA`,
       html,
       text: `Halo ${targetUser.name}, Buka link berikut untuk aktivasi akun: ${activationUrl}`,
     });
@@ -271,6 +272,58 @@ export const resendInvitationService = async (userId: number | string, currentUs
     invitation_link: activationUrl,
     email_preview_url: mailResult?.previewUrl || null,
   };
+};
+
+/**
+ * Complete first-login mandatory password change
+ * User is already authenticated; sets new password and marks first_login = false
+ */
+export const completeFirstLoginService = async (
+  userId: number | string,
+  { newPassword }: { newPassword: string }
+): Promise<{ success: boolean; message: string }> => {
+  if (!newPassword) {
+    const error: any = new Error("Password baru wajib diisi.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (newPassword.length < 8) {
+    const error: any = new Error("Password baru minimal 8 karakter.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const userWithPw = await UserModel.findByIdWithPassword(userId);
+  if (!userWithPw) {
+    const error: any = new Error("Akun tidak ditemukan.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  // Check if new password is identical to the current temporary password
+  if (userWithPw.password) {
+    const isSame = await verifyPassword(newPassword, userWithPw.password);
+    if (isSame) {
+      const error: any = new Error("Password baru tidak boleh sama dengan password sementara.");
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+
+  const hashedNewPassword = await hashPassword(newPassword);
+  // updatePassword automatically sets first_login = FALSE, is_active = TRUE via SQL
+  await UserModel.updatePassword(userId, hashedNewPassword);
+
+  await auditService.logAction({
+    userId: String(userId),
+    action: "FIRST_LOGIN_PASSWORD_CHANGED",
+    entityType: "USER",
+    entityId: String(userId),
+    status: "SUCCESS",
+  });
+
+  return { success: true, message: "Password berhasil diperbarui. Selamat datang di MOVA!" };
 };
 
 /**

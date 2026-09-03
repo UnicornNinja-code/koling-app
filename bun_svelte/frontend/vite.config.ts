@@ -1,6 +1,10 @@
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 import tailwindcss from '@tailwindcss/vite'
 import { defineConfig, loadEnv } from 'vite'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -12,6 +16,12 @@ export default defineConfig(({ mode }) => {
       tailwindcss(),
       svelte()
     ],
+    resolve: {
+      alias: {
+        $lib: path.resolve(__dirname, './src/lib'),
+        $components: path.resolve(__dirname, './src/components')
+      }
+    },
     server: {
       port: 5173,
       proxy: {

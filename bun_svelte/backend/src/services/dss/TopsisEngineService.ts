@@ -71,7 +71,7 @@ export class TopsisEngineService {
     console.log("🚀 [TOPSIS ENGINE] MEMULAI REKOMENDASI LOKASI DSS ZONA (TOPSIS PIPELINE)");
     console.log("================================================================================");
     console.log(`📌 Time Slot Operasional : ${activeSlot.toUpperCase()} (BERDASARKAN WAKTU AKTUAL SAAT INI)`);
-    console.log(`📌 Lokasi Asal Evaluasi  : ${riderLat && riderLon ? `LIVE RIDER (${riderLat}, ${riderLon})` : 'DEFAULT HUB UTAMA SIDOARJO'}`);
+    console.log(`📌 Lokasi Asal Evaluasi  : ${riderLat && riderLon ? `LIVE RIDER (${riderLat}, ${riderLon})` : 'CENTRAL OPERATIONAL HUB'}`);
     console.log("--------------------------------------------------------------------------------");
 
     // --- STEP 0: FETCH ACTIVE BWM WEIGHTS & ACTIVE ZONES ---
@@ -247,10 +247,12 @@ export class TopsisEngineService {
     const finalRankings = distanceResults.map((item) => {
       const denom = item.d_pos + item.d_neg;
       const preferenceScore = denom > 0 ? item.d_neg / denom : 0;
+      const roundedScore = parseFloat(preferenceScore.toFixed(4));
       return {
         zone_id: item.zone_id,
         zone_name: item.zone_name,
-        preference_score: parseFloat(preferenceScore.toFixed(4)),
+        preference_score: roundedScore,
+        score: roundedScore,
         d_pos: parseFloat(item.d_pos.toFixed(4)),
         d_neg: parseFloat(item.d_neg.toFixed(4)),
       };

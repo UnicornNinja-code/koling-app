@@ -27,6 +27,7 @@ export interface SystemReadinessReport {
   items: ReadinessItem[];
   hub_config: {
     name: string;
+    city_name?: string;
     address: string;
     latitude: number;
     longitude: number;
@@ -81,11 +82,11 @@ export class SystemReadinessService {
       SystemSettingModel.getByKey("OPERATIONAL_SCHEDULE"),
     ]);
 
-    const hubLat = parseFloat(hubLatSetting?.value || "-7.4478");
-    const hubLng = parseFloat(hubLngSetting?.value || "112.7183");
+    const hubLat = parseFloat(hubLatSetting?.value || "0");
+    const hubLng = parseFloat(hubLngSetting?.value || "0");
     const hubRadius = parseFloat(hubRadiusSetting?.value || "12");
-    const hubName = hubNameSetting?.value || "Central Hub Sidoarjo";
-    const hubAddress = hubAddrSetting?.value || "Jl. Pahlawan No. 1, Sidoarjo";
+    const hubName = hubNameSetting?.value || "Central Hub";
+    const hubAddress = hubAddrSetting?.value || "-";
 
     // 2. Fetch User counts by role & status
     const userCountQuery = `
@@ -243,6 +244,7 @@ export class SystemReadinessService {
       items,
       hub_config: {
         name: hubName,
+        city_name: (await SystemSettingModel.getByKey("HUB_CITY_NAME"))?.value || (hubAddress.toLowerCase().includes("surabaya") ? "Surabaya" : ""),
         address: hubAddress,
         latitude: hubLat,
         longitude: hubLng,
@@ -273,6 +275,7 @@ export class SystemReadinessService {
 
   public async updateSystemSettings({
     hub_name,
+    hub_city_name,
     hub_address,
     hub_latitude,
     hub_longitude,
@@ -281,6 +284,7 @@ export class SystemReadinessService {
     toll_road_prohibited,
   }: {
     hub_name?: string;
+    hub_city_name?: string;
     hub_address?: string;
     hub_latitude?: number;
     hub_longitude?: number;
@@ -291,14 +295,19 @@ export class SystemReadinessService {
     if (hub_name !== undefined) {
       await SystemSettingModel.upsert("CENTRAL_HUB_NAME", hub_name, "Nama Markas Central Hub Operasional");
     }
+    if (hub_city_name !== undefined && hub_city_name.trim()) {
+      await SystemSettingModel.upsert("HUB_CITY_NAME", hub_city_name.trim(), "Kota Wilayah Operasional Hub");
+    }
     if (hub_address !== undefined) {
       await SystemSettingModel.upsert("CENTRAL_HUB_ADDRESS", hub_address, "Alamat Fisik Markas Central Hub Operasional");
     }
     if (hub_latitude !== undefined) {
       await SystemSettingModel.upsert("CENTRAL_HUB_LAT", String(hub_latitude), "Latitude Geografis Central Hub");
+      await SystemSettingModel.upsert("HUB_LATITUDE", String(hub_latitude), "Latitude Geografis Central Hub (Alias)");
     }
     if (hub_longitude !== undefined) {
       await SystemSettingModel.upsert("CENTRAL_HUB_LNG", String(hub_longitude), "Longitude Geografis Central Hub");
+      await SystemSettingModel.upsert("HUB_LONGITUDE", String(hub_longitude), "Longitude Geografis Central Hub (Alias)");
     }
     if (operational_radius_km !== undefined) {
       await SystemSettingModel.upsert("OPERATIONAL_RADIUS_KM", String(operational_radius_km), "Radius Maksimal Buffer Operasional Pembuatan Zona (KM)");

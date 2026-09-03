@@ -260,9 +260,9 @@ export class ArmadaRepository {
     const query = `
       UPDATE fleet_issue_reports
       SET 
-        status = $2,
+        status = $2::varchar,
         resolution_notes = COALESCE($3, resolution_notes),
-        resolved_at = CASE WHEN $2 IN ('RESOLVED', 'SENT_TO_MAINTENANCE') THEN CURRENT_TIMESTAMP ELSE resolved_at END
+        resolved_at = CASE WHEN $2::varchar IN ('RESOLVED', 'SENT_TO_MAINTENANCE') THEN CURRENT_TIMESTAMP ELSE resolved_at END
       WHERE id = $1
       RETURNING *;
     `;

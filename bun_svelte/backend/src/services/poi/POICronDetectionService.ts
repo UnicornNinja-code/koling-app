@@ -8,6 +8,7 @@ import { poiClusterer, POIClusterer } from "./POIClusterer.js";
 import { spatialDeduplicator, SpatialDeduplicator } from "./SpatialDeduplicator.js";
 import { poiEntityFactory, POIEntityFactory } from "./POIEntityFactory.js";
 import { poiRepository, POIRepository } from "../../repositories/poiRepository.js";
+import { operationalContextService } from "../spatial/OperationalContextService.js";
 
 export class POICronDetectionService {
   private static instance: POICronDetectionService | null = null;
@@ -48,10 +49,13 @@ export class POICronDetectionService {
   /**
    * Scans Overpass API for new POIs and saves newly discovered POIs with status 'PENDING_APPROVAL'
    */
-  public async detectNewPois(hubCity: string = "Sidoarjo"): Promise<any> {
+  public async detectNewPois(hubCity?: string): Promise<any> {
+    const opContext = await operationalContextService.getOperationalContext();
+    const targetCity = (hubCity && hubCity.trim()) || opContext.hubCityName;
+
     const query = `
       [out:json][timeout:300];
-      area["name"="${hubCity}"]["admin_level"="5"]->.searchArea;
+      area["name"="${targetCity}"]["admin_level"="5"]->.searchArea;
       (
         nwr["amenity"](area.searchArea); nwr["shop"](area.searchArea);
         nwr["leisure"](area.searchArea); nwr["office"](area.searchArea);

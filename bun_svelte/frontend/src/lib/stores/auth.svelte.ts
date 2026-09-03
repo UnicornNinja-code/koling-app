@@ -45,6 +45,10 @@ class AuthStore {
     return this.user?.role || "GUEST";
   }
 
+  get needsFirstLoginSetup(): boolean {
+    return this.user?.first_login === true;
+  }
+
   hydrate() {
     try {
       const savedToken = localStorage.getItem("token");
@@ -62,35 +66,42 @@ class AuthStore {
     }
   }
 
-  async validateSession() {
+  async validateSession(): Promise<boolean> {
     if (!this.token) {
       this.loading = false;
-      return;
+      return false;
     }
     try {
       const res = await authService.getMe();
-      if (res?.user) {
+      if (res?.authenticated && res?.user) {
         this.user = res.user;
         localStorage.setItem("user", JSON.stringify(res.user));
+        return true;
+      } else {
+        await this.logout();
+        return false;
       }
     } catch (err: any) {
       console.warn("Sesi tidak valid atau telah kedaluwarsa:", err?.message);
-      // Only logout on explicit 401 Unauthorized or deactivated user (403 USER_DEACTIVATED)
-      // Do NOT log out if there is a transient 500 error or network disconnection!
-      if (err?.response?.status === 401 || err?.response?.data?.error === "USER_DEACTIVATED") {
-        this.logout();
+      // Only logout on explicit 401 Unauthorized or deactivated user (403 USER_DEACTIVATED) or SESSION_REVOKED
+      if (err?.response?.status === 401 || err?.response?.data?.error === "USER_DEACTIVATED" || err?.response?.data?.code === "SESSION_REVOKED") {
+        await this.logout();
       }
+      return false;
     } finally {
       this.loading = false;
     }
   }
 
-  login(userData: AuthUser, authToken: string) {
+  login(userData: AuthUser, authToken: string, refreshToken?: string) {
     this.user = userData;
     this.token = authToken;
     this.isExpired = false;
     localStorage.setItem("user", JSON.stringify(userData));
     localStorage.setItem("token", authToken);
+    if (refreshToken) {
+      localStorage.setItem("refreshToken", refreshToken);
+    }
   }
 
   async logout() {
@@ -103,6 +114,11 @@ class AuthStore {
       this.token = null;
       localStorage.removeItem("user");
       localStorage.removeItem("token");
+      localStorage.removeItem("refreshToken");
+      try {
+        sessionStorage.clear();
+      } catch {}
+      window.dispatchEvent(new CustomEvent("auth:logged_out"));
     }
   }
 
@@ -112,6 +128,10 @@ class AuthStore {
     this.isExpired = true;
     localStorage.removeItem("user");
     localStorage.removeItem("token");
+    localStorage.removeItem("refreshToken");
+    try {
+      sessionStorage.clear();
+    } catch {}
   }
 }
 

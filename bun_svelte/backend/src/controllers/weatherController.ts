@@ -48,9 +48,15 @@ export const getZoneWeatherInfo = async (req: Request, res: Response): Promise<a
   }
 };
 
+import { operationalContextService } from "../services/spatial/OperationalContextService.js";
+
 export const getHubWeatherInfo = async (req: Request, res: Response): Promise<any> => {
   try {
-    const city_name = req.params.city_name as string;
+    let city_name = req.params.city_name as string;
+    if (!city_name || city_name.toLowerCase() === "default" || city_name.toLowerCase() === "hub") {
+      const opContext = await operationalContextService.getOperationalContext();
+      city_name = opContext.hubCityName;
+    }
     const { time } = req.query as { time?: string };
     const result = await getHubWeatherOverviewService(city_name, time);
     return res.status(200).json(result);

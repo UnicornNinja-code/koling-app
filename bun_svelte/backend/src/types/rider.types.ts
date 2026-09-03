@@ -2,7 +2,21 @@
  * rider.types.ts & lbs.types.ts
  */
 
+export type RiderDutyStatus = "WAITING" | "PLOTTED" | "CHECKED_IN" | "COMPLETED" | "NO_SHOW" | "CANCELLED";
+
 export type ShiftStatus = "OFFLINE" | "CHECKED_IN" | "ON_DUTY" | "RESTING" | "CHECKED_OUT";
+
+export interface RiderDutyQueue {
+  id: number | string;
+  rider_id: number | string;
+  duty_date: string | Date;
+  session_id?: string | null;
+  confirmed_at?: Date | string;
+  status: RiderDutyStatus;
+  eligibility_status?: string;
+  created_at?: Date | string;
+  updated_at?: Date | string;
+}
 
 export interface RiderShiftSession {
   id: number;

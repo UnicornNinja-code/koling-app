@@ -269,8 +269,16 @@ export class ArmadaService {
       description,
     });
 
+    if (severity === "CRITICAL") {
+      await this.repo.update(armadaId, { status: "MAINTENANCE" });
+    }
+
     console.log(`⚠️ [ISSUE REPORTED] Kerusakan dilaporkan pada Armada ${armada.code}: [${severity}] ${issueType} - ${description}`);
-    return issue;
+    return {
+      success: true,
+      message: "Laporan kerusakan berhasil dicatat.",
+      issue,
+    };
   }
 
   /**
@@ -286,10 +294,10 @@ export class ArmadaService {
   public async resolveIssueReport(
     issueId: string | number,
     {
-      status,
+      status = "RESOLVED",
       resolutionNotes,
     }: {
-      status: string;
+      status?: string;
       resolutionNotes?: string;
     },
     adminUser?: { id: string; role: string }
@@ -301,8 +309,10 @@ export class ArmadaService {
       throw error;
     }
 
-    // If sent to maintenance, update armada status as well
-    if (status === "SENT_TO_MAINTENANCE" && updated.armada_id) {
+    // If resolved, return armada back to ACTIVE if it was in MAINTENANCE
+    if (status === "RESOLVED" && updated.armada_id) {
+      await this.repo.update(updated.armada_id, { status: "ACTIVE" });
+    } else if (status === "SENT_TO_MAINTENANCE" && updated.armada_id) {
       await this.repo.update(updated.armada_id, { status: "MAINTENANCE" });
     }
 
@@ -318,7 +328,22 @@ export class ArmadaService {
       });
     }
 
-    return updated;
+    return {
+      success: true,
+      message: "Laporan kendala berhasil ditangani.",
+      issue: updated,
+    };
+  }
+
+  /**
+   * Shorthand alias for resolveIssueReport
+   */
+  public async resolveIssue(
+    issueId: string | number,
+    resolutionNotes: string,
+    adminUser?: { id: string; role: string }
+  ): Promise<any> {
+    return this.resolveIssueReport(issueId, { status: "RESOLVED", resolutionNotes }, adminUser);
   }
 
   /**

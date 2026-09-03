@@ -12,6 +12,7 @@ import { addRiderAssignedNotifJob } from "../../queues/notificationQueue.js";
 import { eventPublisher } from "../../events/eventPublisher.js";
 import { armadaRepository } from "../../repositories/armadaRepository.js";
 import { auditLogger } from "../../utils/AuditLogger.js";
+import { ZoneModel } from "../../models/zoneModel.js";
 
 export class DistributionService {
   private static instance: DistributionService | null = null;
@@ -44,18 +45,30 @@ export class DistributionService {
       throw error;
     }
 
-    // 1. Eligibility Check (BR-DIST-01)
+    // 1. Eligibility Check (BR-DIST-01, RIDER-001)
     const eligibility = await this.repo.checkRiderEligibility(riderId);
     if (!eligibility.eligible) {
       const error: any = new Error(eligibility.reason || "Rider tidak memenuhi syarat untuk bertugas.");
       error.statusCode = 403;
+      error.code = "RIDER_INACTIVE";
       throw error;
     }
 
     // 2. Ensure active operational session
     const currentSession = await this.repo.findOrCreateCurrentSession();
 
-    // 3. Add to FIFO Duty Queue
+    // 3. Idempotency Check (RIDER-002, RIDER-003): If already confirmed today, return existing record
+    const existingQueue = await this.repo.findTodayDutyQueue(riderId);
+    if (existingQueue) {
+      return {
+        ...existingQueue,
+        already_confirmed: true,
+        msg: "Kesiapan tugas untuk hari ini sudah terkonfirmasi.",
+        session: currentSession,
+      };
+    }
+
+    // 4. Add to FIFO Duty Queue
     const queueEntry = await this.repo.addRiderToDutyQueue(riderId, currentSession.id);
     console.log(`✅ Rider ${riderId} berhasil masuk ke Antrean Tugas (${currentSession.session_code}) pada ${queueEntry.confirmed_at}`);
 
@@ -69,6 +82,8 @@ export class DistributionService {
 
     return {
       ...queueEntry,
+      already_confirmed: false,
+      msg: "Kesiapan tugas berhasil dikonfirmasi.",
       session: currentSession,
     };
   }
@@ -98,7 +113,7 @@ export class DistributionService {
 
     const activeZones = await topsisRepository.findAllActiveZones();
     const fullZonesOverview = zonesOverview.map((z: any) => {
-      const activeZone = activeZones.find((az: any) => az.id === z.zone_id) || {};
+      const activeZone = activeZones.find((az: any) => String(az.id) === String(z.zone_id)) || {};
       const maxCap =
         activeZone.max_capacity !== undefined && activeZone.max_capacity !== null
           ? parseInt(activeZone.max_capacity, 10)
@@ -356,12 +371,25 @@ export class DistributionService {
 
     const currentSession = await this.repo.findOrCreateCurrentSession();
     const overview = await this.getDistributionOverview();
-    const targetZone = overview.zones.find((z: any) => z.zone_id === zoneId);
+    let targetZone = overview.zones.find((z: any) => String(z.zone_id || z.id) === String(zoneId));
 
     if (!targetZone) {
-      const error: any = new Error("Zona sasaran tidak ditemukan di database.");
-      error.statusCode = 404;
-      throw error;
+      const dbZone = await ZoneModel.findById(zoneId);
+      if (!dbZone || dbZone.status !== "ACTIVE") {
+        const error: any = new Error("Zona sasaran tidak ditemukan di database.");
+        error.statusCode = 404;
+        throw error;
+      }
+      const assignedCounts = await this.repo.getAssignedRidersCountPerZone(currentSession.id);
+      const assigned = assignedCounts[dbZone.id] || 0;
+      const maxCap = dbZone.max_capacity !== undefined && dbZone.max_capacity !== null ? parseInt(dbZone.max_capacity, 10) : 10;
+      targetZone = {
+        zone_id: dbZone.id,
+        zone_name: dbZone.name,
+        max_capacity: maxCap,
+        assigned_count: assigned,
+        remaining_capacity: Math.max(0, maxCap - assigned),
+      };
     }
 
     if (targetZone.remaining_capacity <= 0) {
@@ -450,6 +478,59 @@ export class DistributionService {
     });
 
     return updated;
+  }
+
+  /**
+   * Mid-Day Emergency Incident / Armada Swap
+   */
+  public async emergencySwap({
+    previousRiderId,
+    newRiderId,
+    supervisorId,
+    incidentType,
+    notes,
+    armadaAction = "KEEP_ARMADA",
+  }: {
+    previousRiderId: string;
+    newRiderId: string;
+    supervisorId?: string | null;
+    incidentType: string;
+    notes?: string;
+    armadaAction?: string;
+  }): Promise<any> {
+    if (!previousRiderId || !newRiderId) {
+      const err: any = new Error("previous_rider_id dan new_rider_id harus disertakan.");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const result = await this.repo.emergencySwapAssignment({
+      previousRiderId,
+      newRiderId,
+      supervisorId,
+      incidentType,
+      notes,
+      armadaAction,
+    });
+
+    await auditLogger.logAction({
+      userId: supervisorId || undefined,
+      action: "EMERGENCY_RIDER_SWAP",
+      entityType: "ZONE_ASSIGNMENT",
+      entityId: result.new_assignment?.id,
+      details: {
+        previous_rider_id: previousRiderId,
+        new_rider_id: newRiderId,
+        incident_type: incidentType,
+        armada_action: armadaAction,
+        notes,
+      },
+    });
+
+    return {
+      msg: "Pengalihan tugas darurat berhasil dilakukan.",
+      ...result,
+    };
   }
 
   /**

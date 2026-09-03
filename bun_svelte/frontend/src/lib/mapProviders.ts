@@ -139,6 +139,8 @@ export const createBasemapLayer = (L: any, providerId: string) => {
       selected = providers.find((p) => p.id === 'openmaptiles-light');
     } else if (providerId.includes('out') || providerId.includes('topo')) {
       selected = providers.find((p) => p.id === 'openmaptiles-outdoor');
+    } else if (providerId.includes('osm') || providerId.includes('openstreet')) {
+      selected = providers.find((p) => p.id === 'osm-standard');
     }
   }
   if (!selected) {

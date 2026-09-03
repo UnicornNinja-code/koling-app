@@ -1,13 +1,14 @@
 /*
  * reportService.ts
  * REST API client & Universal Export Generator for Reports & Audit Logs in TypeScript
+ * Strictly aligned with swagger.ts contracts
  */
 
 import { axiosInstance } from "../lib/axios";
 
 export interface AuditLogItem {
   id: number | string;
-  user_id: number | string;
+  user_id?: number | string;
   user_name?: string;
   user_email?: string;
   user_role?: string;
@@ -17,15 +18,149 @@ export interface AuditLogItem {
   details?: any;
   ip_address?: string;
   user_agent?: string;
-  status: "SUCCESS" | "FAILED" | string;
+  status?: "SUCCESS" | "FAILED" | string;
   created_at: string;
 }
 
 export interface AuditLogsResponse {
   logs: AuditLogItem[];
-  count: number;
-  page: number;
-  limit: number;
+  count?: number;
+  total?: number;
+  page?: number;
+  limit?: number;
+}
+
+export interface AuditFiltersResponse {
+  success: boolean;
+  data: {
+    actions: string[];
+    entity_types: string[];
+  };
+}
+
+export interface RiderPerformanceReportItem {
+  rider_id: string;
+  rider_name: string;
+  total_shifts: number;
+  total_check_ins: number;
+  avg_check_in_delay_minutes: number;
+  total_sales_units: number;
+  total_revenue: number;
+  avg_shift_duration_hours?: number;
+  favorite_zone_name?: string;
+}
+
+export interface RiderPerformanceReportResponse {
+  success: boolean;
+  data: RiderPerformanceReportItem[];
+  summary_totals?: {
+    total_shifts_all: number;
+    total_revenue_all: number;
+    avg_delay_minutes_overall: number;
+  };
+  pagination?: {
+    page: number;
+    limit: number;
+    total_records: number;
+    total_pages: number;
+    has_next: boolean;
+    has_prev: boolean;
+  };
+}
+
+export interface ZoneEffectivenessReportItem {
+  zone_id: string;
+  zone_name: string;
+  total_revenue: number;
+  total_units_sold: number;
+  avg_dss_rank?: number;
+  occupancy_rate_percent?: number;
+}
+
+export interface FleetLifecycleReportResponse {
+  success: boolean;
+  data: {
+    summary: {
+      total_armadas: number;
+      active: number;
+      in_use: number;
+      maintenance: number;
+    };
+    maintenance_stats: Array<{
+      armada_code: string;
+      total_issues_reported: number;
+      total_downtime_days: number;
+      current_status: string;
+    }>;
+  };
+}
+
+export interface DssAccuracyReportResponse {
+  success: boolean;
+  data: {
+    total_recommendations: number;
+    auto_accepted_count: number;
+    manual_override_count: number;
+    acceptance_rate_percent: number;
+    override_rate_percent: number;
+    top_override_reasons: Array<{
+      reason: string;
+      count: number;
+    }>;
+  };
+}
+
+export interface DssImpactAnalysisResponse {
+  success: boolean;
+  data: {
+    evaluation_period: {
+      start: string;
+      end: string;
+    };
+    comparison: {
+      accepted_recommendations: {
+        assignments_count: number;
+        total_revenue: number;
+        avg_revenue_per_shift: number;
+        avg_check_in_compliance_pct: number;
+      };
+      manual_overrides: {
+        assignments_count: number;
+        total_revenue: number;
+        avg_revenue_per_shift: number;
+        avg_check_in_compliance_pct: number;
+      };
+      impact_metrics: {
+        revenue_lift_percent: number;
+        compliance_lift_percent: number;
+        p_value_significance?: number;
+      };
+    };
+  };
+}
+
+export interface SyncHistoryReportItem {
+  job_id: string;
+  dataset_type: string;
+  status: string;
+  records_fetched?: number;
+  records_deduplicated?: number;
+  duration_seconds?: number;
+  executed_at: string;
+}
+
+export interface ExecutiveSummaryReportResponse {
+  success: boolean;
+  data: {
+    kpis: {
+      total_revenue: number;
+      active_riders: number;
+      active_zones: number;
+      fleet_utilization: number;
+      dss_accuracy: number;
+      dss_revenue_lift_pct?: number;
+    };
+  };
 }
 
 export interface SalesDailyItem {
@@ -62,6 +197,7 @@ export interface DssConfigItem {
 export const reportService = {
   /**
    * Fetch Audit Logs with filters
+   * GET /api/audit-logs
    */
   getAuditLogs: async (params: {
     user_id?: string;
@@ -76,7 +212,102 @@ export const reportService = {
   },
 
   /**
+   * Fetch available filter options for Audit Logs
+   * GET /api/audit-logs/filters
+   */
+  getAuditLogFilters: async (): Promise<AuditFiltersResponse> => {
+    const res = await axiosInstance.get("/audit-logs/filters");
+    return res.data;
+  },
+
+  /**
+   * Fetch Rider Performance Report (Pillar 1)
+   * GET /api/reports/riders/performance
+   */
+  getRiderPerformance: async (params: {
+    start_date?: string;
+    end_date?: string;
+    rider_id?: string;
+    page?: number;
+    limit?: number;
+    export?: "csv";
+  } = {}): Promise<RiderPerformanceReportResponse> => {
+    const res = await axiosInstance.get("/reports/riders/performance", { params });
+    return res.data;
+  },
+
+  /**
+   * Fetch Zone Effectiveness Report (Pillar 2)
+   * GET /api/reports/zones/effectiveness
+   */
+  getZoneEffectiveness: async (params: {
+    start_date?: string;
+    end_date?: string;
+    zone_id?: string;
+  } = {}): Promise<any> => {
+    const res = await axiosInstance.get("/reports/zones/effectiveness", { params });
+    return res.data;
+  },
+
+  /**
+   * Fetch Fleet Lifecycle & Maintenance Downtime Report (Pillar 3)
+   * GET /api/reports/fleet/lifecycle
+   */
+  getFleetLifecycle: async (params: {
+    start_date?: string;
+    end_date?: string;
+  } = {}): Promise<FleetLifecycleReportResponse> => {
+    const res = await axiosInstance.get("/reports/fleet/lifecycle", { params });
+    return res.data;
+  },
+
+  /**
+   * Fetch DSS Accuracy & Acceptance Rate Report (Pillar 4a)
+   * GET /api/reports/dss/accuracy
+   */
+  getDssAccuracy: async (params: {
+    start_date?: string;
+    end_date?: string;
+  } = {}): Promise<DssAccuracyReportResponse> => {
+    const res = await axiosInstance.get("/reports/dss/accuracy", { params });
+    return res.data;
+  },
+
+  /**
+   * Fetch DSS Impact Analysis Report (Auto vs Manual Overrides Revenue) (Pillar 4b)
+   * GET /api/reports/dss/impact-analysis
+   */
+  getDssImpactAnalysis: async (params: {
+    start_date?: string;
+    end_date?: string;
+  } = {}): Promise<DssImpactAnalysisResponse> => {
+    const res = await axiosInstance.get("/reports/dss/impact-analysis", { params });
+    return res.data;
+  },
+
+  /**
+   * Fetch Spatial & Weather External Sync History
+   * GET /api/reports/system/sync-history
+   */
+  getSyncHistory: async (params: {
+    dataset_type?: "poi" | "weather" | string;
+  } = {}): Promise<{ success: boolean; data: SyncHistoryReportItem[] }> => {
+    const res = await axiosInstance.get("/reports/system/sync-history", { params });
+    return res.data;
+  },
+
+  /**
+   * Fetch Overall Business Executive Summary
+   * GET /api/reports/executive-summary
+   */
+  getExecutiveSummary: async (): Promise<ExecutiveSummaryReportResponse> => {
+    const res = await axiosInstance.get("/reports/executive-summary");
+    return res.data;
+  },
+
+  /**
    * Fetch Sales Analytics Overview
+   * GET /api/sales/overview
    */
   getSalesOverview: async (params: {
     start_date?: string;
@@ -90,6 +321,7 @@ export const reportService = {
 
   /**
    * Fetch all historical BWM configurations
+   * GET /api/dss/bwm/configs
    */
   getDssConfigs: async (): Promise<DssConfigItem[]> => {
     const res = await axiosInstance.get("/dss/bwm/configs");
@@ -99,7 +331,7 @@ export const reportService = {
   /**
    * Export Data to CSV with UTF-8 BOM
    */
-  exportToCsv: (filename: string, headers: string[], rows: (string | number)[][]) => {
+  exportToCsv: (filename: string, headers: string[], rows: (string | number | undefined | null)[][]) => {
     const headerRow = headers.map((h) => `"${h.replace(/"/g, '""')}"`).join(",");
     const dataRows = rows.map((row) =>
       row.map((val) => `"${String(val ?? "").replace(/"/g, '""')}"`).join(",")
@@ -133,7 +365,7 @@ export const reportService = {
     dateRange?: string;
     kpis?: Array<{ label: string; value: string }>;
     headers: string[];
-    rows: (string | number)[][];
+    rows: (string | number | undefined | null)[][];
   }) => {
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
@@ -236,3 +468,5 @@ export const reportService = {
     printWindow.document.close();
   },
 };
+
+export default reportService;

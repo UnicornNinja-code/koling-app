@@ -22,6 +22,7 @@
   } from 'lucide-svelte';
   import Alert from '../../components/ui/Alert.svelte';
   import { systemReadinessService, type SystemReadinessReport } from '../../services/systemReadinessService';
+  import { mapPreferences } from '../../lib/stores/mapPreferences.svelte';
 
   interface Props {
     onNavigate: (route: string) => void;
@@ -29,7 +30,7 @@
 
   let { onNavigate }: Props = $props();
 
-  let activeTab = $state<'hub' | 'rules' | 'schedule' | 'security' | 'readiness'>('hub');
+  let activeTab = $state<'hub' | 'rules' | 'schedule' | 'security' | 'readiness' | 'map'>('hub');
   let loading = $state(true);
   let saving = $state(false);
   let errorMsg = $state<string | null>(null);
@@ -38,10 +39,11 @@
   let report = $state<SystemReadinessReport | null>(null);
 
   // Form State - Tab 1: Hub & Spatial
-  let hubName = $state('Central Hub Sidoarjo');
-  let hubAddress = $state('Jl. Pahlawan No. 1, Sidoarjo');
-  let hubLat = $state('-7.4478');
-  let hubLng = $state('112.7183');
+  let hubName = $state('Central Hub');
+  let hubCityName = $state('');
+  let hubAddress = $state('');
+  let hubLat = $state('-7.2575');
+  let hubLng = $state('112.7521');
   let radiusKm = $state('12');
 
   // Form State - Tab 2: Spatial Rules
@@ -63,10 +65,11 @@
       report = data;
 
       if (data.hub_config) {
-        hubName = data.hub_config.name || 'Central Hub Sidoarjo';
-        hubAddress = data.hub_config.address || 'Jl. Pahlawan No. 1, Sidoarjo';
-        hubLat = String(data.hub_config.latitude || '-7.4478');
-        hubLng = String(data.hub_config.longitude || '112.7183');
+        hubName = data.hub_config.name || 'Central Hub';
+        hubCityName = data.hub_config.city_name || '';
+        hubAddress = data.hub_config.address || '';
+        hubLat = String(data.hub_config.latitude || '-7.2575');
+        hubLng = String(data.hub_config.longitude || '112.7521');
         radiusKm = String(data.hub_config.radius_km || '12');
       }
 
@@ -195,6 +198,7 @@
     try {
       const res = await systemReadinessService.updateSettings({
         hub_name: hubName.trim(),
+        hub_city_name: hubCityName.trim(),
         hub_address: hubAddress.trim(),
         hub_latitude: parseFloat(hubLat),
         hub_longitude: parseFloat(hubLng),
@@ -358,6 +362,18 @@
       <Activity class="w-4 h-4 {activeTab === 'readiness' ? 'text-[#FF634A]' : 'text-cyan-400'}" />
       <span>5. Audit Kesiapan Sistem</span>
     </button>
+
+    <button
+      type="button"
+      onclick={() => (activeTab = 'map')}
+      class="px-4 py-3 rounded-2xl text-xs sm:text-sm font-outfit-600 transition-all cursor-pointer flex items-center gap-2 shrink-0 border
+      {activeTab === 'map'
+        ? 'bg-white text-[#09090B] font-extrabold border-white shadow-lg shadow-white/10'
+        : 'bg-[#131316] text-[#A1A1AA] hover:text-white border-[#24242A] hover:border-[#383842]'}"
+    >
+      <Layers class="w-4 h-4 {activeTab === 'map' ? 'text-[#FF634A]' : 'text-sky-400'}" />
+      <span>6. Preferensi Map Tiles (Leaflet)</span>
+    </button>
   </div>
 
   <!-- TAB CONTENT DISPLAY -->
@@ -393,7 +409,21 @@
                 id="input-hub-name"
                 type="text"
                 bind:value={hubName}
-                placeholder="Contoh: Central Hub Sidoarjo Kota"
+                placeholder="Contoh: Central Hub Surabaya"
+                class="w-full px-3.5 py-2.5 rounded-2xl bg-[#1A1A1F] border border-[#2E2E38] text-white text-xs font-outfit-600 focus:border-[#FF634A] focus:outline-none"
+              />
+            </div>
+
+            <!-- Hub Operational City -->
+            <div class="space-y-1.5">
+              <label for="input-hub-city" class="block font-outfit-600 text-zinc-300">
+                Kota Wilayah Operasional Hub <span class="text-[#FF634A]">*</span>
+              </label>
+              <input
+                id="input-hub-city"
+                type="text"
+                bind:value={hubCityName}
+                placeholder="Contoh: Surabaya"
                 class="w-full px-3.5 py-2.5 rounded-2xl bg-[#1A1A1F] border border-[#2E2E38] text-white text-xs font-outfit-600 focus:border-[#FF634A] focus:outline-none"
               />
             </div>
@@ -754,6 +784,84 @@
             {/each}
           </div>
         {/if}
+      </div>
+
+    <!-- TAB 6: PREFERENSI MAP TILES & LAYER SPASIAL -->
+    {:else if activeTab === 'map'}
+      <div class="p-6 rounded-3xl bg-[#131316] border border-[#24242A] shadow-xl space-y-6 max-w-4xl">
+        <div class="pb-3 border-b border-[#24242A] flex items-center justify-between">
+          <div>
+            <h3 class="text-base font-outfit-600 text-white">Preferensi Map Tiles Leaflet & Layer Spasial</h3>
+            <p class="text-xs text-[#A1A1AA]">Pilih gaya peta dasar (basemap tiles) dan pengaturan toleransi penyangga buffer geofence PostGIS</p>
+          </div>
+          <button
+            type="button"
+            onclick={() => mapPreferences.resetDefaults()}
+            class="px-3 py-1.5 rounded-xl bg-[#1A1A22] hover:bg-[#252530] text-zinc-300 text-xs font-outfit-600 border border-[#2E2E3C] transition-all cursor-pointer flex items-center gap-1.5"
+          >
+            <RotateCcw class="w-3.5 h-3.5" />
+            <span>Reset Bawaan</span>
+          </button>
+        </div>
+
+        <!-- Basemap Tile Selector Grid -->
+        <div class="space-y-3">
+          <span class="text-xs font-outfit-600 text-zinc-300 block">
+            Gaya Peta Dasar Aktif (Tersimpan di Preferensi Sistem):
+          </span>
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {#each mapPreferences.providers as provider}
+              {@const isSelected = mapPreferences.state.basemapId === provider.id}
+              <button
+                type="button"
+                onclick={() => mapPreferences.setBasemap(provider.id)}
+                class="p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between h-28 {isSelected
+                  ? 'bg-[#FF634A]/10 border-[#FF634A] shadow-lg shadow-[#FF634A]/10'
+                  : 'bg-[#18181D] border-[#2E2E38] hover:border-zinc-500'}"
+              >
+                <div>
+                  <span class="font-outfit-600 text-xs text-white block">{provider.name}</span>
+                  <span class="text-[10px] text-zinc-400 font-mono block mt-0.5">{provider.id}</span>
+                </div>
+                <div class="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
+                  <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-black/40 text-zinc-400">
+                    MAX ZOOM {provider.maxZoom}
+                  </span>
+                  {#if isSelected}
+                    <div class="w-5 h-5 rounded-full bg-[#FF634A] flex items-center justify-center text-white text-xs shadow-md">
+                      <Check class="w-3 h-3 stroke-[3]" />
+                    </div>
+                  {/if}
+                </div>
+              </button>
+            {/each}
+          </div>
+        </div>
+
+        <!-- Geofence Tolerance Buffer Slider -->
+        <div class="p-4 rounded-2xl bg-[#1A1A1F] border border-[#272730] space-y-3">
+          <div class="flex items-center justify-between">
+            <div>
+              <h4 class="text-xs font-outfit-600 text-white">Toleransi Radius Penyangga Geofence (PostGIS Buffer)</h4>
+              <p class="text-[11px] text-zinc-400">Toleransi deviasi sinyal GPS rider perkotaan sebelum dinyatakan di luar zona poligon</p>
+            </div>
+            <span class="text-sm font-mono font-bold text-[#FF634A]">±{mapPreferences.state.geofenceBufferMeters} Meter</span>
+          </div>
+          <input
+            type="range"
+            min="10"
+            max="150"
+            step="5"
+            value={mapPreferences.state.geofenceBufferMeters}
+            oninput={(e) => mapPreferences.setBufferMeters(Number((e.target as HTMLInputElement).value))}
+            class="w-full accent-[#FF634A] h-2 bg-zinc-700 rounded-lg cursor-pointer"
+          />
+          <div class="flex justify-between text-[10px] text-zinc-500 font-mono">
+            <span>Ketat (±10m)</span>
+            <span>Standar Surabaya (±50m)</span>
+            <span>Longgar (±150m)</span>
+          </div>
+        </div>
       </div>
     {/if}
   </div>

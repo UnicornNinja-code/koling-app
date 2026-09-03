@@ -17,13 +17,24 @@
     Award
   } from 'lucide-svelte';
 
+  import { authStore } from '../../lib/stores/auth.svelte';
+
   interface Props {
     onNavigate: (route: string) => void;
   }
 
   let { onNavigate }: Props = $props();
 
-  let activeTab = $state<'bwm' | 'c3' | 'c6' | 'topsis'>('bwm');
+  let isSuperAdmin = $derived(authStore.role === 'SUPERADMIN');
+  let activeTab = $state<'bwm' | 'c3' | 'c6' | 'topsis'>('topsis');
+
+  onMount(() => {
+    if (isSuperAdmin) {
+      activeTab = 'bwm';
+    } else {
+      activeTab = 'topsis';
+    }
+  });
 </script>
 
 <div class="space-y-6 pb-12 font-outfit-400">
@@ -68,18 +79,20 @@
   <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#24242A]">
     <!-- Primary 2 Activities -->
     <div class="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-      <!-- Activity 1: BWM Calibration Wizard -->
-      <button
-        type="button"
-        onclick={() => (activeTab = 'bwm')}
-        class="px-4 py-3 rounded-2xl text-xs sm:text-sm font-outfit-600 transition-all cursor-pointer flex items-center gap-2 shrink-0 border
-        {activeTab === 'bwm'
-          ? 'bg-white text-[#09090B] font-extrabold border-white shadow-lg shadow-white/10'
-          : 'bg-[#131316] text-[#A1A1AA] hover:text-white border-[#24242A] hover:border-[#383842]'}"
-      >
-        <Compass class="w-4 h-4 {activeTab === 'bwm' ? 'text-[#FF634A]' : 'text-purple-400'}" />
-        <span>1. Konfigurasi Bobot BWM</span>
-      </button>
+      {#if isSuperAdmin}
+        <!-- Activity 1: BWM Calibration Wizard (Super Admin Only) -->
+        <button
+          type="button"
+          onclick={() => (activeTab = 'bwm')}
+          class="px-4 py-3 rounded-2xl text-xs sm:text-sm font-outfit-600 transition-all cursor-pointer flex items-center gap-2 shrink-0 border
+          {activeTab === 'bwm'
+            ? 'bg-white text-[#09090B] font-extrabold border-white shadow-lg shadow-white/10'
+            : 'bg-[#131316] text-[#A1A1AA] hover:text-white border-[#24242A] hover:border-[#383842]'}"
+        >
+          <Compass class="w-4 h-4 {activeTab === 'bwm' ? 'text-[#FF634A]' : 'text-purple-400'}" />
+          <span>1. Konfigurasi Bobot BWM</span>
+        </button>
+      {/if}
 
       <!-- Activity 2: TOPSIS Simulation & Rankings -->
       <button
@@ -91,7 +104,7 @@
           : 'bg-[#131316] text-[#A1A1AA] hover:text-white border-[#24242A] hover:border-[#383842]'}"
       >
         <Play class="w-4 h-4 {activeTab === 'topsis' ? 'text-[#FF634A]' : 'text-emerald-400'} fill-current" />
-        <span>2. Simulasi & Ranking TOPSIS</span>
+        <span>{isSuperAdmin ? '2. Simulasi & Ranking TOPSIS' : 'Evaluasi & Rekomendasi TOPSIS'}</span>
       </button>
     </div>
 

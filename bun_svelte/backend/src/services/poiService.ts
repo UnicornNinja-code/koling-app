@@ -17,6 +17,8 @@ import { poiWeatherService } from "./poi/POIWeatherService.js";
 import { poiDistanceService } from "./poi/POIDistanceService.js";
 import { poiCompetitorService } from "./poi/POICompetitorService.js";
 
+import { operationalContextService } from "./spatial/OperationalContextService.js";
+
 /**
  * POI ELT Pipeline Service
  */
@@ -45,15 +47,14 @@ export class POIEltPipelineService {
   }
 
   /**
-   * Helper to resolve active city name from System Settings
+   * Helper to resolve active city name from Operational Context
    */
   public async getActiveHubCity(hubCityOverride: string | null = null): Promise<string> {
-    let hubCity = hubCityOverride;
-    if (!hubCity) {
-      const citySetting = await SystemSettingModel.getByKey("HUB_CITY_NAME");
-      hubCity = citySetting?.value || (citySetting as any)?.setting_value || "Sidoarjo";
+    if (hubCityOverride && hubCityOverride.trim()) {
+      return hubCityOverride.trim();
     }
-    return hubCity!;
+    const context = await operationalContextService.getOperationalContext();
+    return context.hubCityName;
   }
 
   /**

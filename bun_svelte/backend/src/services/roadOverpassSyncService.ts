@@ -5,6 +5,7 @@
 
 import { overpassApiClient, OverpassApiClient } from "../utils/overpassClient.js";
 import { roadRepository, RoadRepository } from "../repositories/roadRepository.js";
+import { operationalContextService } from "./spatial/OperationalContextService.js";
 
 export class RoadOverpassSyncService {
   private static instance: RoadOverpassSyncService | null = null;
@@ -31,16 +32,17 @@ export class RoadOverpassSyncService {
   }
 
   /**
-   * Fetches Toll Roads from OpenStreetMap for Sidoarjo & Pasuruan operational areas
+   * Fetches Toll Roads from OpenStreetMap for authoritative operational area
    */
   public async syncTollRoadsFromOverpass(): Promise<any> {
-    console.log("🌐 [RoadOverpassSyncService] Executing Overpass QL for Toll Roads...");
+    const opContext = await operationalContextService.getOperationalContext();
+    const city = opContext.hubCityName;
+    console.log(`🌐 [RoadOverpassSyncService] Executing Overpass QL for Toll Roads in '${city}'...`);
 
     const query = `
       [out:json][timeout:180];
       (
-        area["name"="Sidoarjo"]["admin_level"="5"];
-        area["name"="Pasuruan"]["admin_level"="5"];
+        area["name"="${city}"]["admin_level"="5"];
       )->.searchAreas;
       (
         way["highway"="motorway"](area.searchAreas);

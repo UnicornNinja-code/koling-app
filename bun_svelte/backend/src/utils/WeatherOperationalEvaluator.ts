@@ -126,23 +126,7 @@ export class WeatherOperationalEvaluator {
     timeInput: string | Date = new Date()
   ): C4EvaluationResult {
     const activeSlot = TimeSlotEvaluator.getSlot(timeInput);
-    if (activeSlot === "off_hours") {
-      return {
-        skor_c4: 0,
-        max_precipitation_probability: 0,
-        avg_precipitation_probability: 0,
-        supporting_info: {
-          rain: 0,
-          weather_code: 0,
-          wind_speed: 0,
-          humidity: 0,
-          dew_point: 0,
-          temperature: 0,
-        },
-        active_slot: "off_hours",
-        is_off_hours: true,
-      };
-    }
+    const isOffHours = activeSlot === "off_hours";
 
     const filtered = this.extractOperationalForecast(hourlyData, timeInput);
     if (filtered.length === 0) {
@@ -159,7 +143,7 @@ export class WeatherOperationalEvaluator {
           temperature: 0,
         },
         active_slot: activeSlot,
-        is_off_hours: false,
+        is_off_hours: isOffHours,
       };
     }
 
@@ -200,7 +184,7 @@ export class WeatherOperationalEvaluator {
         temperature: Math.round((sumTemp / count) * 100) / 100,
       },
       active_slot: activeSlot,
-      is_off_hours: false,
+      is_off_hours: isOffHours,
     };
   }
 }

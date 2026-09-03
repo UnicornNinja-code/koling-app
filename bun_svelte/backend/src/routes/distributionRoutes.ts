@@ -13,12 +13,20 @@ import {
   manualDistribute,
   getDistributionRuns,
   updateRiderDutyStatus,
+  emergencySwap,
   getMyDutyHistory,
 } from "../controllers/distributionController.js";
 import { authenticateToken } from "../middlewares/authMiddleware.js";
 import { checkRole } from "../middlewares/roleMiddleware.js";
 
 const router = express.Router();
+
+router.post(
+  "/emergency-swap",
+  authenticateToken,
+  checkRole(["SUPERADMIN", "SUPERVISOR"]),
+  emergencySwap
+);
 
 router.post(
   "/duty-confirm",

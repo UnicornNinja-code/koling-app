@@ -101,6 +101,8 @@ export const recordSale = async (req: Request, res: Response): Promise<any> => {
     const riderId = req.user.id;
     const productId = req.body.product_id || req.body.productId;
     const quantity = req.body.quantity !== undefined ? req.body.quantity : req.body.qty;
+    const paymentMethod = req.body.payment_method || req.body.paymentMethod || "CASH";
+    const idempotencyKey = (req.headers["idempotency-key"] as string) || req.body.idempotency_key;
     const lat = req.body.latitude || req.body.lat;
     const lon = req.body.longitude || req.body.lon;
 
@@ -108,6 +110,8 @@ export const recordSale = async (req: Request, res: Response): Promise<any> => {
       riderId,
       productId,
       quantity,
+      paymentMethod,
+      idempotencyKey,
       lat,
       lon,
     });
@@ -147,12 +151,20 @@ export const checkoutSession = async (req: Request, res: Response): Promise<any>
     const returnStatus = req.body.return_status || req.body.returnStatus || "ACTIVE";
     const inspectionCondition = req.body.inspection_condition || req.body.inspectionCondition || {};
     const notes = req.body.notes;
+    const remainingCups = req.body.remaining_cups !== undefined ? req.body.remaining_cups : req.body.remainingCups || 0;
+    const actualCashSubmitted = req.body.actual_cash_submitted !== undefined ? req.body.actual_cash_submitted : req.body.actualCashSubmitted || 0;
+    const discrepancyAmount = req.body.discrepancy_amount !== undefined ? req.body.discrepancy_amount : req.body.discrepancyAmount || 0;
+    const discrepancyReason = req.body.discrepancy_reason || req.body.discrepancyReason || "";
 
     const result = await riderOperationalService.checkoutAndReturnArmada({
       riderId,
       returnStatus,
       inspectionCondition,
       notes,
+      remainingCups,
+      actualCashSubmitted,
+      discrepancyAmount,
+      discrepancyReason,
     });
     return res.status(200).json(result);
   } catch (error: any) {

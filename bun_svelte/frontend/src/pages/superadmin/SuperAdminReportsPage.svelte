@@ -15,13 +15,17 @@
     Layers 
   } from 'lucide-svelte';
 
+  import { authStore } from '../../lib/stores/auth.svelte';
+
   interface Props {
     onNavigate: (route: string) => void;
   }
 
   let { onNavigate }: Props = $props();
 
-  let activeTab = $state<'dss_snapshots' | 'dss_config' | 'sales' | 'audit_logs'>('dss_snapshots');
+  let activeTab = $state<'dss_snapshots' | 'dss_config' | 'sales' | 'audit_logs'>(
+    authStore.user?.role === 'MANAGEMENT' ? 'sales' : 'dss_snapshots'
+  );
 </script>
 
 <div class="space-y-6 pb-12 font-outfit-400">
@@ -40,15 +44,17 @@
 
     <!-- Quick Actions -->
     <div class="flex flex-wrap items-center gap-2">
-      <button
-        onclick={() => onNavigate('/dss')}
-        class="pill-btn-dark text-xs font-outfit-600"
-      >
-        <span class="px-3.5 py-1.5 flex items-center gap-1.5">
-          <Compass class="w-3.5 h-3.5 text-purple-400" />
-          <span>Konfigurasi DSS</span>
-        </span>
-      </button>
+      {#if authStore.user?.role !== 'MANAGEMENT'}
+        <button
+          onclick={() => onNavigate('/dss')}
+          class="pill-btn-dark text-xs font-outfit-600"
+        >
+          <span class="px-3.5 py-1.5 flex items-center gap-1.5">
+            <Compass class="w-3.5 h-3.5 text-purple-400" />
+            <span>Konfigurasi DSS</span>
+          </span>
+        </button>
+      {/if}
 
       <button
         onclick={() => onNavigate('/dashboard')}
@@ -62,35 +68,39 @@
     </div>
   </div>
 
-  <!-- MAIN 4-TAB NAVIGATION BAR -->
+  <!-- MAIN TAB NAVIGATION BAR -->
   <div class="flex items-center gap-2 overflow-x-auto pb-1 border-b border-[#24242A]">
-    <!-- Tab 1: DSS Snapshots Report -->
-    <button
-      type="button"
-      onclick={() => (activeTab = 'dss_snapshots')}
-      class="px-4 py-3 rounded-2xl text-xs sm:text-sm font-outfit-600 transition-all cursor-pointer flex items-center gap-2 shrink-0 border
-      {activeTab === 'dss_snapshots'
-        ? 'bg-white text-[#09090B] font-extrabold border-white shadow-lg shadow-white/10'
-        : 'bg-[#131316] text-[#A1A1AA] hover:text-white border-[#24242A] hover:border-[#383842]'}"
-    >
-      <Award class="w-4 h-4 {activeTab === 'dss_snapshots' ? 'text-[#FF634A]' : 'text-amber-400'}" />
-      <span>1. Evaluasi & Snapshot DSS</span>
-    </button>
+    {#if authStore.user?.role !== 'MANAGEMENT'}
+      <!-- Tab 1: DSS Snapshots Report -->
+      <button
+        type="button"
+        onclick={() => (activeTab = 'dss_snapshots')}
+        class="px-4 py-3 rounded-2xl text-xs sm:text-sm font-outfit-600 transition-all cursor-pointer flex items-center gap-2 shrink-0 border
+        {activeTab === 'dss_snapshots'
+          ? 'bg-white text-[#09090B] font-extrabold border-white shadow-lg shadow-white/10'
+          : 'bg-[#131316] text-[#A1A1AA] hover:text-white border-[#24242A] hover:border-[#383842]'}"
+      >
+        <Award class="w-4 h-4 {activeTab === 'dss_snapshots' ? 'text-[#FF634A]' : 'text-amber-400'}" />
+        <span>1. Evaluasi & Snapshot DSS</span>
+      </button>
 
-    <!-- Tab 2: DSS BWM Configs -->
-    <button
-      type="button"
-      onclick={() => (activeTab = 'dss_config')}
-      class="px-4 py-3 rounded-2xl text-xs sm:text-sm font-outfit-600 transition-all cursor-pointer flex items-center gap-2 shrink-0 border
-      {activeTab === 'dss_config'
-        ? 'bg-white text-[#09090B] font-extrabold border-white shadow-lg shadow-white/10'
-        : 'bg-[#131316] text-[#A1A1AA] hover:text-white border-[#24242A] hover:border-[#383842]'}"
-    >
-      <Compass class="w-4 h-4 {activeTab === 'dss_config' ? 'text-[#FF634A]' : 'text-purple-400'}" />
-      <span>2. Konfigurasi Bobot BWM</span>
-    </button>
+      <!-- Tab 2: DSS BWM Configs (Only for SuperAdmin) -->
+      {#if authStore.user?.role === 'SUPERADMIN'}
+        <button
+          type="button"
+          onclick={() => (activeTab = 'dss_config')}
+          class="px-4 py-3 rounded-2xl text-xs sm:text-sm font-outfit-600 transition-all cursor-pointer flex items-center gap-2 shrink-0 border
+          {activeTab === 'dss_config'
+            ? 'bg-white text-[#09090B] font-extrabold border-white shadow-lg shadow-white/10'
+            : 'bg-[#131316] text-[#A1A1AA] hover:text-white border-[#24242A] hover:border-[#383842]'}"
+        >
+          <Compass class="w-4 h-4 {activeTab === 'dss_config' ? 'text-[#FF634A]' : 'text-purple-400'}" />
+          <span>2. Konfigurasi Bobot BWM</span>
+        </button>
+      {/if}
+    {/if}
 
-    <!-- Tab 3: Sales Report -->
+    <!-- Tab 3: Sales Report (Accessible to All Roles) -->
     <button
       type="button"
       onclick={() => (activeTab = 'sales')}
@@ -100,21 +110,23 @@
         : 'bg-[#131316] text-[#A1A1AA] hover:text-white border-[#24242A] hover:border-[#383842]'}"
     >
       <DollarSign class="w-4 h-4 {activeTab === 'sales' ? 'text-[#FF634A]' : 'text-emerald-400'}" />
-      <span>3. Penjualan & Omzet</span>
+      <span>{authStore.user?.role === 'MANAGEMENT' ? '1. Laporan Finansial & Omzet Bisnis' : '3. Penjualan & Omzet'}</span>
     </button>
 
-    <!-- Tab 4: Audit Logs -->
-    <button
-      type="button"
-      onclick={() => (activeTab = 'audit_logs')}
-      class="px-4 py-3 rounded-2xl text-xs sm:text-sm font-outfit-600 transition-all cursor-pointer flex items-center gap-2 shrink-0 border
-      {activeTab === 'audit_logs'
-        ? 'bg-white text-[#09090B] font-extrabold border-white shadow-lg shadow-white/10'
-        : 'bg-[#131316] text-[#A1A1AA] hover:text-white border-[#24242A] hover:border-[#383842]'}"
-    >
-      <Activity class="w-4 h-4 {activeTab === 'audit_logs' ? 'text-[#FF634A]' : 'text-blue-400'}" />
-      <span>4. Audit Log Sistem</span>
-    </button>
+    <!-- Tab 4: Audit Logs (SuperAdmin Only) -->
+    {#if authStore.user?.role === 'SUPERADMIN'}
+      <button
+        type="button"
+        onclick={() => (activeTab = 'audit_logs')}
+        class="px-4 py-3 rounded-2xl text-xs sm:text-sm font-outfit-600 transition-all cursor-pointer flex items-center gap-2 shrink-0 border
+        {activeTab === 'audit_logs'
+          ? 'bg-white text-[#09090B] font-extrabold border-white shadow-lg shadow-white/10'
+          : 'bg-[#131316] text-[#A1A1AA] hover:text-white border-[#24242A] hover:border-[#383842]'}"
+      >
+        <ShieldCheck class="w-4 h-4 {activeTab === 'audit_logs' ? 'text-[#FF634A]' : 'text-cyan-400'}" />
+        <span>4. Rekam Jejak Audit Forensik</span>
+      </button>
+    {/if}
   </div>
 
   <!-- TAB CONTENT DISPLAY -->

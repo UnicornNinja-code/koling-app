@@ -4,36 +4,46 @@ import { env } from "./env.js";
 
 let transporter: Transporter | null = null;
 
-export const getMailTransporter = async (): Promise<Transporter> => {
+export const getMailTransporter = async (): Promise<Transporter | null> => {
   if (transporter) return transporter;
 
-  if (env.SMTP?.HOST) {
-    transporter = nodemailer.createTransport({
-      host: env.SMTP.HOST,
-      port: env.SMTP.PORT,
-      secure: env.SMTP.PORT === 465,
-      auth: {
-        user: env.SMTP.USER,
-        pass: env.SMTP.PASS,
-      },
-    });
-    console.log(`📧 Mailer: SMTP terkonfigurasi (${env.SMTP.HOST}:${env.SMTP.PORT})`);
-  } else {
-    const testAccount = await nodemailer.createTestAccount();
-    transporter = nodemailer.createTransport({
-      host: "smtp.ethereal.email",
-      port: 587,
-      secure: false,
-      auth: {
-        user: testAccount.user,
-        pass: testAccount.pass,
-      },
-    });
-    console.log(`📧 Mailer: Ethereal test account aktif (${testAccount.user})`);
-    console.log(`   Preview email di: https://ethereal.email/login`);
-  }
+  const host = process.env.SMTP_HOST || env.SMTP?.HOST || "smtp.ethereal.email";
+  const port = Number(process.env.SMTP_PORT || env.SMTP?.PORT || 587);
+  const user = process.env.SMTP_USER || env.SMTP?.USER || "jarvis.waelchi3@ethereal.email";
+  const pass = process.env.SMTP_PASS || env.SMTP?.PASS || "aRJVCCfSEcjTdEAxbQ";
 
-  return transporter;
+  try {
+    if (host && host !== "mock") {
+      transporter = nodemailer.createTransport({
+        host,
+        port,
+        secure: port === 465,
+        auth: {
+          user,
+          pass,
+        },
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+      });
+      console.log(`📧 Mailer: SMTP terkonfigurasi (${host}:${port} - User: ${user})`);
+    } else {
+      const testAccount = await nodemailer.createTestAccount();
+      transporter = nodemailer.createTransport({
+        host: "smtp.ethereal.email",
+        port: 587,
+        secure: false,
+        auth: {
+          user: testAccount.user,
+          pass: testAccount.pass,
+        },
+      });
+      console.log(`📧 Mailer: Ethereal test account aktif (${testAccount.user})`);
+    }
+    return transporter;
+  } catch (err: any) {
+    console.warn(`⚠️ [MAILER INIT WARNING] Gagal menginisialisasi transporter SMTP (${err.message}). Mengaktifkan Mock Console Mailer.`);
+    return null;
+  }
 };
 
 export interface SendMailOptions {
@@ -44,20 +54,49 @@ export interface SendMailOptions {
 }
 
 export const sendMail = async ({ to, subject, html, text }: SendMailOptions) => {
-  const mailer = await getMailTransporter();
+  try {
+    const mailer = await getMailTransporter();
+    if (mailer) {
+      const from = process.env.SMTP_FROM || env.SMTP?.FROM || '"MantaKopi COZIS" <jarvis.waelchi3@ethereal.email>';
+      const info = await mailer.sendMail({
+        from,
+        to,
+        subject,
+        html,
+        text,
+      });
 
-  const info = await mailer.sendMail({
-    from: env.SMTP?.FROM || '"MantaKopi DSS" <noreply@mantakopi.com>',
-    to,
-    subject,
-    html,
-    text,
-  });
+      const previewUrl = nodemailer.getTestMessageUrl(info);
+      console.log(`📧 [MAILER SUCCESS] Email terkirim ke ${to} via SMTP (Message ID: ${info.messageId})`);
+      if (previewUrl) {
+        console.log(`🌐 [ETHEREAL INBOX PREVIEW]: ${previewUrl}`);
+      }
+      return {
+        messageId: info.messageId,
+        previewUrl: previewUrl || null,
+      };
+    }
+  } catch (err: any) {
+    console.warn(`⚠️ [MAILER SEND WARNING] SMTP outbound gagal (${err.message}). Mengalihkan ke Mock Console Mailer.`);
+    transporter = null;
+  }
 
-  const previewUrl = nodemailer.getTestMessageUrl(info);
+  // MOCK DEVELOPMENT FALLBACK: Catat ke konsol terminal tanpa melempar error
+  console.log("================================================================================");
+  console.log(`📬 [MOCK MAILER DEVELOPMENT CONSOLE]`);
+  console.log(` Ke      : ${to}`);
+  console.log(` Subjek  : ${subject}`);
+  if (text) console.log(` Pesan   : ${text}`);
+  // Ekstrak URL jika ada di HTML
+  const linkMatch = html.match(/href="([^"]+)"/);
+  if (linkMatch) {
+    console.log(` 🔗 Tautan Aksi: ${linkMatch[1]}`);
+  }
+  console.log("================================================================================");
 
   return {
-    messageId: info.messageId,
-    previewUrl: previewUrl || null,
+    messageId: `mock-${Date.now()}`,
+    previewUrl: null,
+    mocked: true,
   };
 };

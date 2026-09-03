@@ -1,0 +1,53 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          112.718,
+          -7.447
+        ]
+      },
+      "properties": {
+        "id": "osm:node:test-a",
+        "name": "POI A",
+        "category": "CAFE",
+        "metadata": {}
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          112.719,
+          -7.448
+        ]
+      },
+      "properties": {
+        "id": "osm:node:test-b",
+        "name": "POI B",
+        "category": "RESTAURANT",
+        "metadata": {}
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          112.72,
+          -7.449
+        ]
+      },
+      "properties": {
+        "id": "osm:node:test-c",
+        "name": "POI C",
+        "category": "WARUNG",
+        "metadata": {}
+      }
+    }
+  ]
+}

@@ -13,7 +13,7 @@ export const UserModel = {
   findByEmail: (email: string) => userRepository.findByEmailOrUsername(email),
   findByEmailOrUsername: (identifier: string) => userRepository.findByEmailOrUsername(identifier),
   countActiveSuperadmins: () => userRepository.countActiveSuperadmins(),
-  create: (data: { email: string; username?: string; password?: string; name: string; role?: UserRole; isActive?: boolean }) =>
+  create: (data: { email: string; username?: string; password?: string; name: string; role?: UserRole; isActive?: boolean; firstLogin?: boolean }) =>
     userRepository.createUser(data),
   update: (id: number | string, data: { name?: string; email?: string; role?: UserRole }) =>
     userRepository.updateUser(id, data),
@@ -21,5 +21,6 @@ export const UserModel = {
   updateRole: (id: number | string, newRole: UserRole) => userRepository.updateUserRole(id, newRole),
   updatePassword: (id: number | string, hashedPassword: string, birthDate?: string | Date | null) =>
     userRepository.updatePassword(id, hashedPassword, birthDate),
+  setFirstLoginDone: (id: number | string) => userRepository.setFirstLoginDone(id),
   delete: (id: number | string) => userRepository.deleteUser(id),
 };

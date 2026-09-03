@@ -25,17 +25,18 @@ async function runCleanSetup() {
     console.log("1️⃣  [LANGKAH 1] Mengosongkan Database (Drop all tables & ENUMs)...");
     execSync("bun src/scripts/reset-db.ts", { stdio: "inherit" });
 
-    // 2. Run Master Schema + All Migrations (001-007)
-    console.log("\n2️⃣  [LANGKAH 2] Menjalankan Skema Terbaru & Migrasi (001 - 007)...");
+    // 2. Run Master Schema + All Migrations (001-008)
+    console.log("\n2️⃣  [LANGKAH 2] Menjalankan Skema Terbaru & Migrasi (001 - 008)...");
     execSync("bun src/scripts/migrate.ts", { stdio: "inherit" });
 
     // 3. Seed Initial Master Data
     console.log("\n3️⃣  [LANGKAH 3] Menjalankan Seeding Master Data (RBAC, Produk, Armada, DSS)...");
     execSync("bun src/scripts/seed.ts", { stdio: "inherit" });
 
-    // 4. Seed Protocol Roads (PostGIS)
-    console.log("\n4️⃣  [LANGKAH 4] Menyiapkan Lapisan Spasial Jalan Protokol (PostGIS)...");
+    // 4. Seed Protocol & Toll Roads (PostGIS)
+    console.log("\n4️⃣  [LANGKAH 4] Menyiapkan Lapisan Spasial Jalan Protokol & Tol (PostGIS)...");
     execSync("bun src/scripts/seed-protocol-roads.ts", { stdio: "inherit" });
+    execSync("bun src/scripts/seed-toll-roads.ts", { stdio: "inherit" });
 
     try {
       const roadResult = await syncProtocolRoadsService();
@@ -49,11 +50,10 @@ async function runCleanSetup() {
     console.log("\n================================================================================");
     console.log(`🎉 SETUP DATABASE BERHASIL SELESAI DALAM ${duration}ms!`);
     console.log("================================================================================");
-    console.log(" Akun Default Siap Digunakan (Kata Sandi: password123):");
-    console.log("  • Super Admin : superadmin@kopikeliling.com");
-    console.log("  • Management  : management@kopikeliling.com");
-    console.log("  • Supervisor  : supervisor@kopikeliling.com");
-    console.log("  • Rider       : rider@kopikeliling.com, rider2 s/d rider5");
+    console.log(" Akun Root Siap Digunakan (Sistem dalam Kondisi Benar-Benar Fresh):");
+    console.log("  • Super Admin : superadmin@kopikeliling.com (Kata Sandi: password123)");
+    console.log("  • Data Transaksi : Kosong (Rp 0 Omzet, Siap Operasi Perdana)");
+    console.log("  • Staf & Rider   : Kosong (Siap Diuji Melalui Alur Onboarding / Undangan)");
     console.log("================================================================================\n");
   } catch (error: any) {
     console.error("\n💥 Gagal menjalankan Clean Setup Database:", error.message);

@@ -88,20 +88,84 @@ export const riderService = {
   },
 
   // 7. Record daily product sale
-  recordSale: async (items: RiderSaleItem[], payment_method: "CASH" | "QRIS"): Promise<any> => {
-    const res = await axiosInstance.post("/rider/record-sale", { items, payment_method });
+  recordSale: async (
+    items: RiderSaleItem[] | { product_id: string; quantity: number } | any,
+    payment_method: "CASH" | "QRIS" = "CASH",
+    idempotency_key?: string
+  ): Promise<any> => {
+    const payload = Array.isArray(items) ? { items, payment_method } : { ...items, payment_method };
+    const headers: Record<string, string> = {};
+    if (idempotency_key) {
+      headers["Idempotency-Key"] = idempotency_key;
+    }
+    const res = await axiosInstance.post("/rider/record-sale", payload, { headers });
     return res.data;
   },
 
   // 8. Fetch personal sales history
   getMySales: async (): Promise<any> => {
-    const res = await axiosInstance.get("/rider/my-sales");
+    try {
+      const res = await axiosInstance.get("/sales/my-sales");
+      return res.data;
+    } catch {
+      const res = await axiosInstance.get("/rider/my-sales");
+      return res.data;
+    }
+  },
+
+  // 9. Checkout shift session and return armada with inspection and cash reconciliation
+  checkoutSession: async (options?: {
+    return_status?: string;
+    inspection_condition?: Record<string, any>;
+    notes?: string;
+    remaining_cups?: number;
+    actual_cash_submitted?: number;
+    discrepancy_amount?: number;
+    discrepancy_reason?: string;
+  }): Promise<any> => {
+    const res = await axiosInstance.post("/rider/checkout", options || {});
     return res.data;
   },
 
-  // 9. Checkout shift session and return armada
-  checkoutSession: async (): Promise<any> => {
-    const res = await axiosInstance.post("/rider/checkout");
+  /**
+   * Fetch personal distribution assignment history
+   * GET /api/distribution/my-history
+   */
+  getMyDistributionHistory: async (): Promise<any[]> => {
+    const res = await axiosInstance.get("/distribution/my-history");
+    return res.data?.history || res.data || [];
+  },
+
+  /**
+   * Post live GPS telemetry location for LBS radar tracking
+   * POST /api/lbs/track
+   */
+  trackLbsLocation: async (payload: {
+    latitude: number;
+    longitude: number;
+    speed_kmh?: number;
+    heading_degrees?: number;
+    accuracy_meters?: number;
+  }): Promise<{ msg: string }> => {
+    const res = await axiosInstance.post("/lbs/track", payload);
+    return res.data;
+  },
+
+  /**
+   * Calculate distance between two coordinate pairs
+   * GET /api/lbs/distance
+   */
+  getLbsDistance: async (params: { lat1: number; lon1: number; lat2: number; lon2: number }): Promise<{ distance_meters: number; distance_km: number }> => {
+    const res = await axiosInstance.get("/lbs/distance", { params });
+    return res.data;
+  },
+
+  /**
+   * Get specific rider current LBS tracking details
+   * GET /api/lbs/riders/{riderId}
+   */
+  getLbsRiderDetails: async (riderId: string): Promise<any> => {
+    const res = await axiosInstance.get(`/lbs/riders/${riderId}`);
     return res.data;
   },
 };

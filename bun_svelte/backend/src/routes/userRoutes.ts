@@ -15,9 +15,15 @@ import {
   changePassword,
   adminResetPassword,
   resendInvitation,
+  completeFirstLogin,
 } from "../controllers/userController.js";
 import { authenticateToken } from "../middlewares/authMiddleware.js";
 import { checkRole } from "../middlewares/roleMiddleware.js";
+
+import {
+  getUserPreferences,
+  updateUserPreferences,
+} from "../controllers/userPreferenceController.js";
 
 const router = express.Router();
 
@@ -25,6 +31,13 @@ router.use(authenticateToken);
 
 router.get("/profile", getProfile);
 router.put("/change-password", changePassword);
+
+// First-login mandatory password setup (all authenticated roles)
+router.patch("/me/complete-first-login", completeFirstLogin);
+
+// User preferences (map theme, notification settings, dashboard layout)
+router.get("/preferences", getUserPreferences);
+router.put("/preferences", updateUserPreferences);
 
 // Only Superadmin & Management can view all users
 router.get("/", checkRole(["SUPERADMIN", "MANAGEMENT"]), getAllUsers);

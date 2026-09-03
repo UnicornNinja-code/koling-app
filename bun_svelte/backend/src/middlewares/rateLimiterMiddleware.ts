@@ -51,41 +51,112 @@ export const apiLimiter = rateLimit({
 });
 
 /**
- * Strict Rate Limiter for Login
+ * Rate Limiter for CAPTCHA generation (GET /api/auth/captcha)
  */
-export const loginLimiter = rateLimit({
+export const captchaLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 5,
+  max: Number(process.env.AUTH_CAPTCHA_IP_LIMIT || 60),
   standardHeaders: true,
   legacyHeaders: false,
-  skipSuccessfulRequests: true,
+  skip: () => process.env.NODE_ENV === "test",
+  store: createRedisStore("AUTH_CAPTCHA"),
+  handler: build429Response(
+    "Batas Permintaan CAPTCHA",
+    "Terlalu banyak permintaan pembuatan kode CAPTCHA. Harap tunggu 1 menit sebelum mencoba kembali."
+  ),
+});
+
+/**
+ * Rate Limiter for Refresh Token (POST /api/auth/refresh-token)
+ */
+export const refreshTokenLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === "test",
+  store: createRedisStore("AUTH_REFRESH"),
+  handler: build429Response(
+    "Batas Refresh Token",
+    "Batas request pembaruan token terlampaui. Harap tunggu beberapa saat sebelum mencoba kembali."
+  ),
+});
+
+/**
+ * Dimension 1: IP-Based Login Rate Limiter (prevents 1 IP -> many accounts brute-force)
+ */
+export const loginIpLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: Number(process.env.AUTH_LOGIN_IP_LIMIT || 20),
+  standardHeaders: true,
+  legacyHeaders: false,
   validate: { keyGeneratorIpFallback: false, ip: false },
   skip: () => process.env.NODE_ENV === "test",
   keyGenerator: (req) => {
-    const clientIp = req.ip || req.socket.remoteAddress || "127.0.0.1";
-    const identifier = req.body?.identifier || req.body?.email || "anonymous";
-    return `${clientIp}:${identifier}`;
+    return (req.ip || req.socket.remoteAddress || "127.0.0.1").replace(/::ffff:/, "");
   },
-  store: createRedisStore("AUTH_LOGIN"),
+  store: createRedisStore("AUTH_LOGIN_IP"),
   handler: build429Response(
-    "Batas Login Terlampaui",
-    "Batas percobaan login gagal terlampaui. Harap tunggu 1 menit sebelum mencoba kembali."
+    "Batas Percobaan Login IP",
+    "Terlalu banyak percobaan masuk dari alamat IP ini. Harap tunggu 5 menit sebelum mencoba kembali."
   ),
 });
+
+/**
+ * Dimension 2: Account-Based Login Rate Limiter (prevents many IPs -> 1 account credential stuffing)
+ */
+export const loginAccountLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: Number(process.env.AUTH_LOGIN_ACCOUNT_LIMIT || 10),
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { keyGeneratorIpFallback: false, ip: false },
+  skip: () => process.env.NODE_ENV === "test",
+  keyGenerator: (req) => {
+    const rawId = req.body?.identifier || req.body?.email || req.body?.username || "anonymous";
+    return String(rawId).trim().toLowerCase();
+  },
+  store: createRedisStore("AUTH_LOGIN_ACCOUNT"),
+  handler: build429Response(
+    "Batas Percobaan Akun Terlampaui",
+    "Terlalu banyak percobaan masuk untuk akun ini. Harap tunggu 5 menit demi keamanan kredensial akun Anda."
+  ),
+});
+
+/**
+ * Unified Two-Dimensional Login Limiter Middleware
+ */
+export const loginLimiter = [loginIpLimiter, loginAccountLimiter];
 
 /**
  * Rate Limiter for Password Reset
  */
 export const forgotPasswordLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  max: 3,
+  max: 5,
   standardHeaders: true,
   legacyHeaders: false,
   skip: () => process.env.NODE_ENV === "test",
   store: createRedisStore("AUTH_FORGOT"),
   handler: build429Response(
     "Batas Reset Password",
-    "Batas pengajuan reset password tercapai. Harap coba lagi dalam 1 jam."
+    "Batas pengajuan reset password tercapai. Harap coba lagi dalam beberapa saat."
+  ),
+});
+
+/**
+ * Dedicated Rate Limiter for Account Status Checking
+ */
+export const checkAccountStatusLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === "test",
+  store: createRedisStore("AUTH_CHECK_STATUS"),
+  handler: build429Response(
+    "Batas Pengecekan Akun",
+    "Terlalu banyak permintaan pengecekan status akun. Harap tunggu beberapa saat sebelum mencoba kembali."
   ),
 });
 

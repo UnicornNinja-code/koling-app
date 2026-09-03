@@ -15,6 +15,7 @@ import {
   changePasswordService,
   adminResetPasswordService,
   resendInvitationService,
+  completeFirstLoginService,
 } from "../services/userService.js";
 
 const sanitizeUser = (userObj: any) => {
@@ -150,5 +151,17 @@ export const resendInvitation = async (req: Request, res: Response): Promise<any
   } catch (error: any) {
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({ msg: error.message || "Gagal mengirim ulang undangan aktivasi." });
+  }
+};
+
+export const completeFirstLogin = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const userId = req.user.id;
+    const { newPassword } = req.body;
+    const result = await completeFirstLoginService(userId, { newPassword });
+    return res.status(200).json(result);
+  } catch (error: any) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Gagal menyelesaikan first-login setup." });
   }
 };

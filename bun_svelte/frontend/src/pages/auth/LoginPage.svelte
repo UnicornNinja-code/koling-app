@@ -1,265 +1,347 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { cn } from "$lib/utils";
+  import { Button } from "$components/ui/button";
+  import { Input } from "$components/ui/input";
+  import { Checkbox } from "$components/ui/checkbox";
+  import { Spinner } from "$components/ui/spinner";
+  import { MovaLogo } from "$components/ui/brand";
+  import { DotPattern } from "$components/ui/dot-pattern";
   import { authService, type CaptchaData } from "../../services/authService";
   import { authStore, getRoleLandingPath } from "../../lib/stores/auth.svelte";
-  import { Coffee, Lock, User, Shield, ArrowRight, KeyRound, RefreshCw } from "lucide-svelte";
-  import Button from "../../components/ui/Button.svelte";
-  import Input from "../../components/ui/Input.svelte";
-  import Alert from "../../components/ui/Alert.svelte";
+  import { setupStore } from "../../lib/stores/setupStore.svelte";
+  import { router } from "../../lib/stores/router.svelte";
+  import { Shield } from "lucide-svelte";
 
   interface Props {
-    onNavigate: (route: string) => void;
+    onNavigate?: (path: string) => void;
   }
 
   let { onNavigate }: Props = $props();
 
   let identifier = $state("");
   let password = $state("");
+  let rememberMe = $state(true);
+  let showPassword = $state(false);
+  let isLoading = $state(false);
+  let errorMessage = $state("");
+
+  // Captcha state
+  let captcha = $state<CaptchaData | null>(null);
   let captchaAnswer = $state("");
-  let captchaData = $state<CaptchaData | null>(null);
+  let requiresCaptcha = $state(false);
   let captchaLoading = $state(false);
-  let errorMsg = $state<string | null>(null);
-  let loading = $state(false);
 
-  const errors = $state<{ identifier?: string; password?: string; captcha?: string }>({});
-
-  const loadCaptcha = async () => {
+  const fetchCaptcha = async () => {
     captchaLoading = true;
     try {
-      captchaData = await authService.getCaptcha();
-      captchaAnswer = "";
-      errors.captcha = undefined;
-    } catch (err) {
-      console.warn("Gagal memuat CAPTCHA:", err);
+      const data = await authService.getCaptcha(captcha?.captcha_id);
+      captcha = data;
+      requiresCaptcha = true;
+    } catch (err: any) {
+      console.warn("Gagal memuat captcha:", err);
     } finally {
       captchaLoading = false;
     }
   };
 
-  onMount(() => {
-    loadCaptcha();
-  });
-
-  const validate = () => {
-    errors.identifier = undefined;
-    errors.password = undefined;
-    errors.captcha = undefined;
-    let valid = true;
-
-    if (!identifier || identifier.trim().length < 3) {
-      errors.identifier = "Username atau Email minimal 3 karakter";
-      valid = false;
+  const navigateTo = (path: string) => {
+    if (onNavigate) {
+      onNavigate(path);
+    } else {
+      router.navigate(path);
     }
-    if (!password || password.length < 6) {
-      errors.password = "Password minimal 6 karakter";
-      valid = false;
-    }
-    if (!captchaAnswer || captchaAnswer.trim().length < 3) {
-      errors.captcha = "Masukkan 5 kode CAPTCHA keamanan";
-      valid = false;
-    }
-    return valid;
   };
 
-  const handleLogin = async (e?: Event) => {
-    if (e) e.preventDefault();
-    if (!validate()) return;
+  onMount(async () => {
+    try {
+      const risk = await authService.checkRiskStatus();
+      if (risk.requires_captcha) {
+        await fetchCaptcha();
+      }
+    } catch {
+      // Risk check non-blocking
+    }
+  });
 
-    loading = true;
-    errorMsg = null;
+  async function handleLogin(e: Event) {
+    e.preventDefault();
+    if (!identifier || !password) {
+      errorMessage = "Silakan masukkan email/username dan password Anda.";
+      return;
+    }
+
+    if (requiresCaptcha && !captchaAnswer.trim()) {
+      errorMessage = "Silakan masukkan kode CAPTCHA yang tampil pada gambar.";
+      return;
+    }
+
+    errorMessage = "";
+    isLoading = true;
 
     try {
       const res = await authService.login({
         identifier: identifier.trim(),
         password,
-        captcha_id: captchaData?.captcha_id,
-        captcha_answer: captchaAnswer.trim(),
+        captcha_id: captcha?.captcha_id,
+        captcha_answer: captchaAnswer.trim() || undefined,
       });
 
-      const userObj = res?.user;
-      const token = res?.token;
+      authStore.login(res.user, res.token, res.refreshToken);
 
-      if (!token || !userObj) {
-        throw new Error("Token autentikasi tidak ditemukan pada respon server.");
+      if (res.user.first_login) {
+        navigateTo("/first-login");
+      } else if (res.user.role === "SUPERADMIN") {
+        const setup = await setupStore.checkStatus();
+        if (setup && (setup.status === "REQUIRED" || setup.status === "IN_PROGRESS")) {
+          navigateTo("/first-setup");
+        } else {
+          navigateTo("/dashboard");
+        }
+      } else {
+        const destination = getRoleLandingPath(res.user.role);
+        navigateTo(destination);
       }
-
-      // Check if user account is deactivated
-      if (userObj.is_active === false) {
-        authStore.login(userObj, token);
-        onNavigate("/inactive");
-        return;
-      }
-
-      authStore.login(userObj, token);
-      const landing = getRoleLandingPath(userObj.role);
-      onNavigate(landing);
     } catch (err: any) {
-      errorMsg =
-        err?.response?.data?.msg ||
-        err?.response?.data?.message ||
+      const resData = err?.response?.data;
+      if (
+        resData?.requires_captcha ||
+        resData?.code === "CAPTCHA_REQUIRED" ||
+        resData?.code === "CAPTCHA_INVALID" ||
+        (err?.response?.status === 400 &&
+          (String(resData?.msg || "")
+            .toLowerCase()
+            .includes("captcha") ||
+            String(resData?.message || "")
+              .toLowerCase()
+              .includes("captcha")))
+      ) {
+        requiresCaptcha = true;
+        await fetchCaptcha();
+        captchaAnswer = "";
+      }
+      errorMessage =
+        resData?.msg ||
+        resData?.message ||
         err?.message ||
-        "Autentikasi gagal. Periksa username/email dan kata sandi Anda.";
-      // Refresh captcha on failure
-      loadCaptcha();
+        "Gagal masuk ke sistem. Periksa kembali kredensial Anda.";
     } finally {
-      loading = false;
+      isLoading = false;
     }
-  };
+  }
 </script>
 
-<div class="min-h-screen bg-[#09090B] pattern-dots-dark relative flex flex-col justify-center py-10 sm:py-14 px-4 sm:px-6 lg:px-8 font-outfit-400 select-none overflow-x-hidden">
-  <!-- Ambient Lighting Effects -->
-  <div class="fixed top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#FF634A]/10 rounded-full blur-[120px] pointer-events-none"></div>
-  <div class="fixed bottom-10 right-10 w-72 h-72 bg-purple-950/20 rounded-full blur-[90px] pointer-events-none"></div>
+<div
+  class="relative min-h-screen w-full flex items-center justify-center bg-[#09090b] px-4 py-12 overflow-hidden font-sans selection:bg-[#FF634A]/30"
+>
+  <!-- Ambient Dot Pattern with Masking -->
+  <DotPattern
+    class="[mask-image:radial-gradient(800px_circle_at_center,white,transparent)] opacity-40 fill-zinc-500 pointer-events-none"
+    width={20}
+    height={20}
+    cr={1.2}
+  />
 
-  <div class="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
-    <!-- Brand Header -->
-    <div class="text-center space-y-3 mb-7">
-      <div class="w-14 h-14 bg-gradient-to-tr from-[#FF634A] to-[#FF8573] rounded-2xl flex items-center justify-center text-[#09090B] mx-auto shadow-xl shadow-[#FF634A]/25 shrink-0 border border-white/20">
-        <Coffee class="w-7 h-7 stroke-[2.5]" />
-      </div>
-      <div>
-        <span class="text-[10px] font-outfit-600 uppercase tracking-widest text-[#71717A] block">COZIS Workspace</span>
-        <h1 class="text-2xl sm:text-3xl font-outfit-600 text-white tracking-tight mt-0.5">
-          Coffee on Wheels
-        </h1>
-        <p class="text-xs text-[#A1A1AA] mt-1 max-w-xs mx-auto">
-          Operational Command & Spatial Decision Support System
-        </p>
-      </div>
+  <!-- Ambient Radiant Glow Orbs -->
+  <div
+    class="absolute top-1/4 -left-32 h-96 w-96 rounded-full bg-[#FF634A]/10 blur-[128px] pointer-events-none"
+  ></div>
+  <div
+    class="absolute bottom-1/4 -right-32 h-96 w-96 rounded-full bg-amber-500/10 blur-[128px] pointer-events-none"
+  ></div>
+
+  <!-- Background Mova Typography Watermark matching Logo (Heavy & Tight with Dot) -->
+  <div
+    class="absolute inset-0 flex items-center justify-center pointer-events-none select-none z-0 overflow-hidden"
+  >
+    <span
+      class="font-heading text-[12rem] sm:text-[18rem] md:text-[24rem] font-black tracking-[-0.035em] text-white/[0.045] leading-none select-none"
+    >
+      Mova<span class="text-[#FF634A]/30">.</span>
+    </span>
+  </div>
+
+  <!-- Centered Login Card (Level 2 Surface) -->
+  <div
+    class="relative z-10 w-full max-w-md rounded-3xl border border-white/10 bg-[#131316]/90 p-8 shadow-2xl shadow-black/80 backdrop-blur-xl sm:p-10"
+  >
+    <!-- Header -->
+    <div class="mb-8 text-center">
+      <h1
+        class="font-heading text-2xl font-bold tracking-tight text-white sm:text-3xl"
+      >
+        Selamat Datang di Mova<span class="text-[#FF634A]">.</span>
+      </h1>
+      <p class="text-xs text-zinc-400 font-sans leading-relaxed">
+        platform DSS untuk optimasi lokasi penjualan bisnis berbasis keliling
+      </p>
     </div>
 
-    <!-- Main Card Container -->
-    <div class="bg-[#131316]/95 backdrop-blur-xl py-7 px-6 sm:px-8 rounded-3xl border border-[#24242A] shadow-2xl space-y-6">
-      <!-- Session Expired Notification -->
-      {#if authStore.isExpired && !errorMsg}
-        <Alert variant="warning" title="Sesi Berakhir">
-          Sesi login Anda telah berakhir demi keamanan. Silakan masuk kembali untuk melanjutkan.
-        </Alert>
-      {/if}
+    {#if errorMessage}
+      <div
+        class="mb-6 flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-400"
+      >
+        <i class="bx bx-error-circle text-base"></i>
+        <span>{errorMessage}</span>
+      </div>
+    {/if}
 
-      <!-- Error Message Alert -->
-      {#if errorMsg}
-        <Alert variant="danger" title="Gagal Masuk">
-          {errorMsg}
-        </Alert>
-      {/if}
-
-      <form onsubmit={handleLogin} class="space-y-4">
+    <!-- Login Form -->
+    <form onsubmit={handleLogin} class="space-y-4 font-sans">
+      <div>
+        <label
+          for="identifier"
+          class="mb-1.5 block text-xs font-medium text-zinc-300"
+        >
+          Email / Username
+        </label>
         <Input
-          label="Username atau Alamat Email"
-          leftIcon={User}
-          placeholder="superadmin@kopikeliling.com"
-          required
-          error={errors.identifier}
+          id="identifier"
+          type="text"
+          placeholder="nama@perusahaan.com / NIK"
+          icon="bx-envelope"
           bind:value={identifier}
+          required
         />
+      </div>
 
-        <div>
-          <div class="flex items-center justify-between mb-1.5">
-            <label for="login-password" class="block text-xs font-outfit-600 text-[#D4D4D8]">
-              Kata Sandi <span class="text-[#FF634A] font-bold">*</span>
-            </label>
+      <div>
+        <div class="mb-1.5 flex items-center justify-between">
+          <label for="password" class="block text-xs font-medium text-zinc-300">
+            Password
+          </label>
+          <button
+            type="button"
+            onclick={() => navigateTo("/forgot-password")}
+            class="text-xs text-[#FF634A] hover:underline cursor-pointer bg-transparent border-0 p-0"
+          >
+            Lupa Password?
+          </button>
+        </div>
+        <div class="relative">
+          <Input
+            id="password"
+            type={showPassword ? "text" : "password"}
+            placeholder="••••••••"
+            icon="bx-lock-alt"
+            bind:value={password}
+            required
+          >
+            {#snippet suffix()}
+              <button
+                type="button"
+                onclick={() => (showPassword = !showPassword)}
+                class="text-zinc-400 hover:text-white cursor-pointer"
+                aria-label="Toggle password visibility"
+              >
+                <i
+                  class={cn(
+                    "bx text-base",
+                    showPassword ? "bx-hide" : "bx-show",
+                  )}
+                ></i>
+              </button>
+            {/snippet}
+          </Input>
+        </div>
+      </div>
+
+      <!-- CAPTCHA Verification Block -->
+      {#if requiresCaptcha}
+        <div
+          class="p-3.5 rounded-2xl bg-[#18181D] border border-[#2C2C36] space-y-2.5"
+        >
+          <div class="flex items-center justify-between">
+            <span
+              class="text-xs text-zinc-300 font-medium flex items-center gap-1.5"
+            >
+              <i class="bx bx-shield-quarter text-[#FF634A]"></i>
+              Verifikasi Keamanan CAPTCHA
+            </span>
             <button
               type="button"
-              onclick={() => onNavigate('/forgot-password')}
-              class="text-xs text-[#FF634A] hover:text-[#FF8573] font-outfit-600 transition-colors cursor-pointer"
+              onclick={fetchCaptcha}
+              disabled={captchaLoading}
+              class="text-xs text-[#FF634A] hover:underline flex items-center gap-1 cursor-pointer bg-transparent border-0 p-0 disabled:opacity-50"
             >
-              Lupa kata sandi?
+              <i class="bx bx-refresh {captchaLoading ? 'animate-spin' : ''}"
+              ></i>
+              Ganti Kode
             </button>
+          </div>
+
+          <!-- SVG Image Container -->
+          <div
+            class="w-full h-12 bg-[#121216] rounded-xl p-1 flex items-center justify-center overflow-hidden border border-[#2C2C36] select-none"
+          >
+            {#if captchaLoading}
+              <div class="flex items-center gap-2 text-xs text-zinc-400">
+                <i class="bx bx-loader-alt animate-spin text-[#FF634A]"></i>
+                <span>Memuat kode verifikasi...</span>
+              </div>
+            {:else if captcha?.svg}
+              <img
+                src={captcha.svg.startsWith("data:") ||
+                captcha.svg.startsWith("http")
+                  ? captcha.svg
+                  : `data:image/svg+xml;utf8,${encodeURIComponent(captcha.svg)}`}
+                alt="Kode CAPTCHA"
+                class="h-10 w-auto object-contain select-none pointer-events-none filter contrast-125"
+              />
+            {:else}
+              <button
+                type="button"
+                onclick={fetchCaptcha}
+                class="text-xs text-[#FF634A] hover:underline cursor-pointer bg-transparent border-0"
+              >
+                Klik untuk memuat CAPTCHA
+              </button>
+            {/if}
           </div>
 
           <Input
-            id="login-password"
-            type="password"
-            leftIcon={Lock}
-            placeholder="••••••••"
+            id="captcha-answer"
+            type="text"
+            placeholder="Ketik 5 kode huruf/angka di atas..."
+            icon="bx-shield-quarter"
+            bind:value={captchaAnswer}
             required
-            error={errors.password}
-            bind:value={password}
           />
         </div>
+      {/if}
 
-        <!-- CAPTCHA Verification Block -->
-        <div class="space-y-1.5 pt-1">
-          <div class="flex items-center justify-between">
-            <label for="captcha-input" class="block text-xs font-outfit-600 text-[#D4D4D8]">
-              Verifikasi Keamanan (CAPTCHA) <span class="text-[#FF634A] font-bold">*</span>
-            </label>
-            <button
-              type="button"
-              onclick={loadCaptcha}
-              class="text-[11px] text-[#A1A1AA] hover:text-white flex items-center gap-1 cursor-pointer transition-colors"
-              title="Perbarui Gambar CAPTCHA"
-            >
-              <RefreshCw class="w-3 h-3 {captchaLoading ? 'animate-spin' : ''}" />
-              <span>Ganti Kode</span>
-            </button>
-          </div>
-
-          <div class="flex items-center gap-2.5">
-            <!-- Distorted SVG Container -->
-            <div class="relative w-36 sm:w-40 h-10 bg-[#18181D] border border-[#2C2C36] rounded-xl overflow-hidden flex items-center justify-center shrink-0 shadow-inner">
-              {#if captchaLoading}
-                <div class="text-[10px] text-zinc-500 animate-pulse">Memuat...</div>
-              {:else if captchaData?.svg}
-                <img src={captchaData.svg} alt="Kode CAPTCHA" class="w-full h-full object-cover select-none pointer-events-none" />
-              {:else}
-                <span class="text-[10px] text-zinc-500">Gagal memuat</span>
-              {/if}
-            </div>
-
-            <!-- Answer Input Field -->
-            <div class="flex-1">
-              <input
-                id="captcha-input"
-                type="text"
-                maxlength="6"
-                placeholder="5 Karakter"
-                autocomplete="off"
-                bind:value={captchaAnswer}
-                class="w-full px-3 py-2 text-xs uppercase tracking-widest font-mono font-bold bg-[#1A1A1F] border {errors.captcha ? 'border-rose-500' : 'border-[#2C2C36]'} rounded-xl focus:outline-none focus:border-[#FF634A] text-white placeholder:text-zinc-600 placeholder:tracking-normal placeholder:font-sans placeholder:font-normal transition-all"
-              />
-            </div>
-          </div>
-          {#if errors.captcha}
-            <p class="text-[11px] text-rose-400 font-medium">{errors.captcha}</p>
-          {/if}
-        </div>
-
-        <Button
-          type="submit"
-          variant="primary"
-          size="md"
-          isPending={loading}
-          class="w-full py-3.5 mt-2 font-outfit-600"
-          rightIcon={ArrowRight}
+      <div class="flex items-center justify-between pt-1">
+        <label
+          class="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer select-none"
         >
-          {loading ? "Memverifikasi Kredensial..." : "Masuk ke Sistem"}
-        </Button>
-      </form>
-
-      <!-- Activation Prompt -->
-      <div class="p-3 bg-[#1A1A1F] rounded-2xl border border-[#272730] text-center text-xs text-[#A1A1AA] flex items-center justify-center gap-1.5 flex-wrap">
-        <span>Menerima undangan akun baru?</span>
-        <button 
-          type="button"
-          onclick={() => onNavigate('/register')} 
-          class="text-[#FF634A] hover:text-[#FF8573] font-outfit-600 inline-flex items-center gap-1 cursor-pointer transition-colors"
-        >
-          <KeyRound class="w-3.5 h-3.5" /> Aktivasi Akun
-        </button>
+          <Checkbox bind:checked={rememberMe} />
+          <span>Ingat sesi perangkat ini</span>
+        </label>
       </div>
 
-      <!-- Enterprise Restricted Notice Footer -->
-      <div class="pt-3 border-t border-[#24242A] text-center space-y-1">
-        <div class="flex items-center justify-center gap-1.5 text-xs text-[#71717A] font-medium">
-          <Shield class="w-3.5 h-3.5 text-[#52525B]" />
-          <span>Akses Terbatas: Sistem Internal Perusahaan</span>
-        </div>
-        <p class="text-[11px] text-[#52525B]">
-          Kredensial diterbitkan oleh Administrator MantaKopi COZIS.
-        </p>
+      <Button
+        type="submit"
+        variant="default"
+        size="lg"
+        disabled={isLoading}
+        class="w-full mt-2 h-11 text-base font-semibold"
+      >
+        {#if isLoading}
+          <Spinner size="sm" class="border-white" />
+          <span>Memverifikasi...</span>
+        {:else}
+          <span>Masuk ke Dashboard</span>
+          <i class="bx bx-right-arrow-alt text-xl"></i>
+        {/if}
+      </Button>
+    </form>
+    <!-- Footer Note -->
+    <div class="pt-2 text-center space-y-1">
+      <div
+        class="flex items-center justify-center gap-1.5 text-[11px] text-zinc-500 font-medium"
+      >
+        <Shield class="w-3 h-3 text-zinc-600" />
+        <span>Akses Terbatas: Sistem Internal Perusahaan</span>
       </div>
     </div>
   </div>

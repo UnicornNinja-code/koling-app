@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS "users" (
   "role" "Role" NOT NULL DEFAULT 'SUPERADMIN',
   "birth_date" date,
   "is_active" boolean NOT NULL DEFAULT true,
+  "first_login" boolean NOT NULL DEFAULT false,
   "created_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updated_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -135,6 +136,7 @@ CREATE TABLE IF NOT EXISTS "armadas" (
   "code" varchar(100) UNIQUE NOT NULL,
   "type" "ArmadaType" NOT NULL DEFAULT 'GEROBAK',
   "status" "ArmadaStatus" NOT NULL DEFAULT 'ACTIVE',
+  "battery_level" int DEFAULT 100,
   "current_rider_id" uuid REFERENCES "users"("id") ON DELETE SET NULL,
   "reserved_by_rider_id" uuid REFERENCES "users"("id") ON DELETE SET NULL,
   "reserved_until" timestamp,
@@ -142,9 +144,11 @@ CREATE TABLE IF NOT EXISTS "armadas" (
   "updated_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+ALTER TABLE armadas ADD COLUMN IF NOT EXISTS battery_level int DEFAULT 100;
+
 CREATE TABLE IF NOT EXISTS "pois" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  "osm_id" bigint UNIQUE,
+  "osm_id" bigint,
   "osm_type" varchar(20) DEFAULT NULL,
   "external_id" varchar(255),
   "logical_poi_id" uuid,
@@ -163,7 +167,7 @@ CREATE TABLE IF NOT EXISTS "pois" (
   "updated_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-ALTER TABLE pois ADD COLUMN IF NOT EXISTS osm_id bigint UNIQUE;
+ALTER TABLE pois ADD COLUMN IF NOT EXISTS osm_id bigint;
 ALTER TABLE pois ADD COLUMN IF NOT EXISTS osm_type varchar(20) DEFAULT NULL;
 ALTER TABLE pois ADD COLUMN IF NOT EXISTS external_id varchar(255);
 ALTER TABLE pois ADD COLUMN IF NOT EXISTS logical_poi_id uuid;
@@ -235,6 +239,7 @@ CREATE TABLE IF NOT EXISTS "sales_logs" (
 ALTER TABLE sales_logs ADD COLUMN IF NOT EXISTS assignment_id uuid;
 ALTER TABLE sales_logs ADD COLUMN IF NOT EXISTS unit_price numeric(12,2) DEFAULT 0;
 ALTER TABLE sales_logs ADD COLUMN IF NOT EXISTS total_price numeric(14,2) DEFAULT 0;
+ALTER TABLE sales_logs ADD COLUMN IF NOT EXISTS payment_method varchar(20) DEFAULT 'CASH';
 
 CREATE INDEX IF NOT EXISTS idx_sales_logs_rider ON sales_logs(rider_id);
 CREATE INDEX IF NOT EXISTS idx_sales_logs_assignment ON sales_logs(assignment_id);
@@ -331,6 +336,18 @@ CREATE TABLE IF NOT EXISTS "dss_configurations" (
   "worst_criteria_id" uuid REFERENCES "criterias"("id") ON DELETE SET NULL,
   "best_to_others" jsonb,
   "worst_to_others" jsonb,
+  "created_by" uuid REFERENCES "users"("id") ON DELETE SET NULL,
+  "created_by_name" varchar(255),
+  "activated_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+  "created_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS "user_preferences" (
+  "user_id" uuid PRIMARY KEY REFERENCES "users"("id") ON DELETE CASCADE,
+  "map_theme" varchar(50) NOT NULL DEFAULT 'openmaptiles-dark',
+  "dashboard_layout" jsonb DEFAULT '{}',
+  "notifications_enabled" boolean NOT NULL DEFAULT true,
   "created_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updated_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -428,7 +445,7 @@ CREATE TABLE IF NOT EXISTS protocol_roads (
   name varchar(255),
   highway_type varchar(100),
   restriction_type varchar(100) DEFAULT 'PROHIBITED_ROAD',
-  geom geometry(LineString, 4326) NOT NULL,
+  geom geometry(LineString, 4326),
   metadata jsonb DEFAULT '{}',
   created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -497,7 +514,44 @@ CREATE TRIGGER trg_poi_categories_updated_at BEFORE UPDATE ON "poi_categories" F
 CREATE INDEX IF NOT EXISTS idx_pois_location ON pois (latitude, longitude);
 CREATE INDEX IF NOT EXISTS idx_competitors_location ON competitors (latitude, longitude);
 CREATE INDEX IF NOT EXISTS idx_rider_duty_queues_date_status ON rider_duty_queues (duty_date, status);
-CREATE INDEX IF NOT EXISTS idx_zone_assignments_date_rider ON zone_assignments (assignment_date, rider_id);
 CREATE INDEX IF NOT EXISTS idx_sales_logs_rider_created ON sales_logs (rider_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created_action ON audit_logs (created_at DESC, action);
 CREATE INDEX IF NOT EXISTS idx_armadas_status_reserved ON armadas (status, reserved_until);
+CREATE INDEX IF NOT EXISTS idx_protocol_roads_geom_gist ON protocol_roads USING GIST(geom);
+
+-- ========================================================
+-- E2E WORKFLOW 2.0 RESILIENCE EXTENSIONS
+-- ========================================================
+ALTER TABLE dss_histories ADD COLUMN IF NOT EXISTS snapshot_hash varchar(64);
+ALTER TABLE zone_assignments ADD COLUMN IF NOT EXISTS incident_locked_at timestamp;
+ALTER TABLE zone_assignments ADD COLUMN IF NOT EXISTS remaining_cups integer DEFAULT 0;
+ALTER TABLE zone_assignments ADD COLUMN IF NOT EXISTS actual_cash_submitted numeric DEFAULT 0;
+ALTER TABLE zone_assignments ADD COLUMN IF NOT EXISTS discrepancy_amount numeric DEFAULT 0;
+ALTER TABLE zone_assignments ADD COLUMN IF NOT EXISTS discrepancy_reason text;
+
+CREATE TABLE IF NOT EXISTS shift_settlements (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    assignment_id uuid REFERENCES zone_assignments(id) ON DELETE CASCADE,
+    rider_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    supervisor_id uuid REFERENCES users(id) ON DELETE SET NULL,
+    expected_cash numeric NOT NULL DEFAULT 0,
+    actual_cash numeric NOT NULL DEFAULT 0,
+    discrepancy_amount numeric NOT NULL DEFAULT 0,
+    discrepancy_reason text,
+    remaining_cups integer DEFAULT 0,
+    status varchar(50) NOT NULL DEFAULT 'APPROVED',
+    settled_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS duty_incident_logs (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    assignment_id uuid REFERENCES zone_assignments(id) ON DELETE SET NULL,
+    previous_rider_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    new_rider_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    supervisor_id uuid REFERENCES users(id) ON DELETE SET NULL,
+    incident_type varchar(100) NOT NULL,
+    notes text,
+    armada_action varchar(50) NOT NULL DEFAULT 'KEEP_ARMADA',
+    swapped_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

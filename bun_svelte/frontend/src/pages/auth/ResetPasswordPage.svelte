@@ -1,10 +1,11 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { authService } from "../../services/authService";
-  import { Coffee, Lock, CheckCircle2, ArrowRight, ArrowLeft, KeyRound, Check, ShieldCheck } from "lucide-svelte";
+  import { Lock, CheckCircle2, ArrowRight, ArrowLeft, KeyRound, Check, ShieldCheck } from "lucide-svelte";
   import Button from "../../components/ui/Button.svelte";
   import Input from "../../components/ui/Input.svelte";
   import Alert from "../../components/ui/Alert.svelte";
+  import { DotPattern } from "$components/ui/dot-pattern";
 
   interface Props {
     onNavigate: (route: string) => void;
@@ -106,30 +107,40 @@
   };
 </script>
 
-<div class="min-h-screen bg-[#09090B] pattern-dots-dark relative flex flex-col justify-center py-10 sm:py-14 px-4 sm:px-6 lg:px-8 font-outfit-400 select-none overflow-x-hidden">
-  <!-- Ambient Lighting Effects -->
-  <div class="fixed top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#FF634A]/10 rounded-full blur-[120px] pointer-events-none"></div>
-  <div class="fixed bottom-10 right-10 w-72 h-72 bg-emerald-950/20 rounded-full blur-[90px] pointer-events-none"></div>
+<div
+  class="relative min-h-screen w-full flex items-center justify-center bg-[#09090b] px-4 py-12 overflow-hidden font-sans selection:bg-[#FF634A]/30"
+>
+  <!-- Ambient Dot Pattern with Masking -->
+  <DotPattern
+    class="[mask-image:radial-gradient(800px_circle_at_center,white,transparent)] opacity-40 fill-zinc-500 pointer-events-none"
+    width={20}
+    height={20}
+    cr={1.2}
+  />
 
-  <div class="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
-    <!-- Brand Header -->
-    <div class="text-center space-y-3 mb-7">
-      <div class="w-14 h-14 bg-gradient-to-tr from-[#FF634A] to-[#FF8573] rounded-2xl flex items-center justify-center text-[#09090B] mx-auto shadow-xl shadow-[#FF634A]/25 shrink-0 border border-white/20">
-        <Coffee class="w-7 h-7 stroke-[2.5]" />
-      </div>
-      <div>
-        <span class="text-[10px] font-outfit-600 uppercase tracking-widest text-[#71717A] block">Keamanan Kredensial</span>
-        <h1 class="text-2xl sm:text-3xl font-outfit-600 text-white tracking-tight mt-0.5">
-          Setel Ulang Kata Sandi
+  <!-- Ambient Radiant Glow Orbs -->
+  <div class="absolute top-1/4 -left-32 h-96 w-96 rounded-full bg-[#FF634A]/10 blur-[128px] pointer-events-none"></div>
+  <div class="absolute bottom-1/4 -right-32 h-96 w-96 rounded-full bg-emerald-950/20 blur-[90px] pointer-events-none"></div>
+
+  <!-- Background Mova Typography Watermark matching Logo (Heavy & Tight with Dot) -->
+  <div class="absolute inset-0 flex items-center justify-center pointer-events-none select-none z-0 overflow-hidden">
+    <span class="font-heading text-[12rem] sm:text-[18rem] md:text-[24rem] font-black tracking-[-0.035em] text-white/[0.045] leading-none select-none">
+      Mova<span class="text-[#FF634A]/30">.</span>
+    </span>
+  </div>
+
+  <div class="relative z-10 w-full max-w-md">
+    <!-- Main Card Container -->
+    <div class="bg-[#131316]/90 backdrop-blur-xl p-8 sm:p-10 rounded-3xl border border-white/10 shadow-2xl shadow-black/80 space-y-5">
+      <!-- Heading Inside Card -->
+      <div class="text-center space-y-1.5 mb-2">
+        <h1 class="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-white">
+          Setel Ulang Password<span class="text-[#FF634A]">.</span>
         </h1>
-        <p class="text-xs text-[#A1A1AA] mt-1 max-w-xs mx-auto">
-          Buat kata sandi baru yang kuat untuk mengamankan akun COZIS Anda
+        <p class="text-xs text-zinc-400 font-sans leading-relaxed">
+          Buat kata sandi baru yang kuat untuk mengamankan akun Anda.
         </p>
       </div>
-    </div>
-
-    <!-- Main Card Container -->
-    <div class="bg-[#131316]/95 backdrop-blur-xl py-7 px-6 sm:px-8 rounded-3xl border border-[#24242A] shadow-2xl space-y-5">
       {#if verifying}
         <div class="py-10 flex flex-col items-center justify-center space-y-3">
           <div class="w-9 h-9 border-3 border-[#FF634A] border-t-transparent rounded-full animate-spin"></div>

@@ -124,6 +124,27 @@ export const updateRiderDutyStatus = async (req: Request, res: Response): Promis
   }
 };
 
+export const emergencySwap = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { previous_rider_id, new_rider_id, incident_type, notes, armada_action } = req.body;
+    const supervisorId = req.user?.id;
+
+    const result = await distributionService.emergencySwap({
+      previousRiderId: previous_rider_id,
+      newRiderId: new_rider_id,
+      supervisorId,
+      incidentType: incident_type,
+      notes,
+      armadaAction: armada_action,
+    });
+
+    return res.status(200).json(result);
+  } catch (error: any) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Internal server error" });
+  }
+};
+
 /**
  * Fetch authenticated rider's own duty and assignment history
  */

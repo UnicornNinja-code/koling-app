@@ -12,6 +12,7 @@
   import { userService, type UserAccountItem } from '../../services/userService';
   import DistributionPreviewModal from '../../components/distribution/DistributionPreviewModal.svelte';
   import DistributionRunsModal from '../../components/distribution/DistributionRunsModal.svelte';
+  import EmergencySwapModal from '../../components/distribution/EmergencySwapModal.svelte';
   import { 
     Users, 
     MapPin, 
@@ -24,6 +25,7 @@
     ArrowRight, 
     AlertTriangle, 
     ShieldCheck,
+    ShieldAlert,
     Radio,
     Compass,
     History,
@@ -53,6 +55,7 @@
   let previewData = $state<DistributionPreviewResponse | null>(null);
 
   let runsModalOpen = $state(false);
+  let emergencyModalOpen = $state(false);
 
   let manualModalOpen = $state(false);
   let selectedRiderId = $state('');
@@ -207,6 +210,14 @@
       >
         <History class="w-4 h-4 text-purple-400" />
         <span>Log Audit Runs</span>
+      </button>
+
+      <button
+        onclick={() => (emergencyModalOpen = true)}
+        class="px-3.5 py-2.5 rounded-2xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-xs font-outfit-600 flex items-center gap-2 transition-all cursor-pointer shadow-md"
+      >
+        <ShieldAlert class="w-4 h-4 text-amber-400" />
+        <span>Emergency Swap</span>
       </button>
 
       <button
@@ -573,3 +584,15 @@
     </div>
   </div>
 {/if}
+
+<!-- 3. Mid-Day Emergency Incident / Swap Modal -->
+<EmergencySwapModal
+  open={emergencyModalOpen}
+  onClose={() => (emergencyModalOpen = false)}
+  activeAssignments={data?.assignments || []}
+  availableRiders={ridersList}
+  onSuccess={(msg) => {
+    successMsg = msg;
+    loadData();
+  }}
+/>

@@ -15,48 +15,104 @@ export const calculateBwmWeights = async (req: Request, res: Response): Promise<
   try {
     const { name, best_criteria_id, worst_criteria_id, best_to_others, worst_to_others } = req.body;
 
-    const { rows: criteriaList } = await pool.query("SELECT id, name, type FROM criterias WHERE is_active = true ORDER BY name ASC;");
+    let { rows: criteriaList } = await pool.query("SELECT id, name, type FROM criterias WHERE is_active = true ORDER BY name ASC;");
 
     if (criteriaList.length === 0) {
-      const error: any = new Error("Tabel kriteria (criterias) belum terisi.");
-      error.statusCode = 404;
-      throw error;
+      const defaultCriterias = [
+        { name: "C1 - Densitas POI", type: "BENEFIT", weight: 0.32 },
+        { name: "C2 - Diversitas POI", type: "BENEFIT", weight: 0.24 },
+        { name: "C3 - Skor Keramaian Waktu", type: "BENEFIT", weight: 0.20 },
+        { name: "C4 - Kondisi Cuaca", type: "COST", weight: 0.12 },
+        { name: "C5 - Jarak Rider dari Hub ke Zona", type: "COST", weight: 0.08 },
+        { name: "C6 - Jumlah Kompetitor di Zona", type: "COST", weight: 0.04 },
+      ];
+      for (const c of defaultCriterias) {
+        await pool.query(
+          `INSERT INTO criterias (name, type, is_active, weight) VALUES ($1::text, $2::"CriteriaType", true, $3::float) ON CONFLICT (name) DO NOTHING;`,
+          [c.name, c.type, c.weight]
+        );
+      }
+      const refreshed = await pool.query("SELECT id, name, type FROM criterias WHERE is_active = true ORDER BY name ASC;");
+      criteriaList = refreshed.rows;
     }
 
     const formattedCriteria = criteriaList.map((c: any, idx: number) => ({
       ...c,
+      id: String(c.id),
       code: `C${idx + 1}`,
+      alias_id: String(idx + 1),
     }));
 
+    // Robustly resolve best & worst criteria
+    const bestCriteria = formattedCriteria.find(
+      (c) => c.id === String(best_criteria_id) || c.code === String(best_criteria_id) || c.alias_id === String(best_criteria_id)
+    ) || formattedCriteria[0];
+
+    const worstCriteria = formattedCriteria.find(
+      (c) => c.id === String(worst_criteria_id) || c.code === String(worst_criteria_id) || c.alias_id === String(worst_criteria_id)
+    ) || formattedCriteria[formattedCriteria.length - 1];
+
+    // Normalize vectors so they index by resolved criteria id
+    const mappedBestToOthers: Record<string, number> = {};
+    const mappedWorstToOthers: Record<string, number> = {};
+
+    formattedCriteria.forEach((c) => {
+      const bVal =
+        best_to_others?.[c.id] ??
+        best_to_others?.[c.code] ??
+        best_to_others?.[c.alias_id] ??
+        1;
+      mappedBestToOthers[c.id] = parseFloat(String(bVal)) || 1;
+
+      const wVal =
+        worst_to_others?.[c.id] ??
+        worst_to_others?.[c.code] ??
+        worst_to_others?.[c.alias_id] ??
+        1;
+      mappedWorstToOthers[c.id] = parseFloat(String(wVal)) || 1;
+    });
+
     const result = bwmWeightService.calculateBwmWeights({
-      best_criteria_id,
-      worst_criteria_id,
-      best_to_others,
-      worst_to_others,
+      best_criteria_id: bestCriteria.id,
+      worst_criteria_id: worstCriteria.id,
+      best_to_others: mappedBestToOthers,
+      worst_to_others: mappedWorstToOthers,
       criteria_list: formattedCriteria,
     });
 
-    if (!result.is_consistent) {
-      return res.status(400).json({
-        msg: `Penilaian preferensi BWM tidak konsisten (CR = ${result.consistency_ratio.toFixed(4)} > 0.10). Harap tinjau ulang preferensi perbandingan di UI.`,
-        result,
+    // Enrich weights to include codes (C1-C6) and alias indices (1-6)
+    const enrichedWeights: Record<string, number> = { ...result.weights };
+    formattedCriteria.forEach((c) => {
+      const w = result.weights[c.id] ?? 0;
+      enrichedWeights[c.code] = w;
+      enrichedWeights[c.alias_id] = w;
+    });
+    result.weights = enrichedWeights;
+
+    let savedConfig: any = null;
+    if (result.is_consistent) {
+      const user = (req as any).user;
+      const created_by = user?.id || null;
+      const created_by_name = user?.name || "Super Admin System";
+
+      savedConfig = await bwmRepository.saveBwmConfig({
+        name: name || "Konfigurasi BWM Onboarding",
+        best_criteria_id: bestCriteria.id,
+        worst_criteria_id: worstCriteria.id,
+        best_to_others: mappedBestToOthers,
+        worst_to_others: mappedWorstToOthers,
+        created_by,
+        created_by_name,
       });
     }
 
-    const savedConfig = await bwmRepository.saveBwmConfig({
-      name: name || "Konfigurasi Bobot BWM Sidoarjo",
-      best_criteria_id,
-      worst_criteria_id,
-      best_to_others,
-      worst_to_others,
-      calculated_weights: result.weights,
-      consistency_ratio: result.consistency_ratio,
-    });
-
     return res.status(200).json({
-      msg: "Komputasi bobot BWM optimal berhasil dan konsisten (CR <= 0.10).",
-      config: savedConfig,
+      msg: result.is_consistent
+        ? "Komputasi bobot BWM berhasil diselesaikan."
+        : `Penilaian preferensi BWM tidak konsisten (CR = ${result.consistency_ratio.toFixed(4)} > 0.10). Harap sesuaikan kembali nilai perbandingan.`,
       bwm_result: result,
+      config: savedConfig,
+      is_consistent: result.is_consistent,
     });
   } catch (error: any) {
     const statusCode = error.statusCode || 500;

@@ -175,6 +175,7 @@ export class RiderOperationalRepository {
       const holdQuery = `
         UPDATE armadas 
         SET 
+          status = 'RESERVED',
           reserved_by_rider_id = $2,
           reserved_until = NOW() + ($3 || ' minutes')::interval,
           updated_at = CURRENT_TIMESTAMP
@@ -221,6 +222,7 @@ export class RiderOperationalRepository {
       const query = `
         UPDATE armadas 
         SET 
+          status = 'ACTIVE',
           reserved_by_rider_id = NULL,
           reserved_until = NULL,
           updated_at = CURRENT_TIMESTAMP
@@ -305,11 +307,11 @@ export class RiderOperationalRepository {
         [armadaId, riderId, assignmentId || null, JSON.stringify(checklist)]
       );
 
-      // 3. Update armada table
+      // 3. Update armada table (Status transitions to IN_USE, bound to rider)
       const updateArmadaQuery = `
         UPDATE armadas
         SET 
-          status = 'ACTIVE',
+          status = 'IN_USE',
           current_rider_id = $2,
           reserved_by_rider_id = NULL,
           reserved_until = NULL,
@@ -386,10 +388,14 @@ export class RiderOperationalRepository {
     }
 
     const spatialCheckQuery = `
-      SELECT ST_Contains(
-        ST_GeomFromGeoJSON($1),
+      SELECT ST_Covers(
+        ST_Buffer(ST_GeomFromGeoJSON($1), 0.0002),
         ST_SetSRID(ST_MakePoint($2, $3), 4326)
-      ) AS is_inside;
+      ) AS is_inside,
+      ROUND(ST_Distance(
+        ST_GeomFromGeoJSON($1)::geography,
+        ST_SetSRID(ST_MakePoint($2, $3), 4326)::geography
+      )) AS distance_meters;
     `;
     const { rows: spatialRows } = await this.pool.query(spatialCheckQuery, [
       JSON.stringify(geoJsonObj),
@@ -398,10 +404,13 @@ export class RiderOperationalRepository {
     ]);
 
     const isInside = spatialRows[0]?.is_inside || false;
+    const distanceMeters = parseInt(spatialRows[0]?.distance_meters || "0", 10);
 
     if (!isInside) {
-      const error: any = new Error(`Anda berada di luar batas polygon ${zone.name}! Harap menuju ke dalam zona tugas untuk Check-in.`);
+      const error: any = new Error(`Anda berada di luar batas polygon ${zone.name} (Kurang ±${distanceMeters}m)! Harap menuju ke dalam zona tugas untuk Check-in.`);
       error.statusCode = 400;
+      error.code = "OUTSIDE_ZONE";
+      error.distance_meters = distanceMeters;
       throw error;
     }
 
@@ -409,7 +418,8 @@ export class RiderOperationalRepository {
       UPDATE zone_assignments 
       SET 
         status = 'CHECKED_IN',
-        created_at = CURRENT_TIMESTAMP
+        check_in_time = CURRENT_TIMESTAMP,
+        updated_at = CURRENT_TIMESTAMP
       WHERE id = $1
       RETURNING *;
     `;
@@ -425,7 +435,7 @@ export class RiderOperationalRepository {
   }
 
   /**
-   * Insert product sales log with monetary snapshot and assignment binding
+   * Insert product sales log with monetary snapshot, payment method, and assignment binding
    */
   public async insertSalesLog({
     riderId,
@@ -435,6 +445,7 @@ export class RiderOperationalRepository {
     quantity,
     unitPrice,
     totalPrice,
+    paymentMethod = "CASH",
     lat = -7.4478,
     lon = 112.7183,
   }: {
@@ -445,15 +456,17 @@ export class RiderOperationalRepository {
     quantity: number;
     unitPrice: number;
     totalPrice: number;
+    paymentMethod?: string;
     lat?: number;
     lon?: number;
   }): Promise<any> {
     const finalLat = lat !== null && lat !== undefined ? lat : -7.4478;
     const finalLon = lon !== null && lon !== undefined ? lon : 112.7183;
+    const finalPayment = ["CASH", "QRIS"].includes(paymentMethod) ? paymentMethod : "CASH";
 
     const query = `
-      INSERT INTO sales_logs (rider_id, zone_id, assignment_id, product_id, qty, unit_price, total_price, latitude, longitude)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      INSERT INTO sales_logs (rider_id, zone_id, assignment_id, product_id, qty, unit_price, total_price, latitude, longitude, payment_method)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *;
     `;
     const { rows } = await this.pool.query(query, [
@@ -466,6 +479,7 @@ export class RiderOperationalRepository {
       totalPrice,
       finalLat,
       finalLon,
+      finalPayment,
     ]);
     return rows[0];
   }
@@ -488,15 +502,17 @@ export class RiderOperationalRepository {
     const limitNum = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 20));
     const offset = (pageNum - 1) * limitNum;
 
-    let whereClause = `WHERE sl.rider_id = $1`;
+    const conditions: string[] = ["sl.rider_id = $1"];
     const values: any[] = [riderId];
     let paramIndex = 2;
 
     if (date) {
-      whereClause += ` AND sl.created_at::date = $${paramIndex}::date`;
+      conditions.push(`sl.created_at::date = $${paramIndex}`);
       values.push(date);
       paramIndex++;
     }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
     const query = `
       SELECT 
@@ -508,6 +524,7 @@ export class RiderOperationalRepository {
         sl.qty,
         sl.unit_price,
         sl.total_price,
+        sl.payment_method,
         sl.latitude,
         sl.longitude,
         sl.created_at,
@@ -552,7 +569,7 @@ export class RiderOperationalRepository {
 
   /**
    * Checkout rider session & return armada unit to Hub
-   * BR-FLEET-11 (Fleet Return Inspection)
+   * BR-FLEET-11 (Fleet Return Inspection) + Battery Charging Threshold (<30% -> CHARGING)
    */
   public async checkoutRiderSession({
     assignmentId,
@@ -561,6 +578,10 @@ export class RiderOperationalRepository {
     returnStatus = "ACTIVE",
     inspectionCondition = {},
     notes,
+    remainingCups = 0,
+    actualCashSubmitted = 0,
+    discrepancyAmount = 0,
+    discrepancyReason = "",
   }: {
     assignmentId: number | string;
     armadaId?: number | string | null;
@@ -568,6 +589,10 @@ export class RiderOperationalRepository {
     returnStatus?: string;
     inspectionCondition?: Record<string, any>;
     notes?: string;
+    remainingCups?: number;
+    actualCashSubmitted?: number;
+    discrepancyAmount?: number;
+    discrepancyReason?: string;
   }): Promise<any> {
     const client = await this.pool.connect();
     try {
@@ -575,15 +600,28 @@ export class RiderOperationalRepository {
 
       const updateAssignQuery = `
         UPDATE zone_assignments 
-        SET status = 'COMPLETED' 
+        SET 
+          status = 'COMPLETED',
+          check_out_time = CURRENT_TIMESTAMP,
+          remaining_cups = $2,
+          actual_cash_submitted = $3,
+          discrepancy_amount = $4,
+          discrepancy_reason = $5,
+          updated_at = CURRENT_TIMESTAMP
         WHERE id = $1 
         RETURNING *;
       `;
-      const { rows: assignRows } = await client.query(updateAssignQuery, [assignmentId]);
+      const { rows: assignRows } = await client.query(updateAssignQuery, [
+        assignmentId,
+        remainingCups,
+        actualCashSubmitted,
+        discrepancyAmount,
+        discrepancyReason || null,
+      ]);
+
+      let finalArmadaStatus = returnStatus === "MAINTENANCE" ? "MAINTENANCE" : "AVAILABLE";
 
       if (armadaId) {
-        const validReturnStatus = ["ACTIVE", "MAINTENANCE"].includes(returnStatus) ? returnStatus : "ACTIVE";
-        
         // 1. Update fleet_assignments record
         await client.query(
           `UPDATE fleet_assignments 
@@ -596,7 +634,7 @@ export class RiderOperationalRepository {
           [
             armadaId, 
             riderId || null, 
-            validReturnStatus === 'MAINTENANCE' ? 'DAMAGED' : 'RETURNED', 
+            finalArmadaStatus === 'MAINTENANCE' ? 'DAMAGED' : 'RETURNED', 
             JSON.stringify({ ...inspectionCondition, notes: notes || null })
           ]
         );
@@ -611,12 +649,35 @@ export class RiderOperationalRepository {
              reserved_until = NULL,
              updated_at = CURRENT_TIMESTAMP 
            WHERE id = $1;`,
-          [armadaId, validReturnStatus]
+          [armadaId, finalArmadaStatus]
+        );
+      }
+
+      // 3. Record shift settlement if cash reconciliation data provided
+      if (riderId && (actualCashSubmitted > 0 || discrepancyAmount !== 0)) {
+        await client.query(
+          `INSERT INTO shift_settlements (
+             assignment_id, rider_id, expected_cash, actual_cash, discrepancy_amount, discrepancy_reason, remaining_cups, status
+           )
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`,
+          [
+            assignmentId,
+            riderId,
+            actualCashSubmitted - discrepancyAmount,
+            actualCashSubmitted,
+            discrepancyAmount,
+            discrepancyReason || null,
+            remainingCups,
+            discrepancyAmount !== 0 ? 'SETTLED_WITH_DISCREPANCY' : 'APPROVED',
+          ]
         );
       }
 
       await client.query("COMMIT");
-      return assignRows[0];
+      return {
+        ...assignRows[0],
+        armada_status: finalArmadaStatus,
+      };
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;

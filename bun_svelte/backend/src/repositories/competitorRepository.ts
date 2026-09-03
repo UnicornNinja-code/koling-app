@@ -203,7 +203,7 @@ export class CompetitorRepository {
         AND p.category IN ('Kafe & Kedai Kopi', 'Cepat Saji', 'Toko Minuman')
         AND ST_Contains(
           ST_GeomFromGeoJSON($1),
-          ST_SetSRID(ST_MakePoint(p.longitude, p.latitude), 4326)
+          p.geom
         )
       ORDER BY p.logical_poi_id, (p.duplicate_of IS NULL) DESC, p.created_at ASC, p.id ASC;
     `;

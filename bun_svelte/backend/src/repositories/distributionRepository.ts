@@ -101,6 +101,19 @@ export class DistributionRepository {
   }
 
   /**
+   * Find today's existing duty queue entry for a rider
+   */
+  public async findTodayDutyQueue(riderId: number | string): Promise<any | null> {
+    const query = `
+      SELECT * FROM rider_duty_queues
+      WHERE rider_id = $1 AND duty_date = CURRENT_DATE
+      LIMIT 1;
+    `;
+    const { rows } = await this.pool.query(query, [riderId]);
+    return rows[0] || null;
+  }
+
+  /**
    * Add rider to today's duty availability queue (FIFO)
    */
   public async addRiderToDutyQueue(riderId: number | string, sessionId?: string): Promise<any> {
@@ -108,7 +121,7 @@ export class DistributionRepository {
       INSERT INTO rider_duty_queues (rider_id, duty_date, session_id, confirmed_at, status)
       VALUES ($1, CURRENT_DATE, $2, CURRENT_TIMESTAMP, 'WAITING')
       ON CONFLICT (rider_id, duty_date) DO UPDATE 
-      SET status = 'WAITING', session_id = COALESCE(EXCLUDED.session_id, rider_duty_queues.session_id), confirmed_at = CURRENT_TIMESTAMP
+      SET session_id = COALESCE(EXCLUDED.session_id, rider_duty_queues.session_id)
       RETURNING *;
     `;
     const { rows } = await this.pool.query(query, [riderId, sessionId || null]);
@@ -449,17 +462,173 @@ export class DistributionRepository {
   }
 
   /**
-   * Update duty queue status (e.g. NO_SHOW, CANCELLED)
+   * Update duty queue status (e.g. NO_SHOW, CANCELLED) with atomic cascade to zone_assignments and armadas
    */
   public async updateDutyQueueStatus(riderId: number | string, status: string, notes?: string): Promise<any> {
-    const query = `
-      UPDATE rider_duty_queues
-      SET status = $2, notes = COALESCE($3, notes)
-      WHERE rider_id = $1 AND duty_date = CURRENT_DATE
-      RETURNING *;
-    `;
-    const { rows } = await this.pool.query(query, [riderId, status, notes || null]);
-    return rows[0];
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN;");
+
+      const query = `
+        UPDATE rider_duty_queues
+        SET status = $2, notes = COALESCE($3, notes)
+        WHERE rider_id = $1 AND duty_date = CURRENT_DATE
+        RETURNING *;
+      `;
+      const { rows } = await client.query(query, [riderId, status, notes || null]);
+
+      if (["NO_SHOW", "CANCELLED"].includes(status)) {
+        // Cascade 1: Cancel active zone assignments
+        await client.query(
+          `UPDATE zone_assignments
+           SET status = 'CANCELLED'
+           WHERE rider_id = $1 AND assignment_date = CURRENT_DATE AND status IN ('ASSIGNED', 'CHECKED_IN');`,
+          [riderId]
+        );
+
+        // Cascade 2: Release any reserved or in-use armada tied to this rider
+        await client.query(
+          `UPDATE armadas
+           SET status = 'ACTIVE', current_rider_id = NULL, reserved_until = NULL
+           WHERE current_rider_id = $1 AND status IN ('RESERVED', 'IN_USE');`,
+          [riderId]
+        );
+      }
+
+      await client.query("COMMIT;");
+      return rows[0];
+    } catch (err) {
+      await client.query("ROLLBACK;");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Mid-Day Emergency Incident / Armada Swap
+   */
+  public async emergencySwapAssignment({
+    previousRiderId,
+    newRiderId,
+    supervisorId = null,
+    incidentType,
+    notes = "",
+    armadaAction = "KEEP_ARMADA",
+  }: {
+    previousRiderId: string;
+    newRiderId: string;
+    supervisorId?: string | null;
+    incidentType: string;
+    notes?: string;
+    armadaAction?: string;
+  }): Promise<any> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN;");
+
+      // 1. Fetch old active assignment
+      const { rows: oldAssigns } = await client.query(
+        `SELECT * FROM zone_assignments 
+         WHERE rider_id = $1 AND assignment_date = CURRENT_DATE AND status IN ('ASSIGNED', 'CHECKED_IN')
+         FOR UPDATE;`,
+        [previousRiderId]
+      );
+
+      if (oldAssigns.length === 0) {
+        const err: any = new Error("Penugasan aktif untuk rider lama tidak ditemukan.");
+        err.statusCode = 404;
+        throw err;
+      }
+
+      const oldAssign = oldAssigns[0];
+
+      // 2. Lock previous rider's assignment with timestamp
+      await client.query(
+        `UPDATE zone_assignments 
+         SET incident_locked_at = CURRENT_TIMESTAMP, status = 'COMPLETED', updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1;`,
+        [oldAssign.id]
+      );
+
+      // 3. Handle armada assignment
+      let targetArmadaId = oldAssign.armada_id;
+      if (!targetArmadaId) {
+        const { rows: boundArmadas } = await client.query(
+          `SELECT id FROM armadas WHERE current_rider_id = $1 LIMIT 1;`,
+          [previousRiderId]
+        );
+        if (boundArmadas.length > 0) {
+          targetArmadaId = boundArmadas[0].id;
+        }
+      }
+
+      if (armadaAction === "KEEP_ARMADA" && targetArmadaId) {
+        await client.query(
+          `UPDATE armadas 
+           SET current_rider_id = $1, status = 'IN_USE', updated_at = CURRENT_TIMESTAMP
+           WHERE id = $2;`,
+          [newRiderId, targetArmadaId]
+        );
+      } else if (armadaAction === "SWAP_ARMADA" && targetArmadaId) {
+        await client.query(
+          `UPDATE armadas 
+           SET current_rider_id = NULL, status = 'MAINTENANCE', updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1;`,
+          [targetArmadaId]
+        );
+        targetArmadaId = null;
+      }
+
+      // 4. Create new zone assignment for new rider
+      const { rows: newAssigns } = await client.query(
+        `INSERT INTO zone_assignments (
+           rider_id, zone_id, armada_id, session_id, assigned_by, assignment_type, assignment_date, status
+         )
+         VALUES ($1, $2, $3, $4, $5, 'MANUAL', CURRENT_DATE, 'ASSIGNED')
+         ON CONFLICT (rider_id, assignment_date) DO UPDATE
+         SET zone_id = EXCLUDED.zone_id,
+             armada_id = EXCLUDED.armada_id,
+             session_id = EXCLUDED.session_id,
+             assigned_by = EXCLUDED.assigned_by,
+             assignment_type = 'MANUAL',
+             status = 'ASSIGNED',
+             updated_at = CURRENT_TIMESTAMP
+         RETURNING *;`,
+        [newRiderId, oldAssign.zone_id, targetArmadaId, oldAssign.session_id, supervisorId]
+      );
+
+      // 5. Update duty queue for new rider
+      await client.query(
+        `INSERT INTO rider_duty_queues (rider_id, duty_date, status)
+         VALUES ($1, CURRENT_DATE, 'PLOTTED')
+         ON CONFLICT (rider_id, duty_date) DO UPDATE
+         SET status = 'PLOTTED';`,
+        [newRiderId]
+      );
+
+      // 6. Record incident log
+      const { rows: logRows } = await client.query(
+        `INSERT INTO duty_incident_logs (
+           assignment_id, previous_rider_id, new_rider_id, supervisor_id, incident_type, notes, armada_action
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING *;`,
+        [oldAssign.id, previousRiderId, newRiderId, supervisorId, incidentType, notes, armadaAction]
+      );
+
+      await client.query("COMMIT;");
+      return {
+        previous_assignment_id: oldAssign.id,
+        new_assignment: newAssigns[0],
+        incident_log: logRows[0],
+      };
+    } catch (err) {
+      await client.query("ROLLBACK;");
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 }
 

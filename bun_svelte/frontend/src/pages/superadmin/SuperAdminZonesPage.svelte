@@ -3,6 +3,10 @@
   import { zoneService, type ZoneItem, type ZoneConfig } from '../../services/zoneService';
   import { mapService, type POIFeature } from '../../services/mapService';
   import { createBasemapLayer, getBasemapProviders } from '../../lib/mapProviders';
+  import { confirmModal } from '../../lib/stores/confirmModal.svelte';
+  import { authStore } from '../../lib/stores/auth.svelte';
+  import ZoneFormModal from '../../components/zones/ZoneFormModal.svelte';
+  import ZoneDetailDrawer from '../../components/zones/ZoneDetailDrawer.svelte';
 
   interface Props {
     onNavigate?: (route: string) => void;
@@ -214,7 +218,12 @@
       ]);
 
       if (zonesData.status === 'fulfilled' && zonesData.value) zones = zonesData.value;
-      if (configData.status === 'fulfilled' && configData.value) zoneConfig = configData.value;
+      if (configData.status === 'fulfilled' && configData.value) {
+        zoneConfig = configData.value;
+        if (mapInstance && zoneConfig?.hub_latitude && zoneConfig?.hub_longitude && (!zones || zones.length === 0)) {
+          mapInstance.setView([zoneConfig.hub_latitude, zoneConfig.hub_longitude], 13);
+        }
+      }
       if (protoRoads.status === 'fulfilled' && protoRoads.value) protocolRoadsGeoJson = protoRoads.value;
       if (tollRoads.status === 'fulfilled' && tollRoads.value) tollRoadsGeoJson = tollRoads.value;
       if (poisData.status === 'fulfilled' && poisData.value) pois = poisData.value;
@@ -241,10 +250,13 @@
     if (typeof window === 'undefined' || !mapElement) return;
     L = (await import('leaflet')).default;
 
+    const initialLat = zoneConfig?.hub_latitude || -7.2575;
+    const initialLng = zoneConfig?.hub_longitude || 112.7521;
+
     mapInstance = L.map(mapElement, {
       zoomControl: false,
       attributionControl: false,
-    }).setView([-7.4450, 112.7150], 13);
+    }).setView([initialLat, initialLng], 13);
 
     const { layer } = createBasemapLayer(L, selectedBasemapId);
     currentTileLayer = layer;
@@ -479,8 +491,8 @@
     showPolygonDrawer = true;
   };
 
-  const handleSaveZone = async (e: Event) => {
-    e.preventDefault();
+  const handleSaveZone = async (e?: Event) => {
+    if (e) e.preventDefault();
     if (!formName.trim()) {
       formErrorMessage = 'Nama zona wajib diisi.';
       return;
@@ -501,6 +513,16 @@
       type: 'Polygon',
       coordinates: [geoJsonRing],
     };
+
+    const isConfirmed = await confirmModal.verify({
+      context: 'ZONE_CREATE_UPDATE',
+      title: isEditing ? 'Simpan Perubahan Zona Wilayah' : 'Konfirmasi Pembuatan Zona Operasional',
+      subtitle: `Memproses geofence untuk "${formName}" dengan kuota kapasitas ${formMaxCapacity} rider.`,
+      targetName: `${formName} (${formCode || 'Zona'})`,
+      confirmLabel: isEditing ? 'Simpan Perubahan' : 'Terbitkan Zona Baru',
+    });
+
+    if (!isConfirmed) return;
 
     isSubmitting = true;
     formErrorMessage = null;
@@ -537,23 +559,37 @@
 
   const handleToggleStatus = async (z: ZoneItem) => {
     const nextStatus = z.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
-    try {
-      await zoneService.updateZoneStatus(z.id, nextStatus);
-      await loadData();
-    } catch (err: any) {
-      alert(err.response?.data?.msg || 'Gagal mengubah status zona.');
-    }
+
+    await confirmModal.verify({
+      context: 'ZONE_TOGGLE_STATUS',
+      title: nextStatus === 'ACTIVE' ? 'Aktifkan Zona Operasional' : 'Nonaktifkan Zona Operasional',
+      subtitle: nextStatus === 'ACTIVE'
+        ? `Aktifkan kembali zona "${z.name}" agar dapat dialokasikan pada plotting shift rute rider.`
+        : `Nonaktifkan zona "${z.name}". Zona ini tidak akan dimasukkan dalam simulasi auto-plotting dan pemeringkatan TOPSIS.`,
+      targetName: `${z.name} (${z.code || 'ZONE'})`,
+      severity: nextStatus === 'ACTIVE' ? 'info' : 'warning',
+      confirmLabel: nextStatus === 'ACTIVE' ? 'Aktifkan Zona' : 'Nonaktifkan Zona',
+      verificationLabel: nextStatus === 'ACTIVE'
+        ? `Saya mengonfirmasi pengaktifan kembali zona "${z.name}".`
+        : `Saya memahami bahwa zona "${z.name}" tidak akan menerima plotting rider baru.`,
+      onConfirm: async () => {
+        await zoneService.updateZoneStatus(z.id, nextStatus);
+        await loadData();
+      },
+    });
   };
 
   const handleDeleteZone = async (z: ZoneItem) => {
-    if (!confirm(`Apakah Anda yakin ingin menghapus zona "${z.name}"?`)) return;
-    try {
-      await zoneService.deleteZone(z.id);
-      if (selectedZoneId === z.id) selectedZoneId = null;
-      await loadData();
-    } catch (err: any) {
-      alert(err.response?.data?.msg || 'Gagal menghapus zona.');
-    }
+    await confirmModal.verify({
+      context: 'ZONE_DELETE',
+      targetName: `${z.name} (${z.code || 'ZONE'})`,
+      subtitle: `Apakah Anda yakin ingin menghapus permanen zona "${z.name}"? Batas poligon spasial dan riwayat plotting pada zona ini akan terhapus.`,
+      onConfirm: async () => {
+        await zoneService.deleteZone(z.id);
+        if (selectedZoneId === z.id) selectedZoneId = null;
+        await loadData();
+      },
+    });
   };
 
   const applyDrawerPolygon = async () => {
@@ -787,13 +823,15 @@
                     <i class="{isActive ? 'ri-pause-circle-line' : 'ri-play-circle-line'}"></i>
                     <span>{isActive ? 'Nonaktifkan' : 'Aktifkan'}</span>
                   </button>
-                  <button
-                    onclick={(e) => { e.stopPropagation(); handleDeleteZone(z); }}
-                    class="px-1.5 py-1 rounded-lg text-[10px] font-outfit-600 text-rose-400 hover:text-rose-300 hover:bg-rose-950/30 transition-colors"
-                    title="Hapus Zona"
-                  >
-                    <i class="ri-delete-bin-line"></i>
-                  </button>
+                  {#if authStore.role === 'SUPERADMIN'}
+                    <button
+                      onclick={(e) => { e.stopPropagation(); handleDeleteZone(z); }}
+                      class="px-1.5 py-1 rounded-lg text-[10px] font-outfit-600 text-rose-400 hover:text-rose-300 hover:bg-rose-950/30 transition-colors"
+                      title="Hapus Zona"
+                    >
+                      <i class="ri-delete-bin-line"></i>
+                    </button>
+                  {/if}
                 </div>
               </div>
             {/each}
@@ -881,189 +919,39 @@
   </div>
 
   <!-- MODAL: ATRIBUT ZONA FORM -->
-  {#if showZoneModal}
-    <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
-      <div class="bg-[#151519] border border-[#2E2E38] rounded-3xl p-5 sm:p-6 w-full max-w-md shadow-2xl text-white space-y-4">
-        <div class="flex items-center justify-between pb-3 border-b border-[#24242A]">
-          <h3 class="text-title-18 font-outfit-600 text-white">
-            {isEditing ? 'Edit Atribut Zona' : 'Tambah Zona Operasional'}
-          </h3>
-          <button 
-            onclick={() => showZoneModal = false}
-            class="text-[#71717A] hover:text-white cursor-pointer"
-            aria-label="Tutup Form Zona"
-          >
-            <i class="ri-close-line text-xl"></i>
-          </button>
-        </div>
-
-        {#if formErrorMessage}
-          <div class="p-2.5 rounded-xl bg-rose-950/40 border border-rose-800/40 text-rose-300 text-xs flex items-start gap-2">
-            <i class="ri-error-warning-line text-rose-400 text-base shrink-0"></i>
-            <span>{formErrorMessage}</span>
-          </div>
-        {/if}
-
-        <form onsubmit={handleSaveZone} class="space-y-3 text-xs">
-          <div class="space-y-1">
-            <label for="zone-name-input" class="block font-outfit-600 text-[#A1A1AA]">Nama Zona *</label>
-            <input
-              id="zone-name-input"
-              type="text"
-              bind:value={formName}
-              placeholder="Contoh: Sudirman Central Area"
-              required
-              class="w-full px-3 py-2 bg-[#1F1F26] border border-[#2E2E38] rounded-xl text-white font-outfit-400 focus:outline-none focus:border-[#FF634A]"
-            />
-          </div>
-
-          <div class="grid grid-cols-2 gap-3">
-            <div class="space-y-1">
-              <label for="zone-code-input" class="block font-outfit-600 text-[#A1A1AA]">Kode Unik</label>
-              <input
-                id="zone-code-input"
-                type="text"
-                bind:value={formCode}
-                placeholder="SDR-01"
-                class="w-full px-3 py-2 bg-[#1F1F26] border border-[#2E2E38] rounded-xl text-white font-outfit-400 focus:outline-none focus:border-[#FF634A]"
-              />
-            </div>
-
-            <div class="space-y-1">
-              <label for="zone-cap-input" class="block font-outfit-600 text-[#A1A1AA]">Kapasitas Rider (Unit) *</label>
-              <input
-                id="zone-cap-input"
-                type="number"
-                min="1"
-                max="50"
-                bind:value={formMaxCapacity}
-                required
-                class="w-full px-3 py-2 bg-[#1F1F26] border border-[#2E2E38] rounded-xl text-white font-outfit-400 focus:outline-none focus:border-[#FF634A]"
-              />
-            </div>
-          </div>
-
-          <div class="space-y-1">
-            <label for="zone-desc-input" class="block font-outfit-600 text-[#A1A1AA]">Deskripsi Zona</label>
-            <textarea
-              id="zone-desc-input"
-              bind:value={formDescription}
-              rows="2"
-              placeholder="Rincian area target dan catatan operasional..."
-              class="w-full px-3 py-2 bg-[#1F1F26] border border-[#2E2E38] rounded-xl text-white font-outfit-400 focus:outline-none focus:border-[#FF634A]"
-            ></textarea>
-          </div>
-
-          <div class="space-y-1">
-            <span class="block font-outfit-600 text-[#A1A1AA]">Status Zona</span>
-            <div class="flex items-center gap-4 pt-1">
-              <label class="flex items-center gap-1.5 cursor-pointer text-white">
-                <input type="radio" bind:group={formStatus} value="ACTIVE" class="accent-[#FF634A]" />
-                <span>Aktif</span>
-              </label>
-              <label class="flex items-center gap-1.5 cursor-pointer text-[#A1A1AA]">
-                <input type="radio" bind:group={formStatus} value="INACTIVE" class="accent-[#FF634A]" />
-                <span>Nonaktif</span>
-              </label>
-            </div>
-          </div>
-
-          <div class="pt-3 border-t border-[#24242A] flex items-center justify-end gap-2">
-            <button
-              type="button"
-              onclick={() => showZoneModal = false}
-              class="px-4 py-2 rounded-xl text-xs font-outfit-600 text-[#A1A1AA] hover:text-white cursor-pointer"
-            >
-              Batal
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              class="pill-btn-orange text-xs"
-            >
-              <span class="px-4 py-2 font-outfit-600 text-white">
-                {isSubmitting ? 'Menyimpan...' : 'Simpan Zona'}
-              </span>
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  {/if}
+  <ZoneFormModal
+    show={showZoneModal}
+    {isEditing}
+    {formName}
+    {formCode}
+    {formMaxCapacity}
+    {formDescription}
+    {formStatus}
+    {formErrorMessage}
+    {isSubmitting}
+    onClose={() => showZoneModal = false}
+    onSubmit={handleSaveZone}
+    onUpdateName={(val) => formName = val}
+    onUpdateCode={(val) => formCode = val}
+    onUpdateMaxCapacity={(val) => formMaxCapacity = val}
+    onUpdateDescription={(val) => formDescription = val}
+    onUpdateStatus={(val) => formStatus = val}
+  />
 
   <!-- DRAWER: EDITOR POLIGON VERTEX GEOFENCE -->
-  {#if showPolygonDrawer}
-    <div class="fixed inset-y-0 right-0 z-50 w-full max-w-sm bg-[#151519] border-l border-[#2E2E38] shadow-2xl p-5 flex flex-col justify-between text-white animate-slide-left font-outfit-400">
-      <div>
-        <div class="flex items-center justify-between pb-3 border-b border-[#24242A]">
-          <div>
-            <span class="text-[10px] font-outfit-600 uppercase text-[#FF634A]">Editor Poligon Geofence</span>
-            <h3 class="text-base font-outfit-600 text-white">{selectedZone?.name || 'Zona Operasional'}</h3>
-          </div>
-          <button 
-            onclick={() => showPolygonDrawer = false}
-            class="text-[#71717A] hover:text-white cursor-pointer"
-            aria-label="Tutup Drawer Poligon"
-          >
-            <i class="ri-close-line text-xl"></i>
-          </button>
-        </div>
-
-        <!-- Coordinates List -->
-        <div class="mt-3 space-y-2">
-          <div class="flex items-center justify-between text-[11px] font-outfit-600 text-[#71717A]">
-            <span>Titik Koordinat ({drawnPoints.length} Vertex)</span>
-            <span>Luas: {calculatePolygonAreaKm2(drawnPoints)} km²</span>
-          </div>
-
-          <div class="max-h-80 overflow-y-auto space-y-1 pr-1 divide-y divide-[#1F1F24]">
-            {#each drawnPoints as pt, idx}
-              <div class="flex items-center justify-between py-1.5 text-xs">
-                <span class="font-mono text-zinc-300">P{idx + 1}: {pt[0].toFixed(5)}, {pt[1].toFixed(5)}</span>
-                <button
-                  type="button"
-                  onclick={() => removeDrawnPoint(idx)}
-                  class="text-rose-400 hover:text-rose-300 p-1 cursor-pointer"
-                  title="Hapus Titik"
-                >
-                  <i class="ri-delete-bin-line"></i>
-                </button>
-              </div>
-            {/each}
-          </div>
-        </div>
-
-        {#if spatialViolationWarning}
-          <div class="mt-3 p-2.5 rounded-xl bg-amber-950/40 border border-amber-800/40 text-amber-300 text-xs flex items-start gap-2">
-            <i class="ri-alert-fill text-amber-400 text-sm shrink-0 mt-0.5"></i>
-            <span>{spatialViolationWarning}</span>
-          </div>
-        {/if}
-
-        {#if spatialOverlapWarning}
-          <div class="mt-2 p-2.5 rounded-xl bg-rose-950/40 border border-rose-800/40 text-rose-300 text-xs flex items-start gap-2">
-            <i class="ri-error-warning-fill text-rose-400 text-sm shrink-0 mt-0.5"></i>
-            <span>{spatialOverlapWarning}</span>
-          </div>
-        {/if}
-      </div>
-
-      <div class="pt-4 border-t border-[#24242A] flex items-center justify-between gap-2">
-        <button
-          type="button"
-          onclick={() => { drawnPoints = parsePolygonToLatLngs(selectedZone?.polygon); updateDrawingVisualization(); }}
-          class="px-3 py-1.5 text-xs text-[#A1A1AA] hover:text-white font-outfit-600 cursor-pointer"
-        >
-          Reset Titik
-        </button>
-        <button
-          type="button"
-          onclick={applyDrawerPolygon}
-          class="pill-btn-orange text-xs"
-        >
-          <span class="px-4 py-2 font-outfit-600 text-white">Terapkan Perubahan</span>
-        </button>
-      </div>
-    </div>
-  {/if}
+  <ZoneDetailDrawer
+    show={showPolygonDrawer}
+    {selectedZone}
+    {drawnPoints}
+    {spatialViolationWarning}
+    {spatialOverlapWarning}
+    calculateAreaKm2={calculatePolygonAreaKm2}
+    onClose={() => showPolygonDrawer = false}
+    onRemovePoint={removeDrawnPoint}
+    onResetPoints={() => {
+      drawnPoints = parsePolygonToLatLngs(selectedZone?.polygon);
+      updateDrawingVisualization();
+    }}
+    onApplyPolygon={applyDrawerPolygon}
+  />
 </div>

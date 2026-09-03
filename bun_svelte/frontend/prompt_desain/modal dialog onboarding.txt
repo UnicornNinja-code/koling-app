@@ -1,0 +1,402 @@
+Berikut adalah hasil konversi lengkap untuk **Dialog (Modal)** dan **Demo Onboarding Multi-step** ke tech stack target Anda: **Svelte 5 Runes**, **Bits-UI (v2)**, **Tailwind CSS**, **Lucide Svelte**, dan **TypeScript**.
+
+Semua dependensi React (`@radix-ui/react-dialog`, `@radix-ui/react-icons`, `@radix-ui/react-slot`, `class-variance-authority`) digantikan oleh **`bits-ui`**, **`lucide-svelte`**, dan helper `cn` bawaan proyek Anda.
+
+---
+
+### 1. Primitif Dialog (`src/components/ui/dialog/`)
+
+#### A. `src/components/ui/dialog/Dialog.svelte`
+
+```svelte
+<script lang="ts">
+  import { Dialog as DialogPrimitive } from "bits-ui";
+  import type { Snippet } from "svelte";
+
+  let {
+    open = $bindable(false),
+    children,
+    ...restProps
+  }: DialogPrimitive.RootProps & { children?: Snippet } = $props();
+</script>
+
+<DialogPrimitive.Root bind:open {...restProps}>
+  {@render children?.()}
+</DialogPrimitive.Root>
+
+```
+
+#### B. `src/components/ui/dialog/DialogTrigger.svelte`
+
+```svelte
+<script lang="ts">
+  import { Dialog as DialogPrimitive } from "bits-ui";
+  import type { Snippet } from "svelte";
+
+  let {
+    children,
+    ...restProps
+  }: DialogPrimitive.TriggerProps & { children?: Snippet<[Record<string, any>]> } = $props();
+</script>
+
+<DialogPrimitive.Trigger {...restProps}>
+  {#snippet child({ props })}
+    {@render children?.(props)}
+  {/snippet}
+</DialogPrimitive.Trigger>
+
+```
+
+#### C. `src/components/ui/dialog/DialogClose.svelte`
+
+```svelte
+<script lang="ts">
+  import { Dialog as DialogPrimitive } from "bits-ui";
+  import type { Snippet } from "svelte";
+
+  let {
+    children,
+    ...restProps
+  }: DialogPrimitive.CloseProps & { children?: Snippet<[Record<string, any>]> } = $props();
+</script>
+
+<DialogPrimitive.Close {...restProps}>
+  {#snippet child({ props })}
+    {@render children?.(props)}
+  {/snippet}
+</DialogPrimitive.Close>
+
+```
+
+#### D. `src/components/ui/dialog/DialogOverlay.svelte`
+
+```svelte
+<script lang="ts">
+  import { Dialog as DialogPrimitive } from "bits-ui";
+  import { cn } from "$lib/utils";
+
+  let {
+    class: className = "",
+    ...restProps
+  }: DialogPrimitive.OverlayProps & { class?: string } = $props();
+</script>
+
+<DialogPrimitive.Overlay
+  class={cn(
+    "fixed inset-0 z-[101] bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+    className
+  )}
+  {...restProps}
+/>
+
+```
+
+#### E. `src/components/ui/dialog/DialogContent.svelte`
+
+```svelte
+<script lang="ts">
+  import { Dialog as DialogPrimitive } from "bits-ui";
+  import { X } from "lucide-svelte";
+  import { cn } from "$lib/utils";
+  import DialogOverlay from "./DialogOverlay.svelte";
+  import type { Snippet } from "svelte";
+
+  interface Props extends DialogPrimitive.ContentProps {
+    class?: string;
+    children?: Snippet;
+  }
+
+  let {
+    class: className = "",
+    children,
+    ...restProps
+  }: Props = $props();
+</script>
+
+<DialogPrimitive.Portal>
+  <DialogOverlay />
+  <DialogPrimitive.Content
+    class={cn(
+      "fixed left-1/2 top-1/2 z-[101] grid max-h-[calc(100%-4rem)] w-full -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto border bg-background p-6 shadow-lg shadow-black/5 duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:max-w-[400px] sm:rounded-xl",
+      className
+    )}
+    {...restProps}
+  >
+    {@render children?.()}
+    <DialogPrimitive.Close
+      class="group absolute right-3 top-3 flex size-7 items-center justify-center rounded-lg outline-offset-2 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring/70 disabled:pointer-events-none"
+    >
+      <X
+        class="size-4 opacity-60 transition-opacity group-hover:opacity-100"
+        strokeWidth={2}
+      />
+      <span class="sr-only">Close</span>
+    </DialogPrimitive.Close>
+  </DialogPrimitive.Content>
+</DialogPrimitive.Portal>
+
+```
+
+#### F. `src/components/ui/dialog/DialogHeader.svelte`
+
+```svelte
+<script lang="ts">
+  import { cn } from "$lib/utils";
+  import type { HTMLAttributes } from "svelte/elements";
+  import type { Snippet } from "svelte";
+
+  interface Props extends HTMLAttributes<HTMLDivElement> {
+    class?: string;
+    children?: Snippet;
+  }
+
+  let { class: className = "", children, ...restProps }: Props = $props();
+</script>
+
+<div class={cn("flex flex-col space-y-1.5 text-center sm:text-left", className)} {...restProps}>
+  {@render children?.()}
+</div>
+
+```
+
+#### G. `src/components/ui/dialog/DialogFooter.svelte`
+
+```svelte
+<script lang="ts">
+  import { cn } from "$lib/utils";
+  import type { HTMLAttributes } from "svelte/elements";
+  import type { Snippet } from "svelte";
+
+  interface Props extends HTMLAttributes<HTMLDivElement> {
+    class?: string;
+    children?: Snippet;
+  }
+
+  let { class: className = "", children, ...restProps }: Props = $props();
+</script>
+
+<div
+  class={cn("flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3", className)}
+  {...restProps}
+>
+  {@render children?.()}
+</div>
+
+```
+
+#### H. `src/components/ui/dialog/DialogTitle.svelte`
+
+```svelte
+<script lang="ts">
+  import { Dialog as DialogPrimitive } from "bits-ui";
+  import { cn } from "$lib/utils";
+  import type { Snippet } from "svelte";
+
+  let {
+    class: className = "",
+    children,
+    ...restProps
+  }: DialogPrimitive.TitleProps & { class?: string; children?: Snippet } = $props();
+</script>
+
+<DialogPrimitive.Title
+  class={cn("text-lg font-semibold tracking-tight", className)}
+  {...restProps}
+>
+  {@render children?.()}
+</DialogPrimitive.Title>
+
+```
+
+#### I. `src/components/ui/dialog/DialogDescription.svelte`
+
+```svelte
+<script lang="ts">
+  import { Dialog as DialogPrimitive } from "bits-ui";
+  import { cn } from "$lib/utils";
+  import type { Snippet } from "svelte";
+
+  let {
+    class: className = "",
+    children,
+    ...restProps
+  }: DialogPrimitive.DescriptionProps & { class?: string; children?: Snippet } = $props();
+</script>
+
+<DialogPrimitive.Description
+  class={cn("text-sm text-muted-foreground", className)}
+  {...restProps}
+>
+  {@render children?.()}
+</DialogPrimitive.Description>
+
+```
+
+#### J. `src/components/ui/dialog/index.ts`
+
+```typescript
+import Root from "./Dialog.svelte";
+import Trigger from "./DialogTrigger.svelte";
+import Close from "./DialogClose.svelte";
+import Content from "./DialogContent.svelte";
+import Header from "./DialogHeader.svelte";
+import Footer from "./DialogFooter.svelte";
+import Title from "./DialogTitle.svelte";
+import Description from "./DialogDescription.svelte";
+import Overlay from "./DialogOverlay.svelte";
+
+export {
+  Root,
+  Trigger,
+  Close,
+  Content,
+  Header,
+  Footer,
+  Title,
+  Description,
+  Overlay,
+  // shadcn canonical naming
+  Root as Dialog,
+  Trigger as DialogTrigger,
+  Close as DialogClose,
+  Content as DialogContent,
+  Header as DialogHeader,
+  Footer as DialogFooter,
+  Title as DialogTitle,
+  Description as DialogDescription,
+  Overlay as DialogOverlay,
+};
+
+```
+
+---
+
+### 2. Demo Komponen: `src/components/demo/OnboardingDialogDemo.svelte`
+
+Menggunakan `$state` untuk manajemen langkah (*step*), `$derived` untuk kondisi tombol, dan snippet Svelte 5 untuk passing trigger ke `Button.svelte`.
+
+```svelte
+<script lang="ts">
+  import { cn } from "$lib/utils";
+  import Button from "$components/ui/button/Button.svelte";
+  import {
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+  } from "$components/ui/dialog";
+  import { ArrowRight } from "lucide-svelte";
+
+  const stepContent = [
+    {
+      title: "Welcome to Origin UI",
+      description:
+        "Discover a powerful collection of components designed to enhance your development workflow.",
+    },
+    {
+      title: "Customizable Components",
+      description:
+        "Each component is fully customizable and built with modern web standards in mind.",
+    },
+    {
+      title: "Ready to Start?",
+      description:
+        "Begin building amazing interfaces with our comprehensive component library.",
+    },
+    {
+      title: "Get Support",
+      description:
+        "Access our extensive documentation and community resources to make the most of Origin UI.",
+    },
+  ];
+
+  const totalSteps = stepContent.length;
+  let step = $state(1);
+  let open = $state(false);
+
+  function handleContinue() {
+    if (step < totalSteps) {
+      step += 1;
+    }
+  }
+
+  // Reset step ketika dialog dibuka kembali
+  $effect(() => {
+    if (open) {
+      step = 1;
+    }
+  });
+</script>
+
+<Dialog bind:open>
+  <DialogTrigger>
+    {#snippet children(props)}
+      <Button variant="outline" {...props}>Onboarding</Button>
+    {/snippet}
+  </DialogTrigger>
+
+  <DialogContent class="gap-0 p-0 [&>button:last-child]:text-white">
+    <div class="p-2">
+      <img
+        class="w-full rounded-lg object-cover"
+        src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80"
+        width={382}
+        height={216}
+        alt="Onboarding illustration"
+      />
+    </div>
+
+    <div class="space-y-6 px-6 pb-6 pt-3">
+      <DialogHeader>
+        <DialogTitle>{stepContent[step - 1].title}</DialogTitle>
+        <DialogDescription>{stepContent[step - 1].description}</DialogDescription>
+      </DialogHeader>
+
+      <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+        <!-- Bullet Indicators -->
+        <div class="flex justify-center space-x-1.5 max-sm:order-1">
+          {#each Array(totalSteps) as _, index}
+            <div
+              class={cn(
+                "h-1.5 w-1.5 rounded-full bg-primary transition-all",
+                index + 1 === step ? "bg-primary w-3" : "opacity-20"
+              )}
+            ></div>
+          {/each}
+        </div>
+
+        <DialogFooter>
+          <DialogClose>
+            {#snippet children(props)}
+              <Button type="button" variant="ghost" {...props}>Skip</Button>
+            {/snippet}
+          </DialogClose>
+
+          {#if step < totalSteps}
+            <Button class="group" type="button" onclick={handleContinue}>
+              Next
+              <ArrowRight
+                class="-me-1 ms-2 opacity-60 transition-transform group-hover:translate-x-0.5"
+                size={16}
+                strokeWidth={2}
+                aria-hidden="true"
+              />
+            </Button>
+          {:else}
+            <DialogClose>
+              {#snippet children(props)}
+                <Button type="button" {...props}>Okay</Button>
+              {/snippet}
+            </DialogClose>
+          {/if}
+        </DialogFooter>
+      </div>
+    </div>
+  </DialogContent>
+</Dialog>
+
+```
