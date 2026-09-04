@@ -62,8 +62,16 @@ export const getPoisByZone = async (req: Request, res: Response): Promise<any> =
 
 export const getOperationalAreaPois = async (req: Request, res: Response): Promise<any> => {
   try {
-    const pois = await getAllOperationalPoisService();
-    return res.status(200).json({ pois, count: pois.length });
+    const hubCity = (req.query?.hub_id || req.query?.city_name) as string | undefined;
+    const pois = await getAllOperationalPoisService(hubCity || null);
+    const { ZoneModel } = await import("../models/zoneModel.js");
+    const zones = await ZoneModel.findAll();
+    return res.status(200).json({
+      pois,
+      count: pois.length,
+      zones: zones || [],
+      hub_id: hubCity || null,
+    });
   } catch (error: any) {
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({ msg: error.message || "Internal server error" });

@@ -19,7 +19,6 @@
   import DssCalibrationStep from './steps/DssCalibrationStep.svelte';
   import DataSynchronizationStep from './steps/DataSynchronizationStep.svelte';
   import SetupReviewStep from './steps/SetupReviewStep.svelte';
-  import ConfigurationApplying from '../../components/onboarding/ConfigurationApplying.svelte';
   import MovaLoading from '../../components/ui/MovaLoading.svelte';
 
   interface Props {
@@ -62,6 +61,22 @@
     }
   });
 
+  // Guard against browser refresh or navigation during locked sync
+  $effect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (setupStore.isSyncingLocked) {
+        e.preventDefault();
+        e.returnValue = 'Sinkronisasi spasial sedang berlangsung di latar belakang. Yakin ingin meninggalkan halaman?';
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  });
+
   const handleNext = async () => {
     errorMsg = null;
     const current = setupStore.currentStep;
@@ -100,20 +115,14 @@
 
   const handleApplyingCompleted = () => {
     isApplying = false;
-    showFinishingLoading = true;
-  };
-
-  const handleFinishingComplete = () => {
     onNavigate('/dashboard');
   };
 </script>
 
 {#if showMovaTransition}
-  <MovaLoading onComplete={handleMovaTransitionComplete} />
-{:else if showFinishingLoading}
-  <MovaLoading onComplete={handleFinishingComplete} />
+  <MovaLoading onComplete={handleMovaTransitionComplete} duration={2000} subtitle="Menyiapkan lingkungan setup..." />
 {:else if isApplying}
-  <ConfigurationApplying onCompleted={handleApplyingCompleted} />
+  <MovaLoading onComplete={handleApplyingCompleted} duration={2000} />
 {:else}
   <div class="min-h-screen bg-[#09090B] pattern-dots-dark text-white font-outfit-400 flex flex-col justify-between py-6 sm:py-10 px-4 sm:px-6 lg:px-8 relative overflow-x-hidden">
     <!-- Ambient Lighting Effects -->

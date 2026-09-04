@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import { Shield, Lock, Eye, EyeOff, ArrowRight, AlertTriangle } from 'lucide-svelte';
   import { authStore, getRoleLandingPath } from '../../lib/stores/auth.svelte';
   import { authService } from '../../services/authService';
@@ -22,6 +22,11 @@
   // Transition state activated ONLY after backend confirms password change
   let showTransition = $state(false);
 
+  // Real-time debounce check state for confirm password (2s delay)
+  let confirmTimer: any = null;
+  let isCheckingConfirm = $state(false);
+  let isConfirmMatch = $state<boolean | null>(null);
+
   const errors = $state<{
     newPassword?: string;
     confirmPassword?: string;
@@ -39,6 +44,46 @@
       return;
     }
   });
+
+  onDestroy(() => {
+    if (confirmTimer) clearTimeout(confirmTimer);
+  });
+
+  // Debounced password check with 2 seconds delay
+  const triggerDebouncedPasswordCheck = () => {
+    if (confirmTimer) clearTimeout(confirmTimer);
+    errors.confirmPassword = undefined;
+    isConfirmMatch = null;
+
+    if (!confirmPassword) {
+      isCheckingConfirm = false;
+      return;
+    }
+
+    isCheckingConfirm = true;
+    confirmTimer = setTimeout(() => {
+      isCheckingConfirm = false;
+      if (confirmPassword) {
+        if (newPassword !== confirmPassword) {
+          errors.confirmPassword = 'Konfirmasi password tidak cocok';
+          isConfirmMatch = false;
+        } else {
+          errors.confirmPassword = undefined;
+          isConfirmMatch = true;
+        }
+      }
+    }, 2000);
+  };
+
+  const handleConfirmInput = () => {
+    triggerDebouncedPasswordCheck();
+  };
+
+  const handleNewPasswordInput = () => {
+    if (confirmPassword) {
+      triggerDebouncedPasswordCheck();
+    }
+  };
 
   // Password strength calculation
   const passwordStrength = $derived(() => {
@@ -58,6 +103,9 @@
   });
 
   const validate = () => {
+    if (confirmTimer) clearTimeout(confirmTimer);
+    isCheckingConfirm = false;
+
     errors.newPassword = undefined;
     errors.confirmPassword = undefined;
     let valid = true;
@@ -68,7 +116,10 @@
     }
     if (newPassword !== confirmPassword) {
       errors.confirmPassword = 'Konfirmasi password tidak cocok';
+      isConfirmMatch = false;
       valid = false;
+    } else if (confirmPassword) {
+      isConfirmMatch = true;
     }
     return valid;
   };
@@ -169,6 +220,7 @@
                 id="first-login-new-pw"
                 type={showNew ? 'text' : 'password'}
                 bind:value={newPassword}
+                oninput={handleNewPasswordInput}
                 placeholder="Minimal 8 karakter"
                 disabled={loading}
                 class="w-full pl-10 pr-10 py-3 bg-[#18181D] border {errors.newPassword ? 'border-rose-500/60' : 'border-[#272730]'} rounded-2xl text-sm text-white placeholder-[#52525B] focus:outline-none focus:border-[#FF634A]/60 focus:ring-1 focus:ring-[#FF634A]/20 transition-all disabled:opacity-50"
@@ -214,9 +266,10 @@
                 id="first-login-confirm-pw"
                 type={showConfirm ? 'text' : 'password'}
                 bind:value={confirmPassword}
+                oninput={handleConfirmInput}
                 placeholder="Ulangi password baru"
                 disabled={loading}
-                class="w-full pl-10 pr-10 py-3 bg-[#18181D] border {errors.confirmPassword ? 'border-rose-500/60' : (confirmPassword && confirmPassword === newPassword ? 'border-emerald-500/40' : 'border-[#272730]')} rounded-2xl text-sm text-white placeholder-[#52525B] focus:outline-none focus:border-[#FF634A]/60 focus:ring-1 focus:ring-[#FF634A]/20 transition-all disabled:opacity-50"
+                class="w-full pl-10 pr-10 py-3 bg-[#18181D] border {errors.confirmPassword ? 'border-rose-500/60' : (isConfirmMatch ? 'border-emerald-500/40' : 'border-[#272730]')} rounded-2xl text-sm text-white placeholder-[#52525B] focus:outline-none focus:border-[#FF634A]/60 focus:ring-1 focus:ring-[#FF634A]/20 transition-all disabled:opacity-50"
               />
               <button
                 type="button"
@@ -227,9 +280,11 @@
                 {#if showConfirm}<EyeOff class="w-4 h-4" />{:else}<Eye class="w-4 h-4" />{/if}
               </button>
             </div>
-            {#if errors.confirmPassword}
+            {#if isCheckingConfirm}
+              <p class="text-xs text-zinc-400 pl-1 animate-pulse">Memeriksa kecocokan password...</p>
+            {:else if errors.confirmPassword}
               <p class="text-xs text-rose-400 pl-1">{errors.confirmPassword}</p>
-            {:else if confirmPassword && confirmPassword === newPassword}
+            {:else if isConfirmMatch && confirmPassword}
               <p class="text-xs text-emerald-400 pl-1">✓ Password cocok</p>
             {/if}
           </div>

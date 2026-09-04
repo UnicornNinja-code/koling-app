@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { Radio, Info } from 'lucide-svelte';
+  import { Radio, Info, Layers, Check } from 'lucide-svelte';
   import { createBasemapLayer } from '../../lib/mapProviders';
 
   interface Props {
@@ -19,9 +19,14 @@
 
   let mapContainer: HTMLDivElement;
   let mapInstance: any = null;
+  let currentTileLayer: any = null;
   let hubMarkerInstance: any = null;
   let radiusCircleInstance: any = null;
   let isMapReady = $state(false);
+
+  // Active basemap (Default: OpenStreetMap Standar, matching SystemIdentityStep)
+  let activeBasemapId = $state<'osm-standard' | 'openmaptiles-streets' | 'openmaptiles-dark' | 'openmaptiles-satellite'>('osm-standard');
+  let isBasemapMenuOpen = $state(false);
 
   const initMap = () => {
     if (typeof window === 'undefined' || !mapContainer) return;
@@ -40,12 +45,13 @@
       center: [centerLat, centerLng],
       zoom: 12,
       zoomControl: true,
-      attributionControl: false,
+      attributionControl: true,
     });
 
-    // Basemap OpenMapTiles Dark
-    const { layer } = createBasemapLayer(L, 'openmaptiles-dark');
-    layer.addTo(mapInstance);
+    // Basemap: Default OpenStreetMap Standar
+    const { layer } = createBasemapLayer(L, activeBasemapId);
+    currentTileLayer = layer;
+    currentTileLayer.addTo(mapInstance);
 
     if (hasValidCoords) {
       // Hub marker
@@ -80,6 +86,25 @@
     setTimeout(() => {
       mapInstance?.invalidateSize();
     }, 200);
+  };
+
+  /**
+   * Switch basemap layer dynamically
+   */
+  const switchBasemap = (providerId: 'osm-standard' | 'openmaptiles-streets' | 'openmaptiles-dark' | 'openmaptiles-satellite') => {
+    if (!mapInstance) return;
+    const L = (window as any).L;
+    if (!L) return;
+
+    if (currentTileLayer) {
+      mapInstance.removeLayer(currentTileLayer);
+    }
+
+    activeBasemapId = providerId;
+    const { layer } = createBasemapLayer(L, providerId);
+    currentTileLayer = layer;
+    currentTileLayer.addTo(mapInstance);
+    isBasemapMenuOpen = false;
   };
 
   const updateCircle = (km: number) => {
@@ -131,6 +156,68 @@
 <div class="space-y-2">
   <div class="relative w-full h-64 sm:h-80 rounded-2xl overflow-hidden border border-[#272730] shadow-inner bg-[#121214]">
     <div bind:this={mapContainer} class="w-full h-full"></div>
+
+    <!-- Map Layer Switcher Floating Button -->
+    <div class="absolute top-2.5 right-2.5 z-[400]">
+      <div class="relative">
+        <button
+          type="button"
+          onclick={() => (isBasemapMenuOpen = !isBasemapMenuOpen)}
+          class="p-2 rounded-xl bg-[#18181D]/90 hover:bg-[#24242A] border border-white/10 text-zinc-300 hover:text-white shadow-lg backdrop-blur-md transition-all cursor-pointer flex items-center gap-1.5 text-xs font-medium"
+          title="Ganti Layer Peta"
+        >
+          <Layers class="w-3.5 h-3.5 text-[#FF634A]" />
+          <span class="text-[11px] hidden sm:inline">
+            {activeBasemapId === 'osm-standard' ? 'OpenStreetMap' : activeBasemapId === 'openmaptiles-dark' ? 'Dark Mode' : 'Satelit'}
+          </span>
+        </button>
+
+        {#if isBasemapMenuOpen}
+          <div class="absolute right-0 top-full mt-1 w-48 bg-[#18181D]/95 border border-[#272730] rounded-xl shadow-2xl backdrop-blur-xl p-1.5 space-y-1 z-[500]">
+            <button
+              type="button"
+              onclick={() => switchBasemap('osm-standard')}
+              class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors cursor-pointer {activeBasemapId === 'osm-standard' ? 'bg-[#FF634A]/15 text-[#FF8573]' : 'text-zinc-300 hover:bg-white/5'}"
+            >
+              <span>OpenStreetMap (Bawaan)</span>
+              {#if activeBasemapId === 'osm-standard'}
+                <Check class="w-3 h-3 text-[#FF634A]" />
+              {/if}
+            </button>
+            <button
+              type="button"
+              onclick={() => switchBasemap('openmaptiles-streets')}
+              class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors cursor-pointer {activeBasemapId === 'openmaptiles-streets' ? 'bg-[#FF634A]/15 text-[#FF8573]' : 'text-zinc-300 hover:bg-white/5'}"
+            >
+              <span>Streets (OpenMapTiles)</span>
+              {#if activeBasemapId === 'openmaptiles-streets'}
+                <Check class="w-3 h-3 text-[#FF634A]" />
+              {/if}
+            </button>
+            <button
+              type="button"
+              onclick={() => switchBasemap('openmaptiles-dark')}
+              class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors cursor-pointer {activeBasemapId === 'openmaptiles-dark' ? 'bg-[#FF634A]/15 text-[#FF8573]' : 'text-zinc-300 hover:bg-white/5'}"
+            >
+              <span>Dark Matter (OpenMapTiles)</span>
+              {#if activeBasemapId === 'openmaptiles-dark'}
+                <Check class="w-3 h-3 text-[#FF634A]" />
+              {/if}
+            </button>
+            <button
+              type="button"
+              onclick={() => switchBasemap('openmaptiles-satellite')}
+              class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors cursor-pointer {activeBasemapId === 'openmaptiles-satellite' ? 'bg-[#FF634A]/15 text-[#FF8573]' : 'text-zinc-300 hover:bg-white/5'}"
+            >
+              <span>Satelit (OpenMapTiles)</span>
+              {#if activeBasemapId === 'openmaptiles-satellite'}
+                <Check class="w-3 h-3 text-[#FF634A]" />
+              {/if}
+            </button>
+          </div>
+        {/if}
+      </div>
+    </div>
 
     <!-- Live Radius Badge Overlay -->
     <div class="absolute top-3 left-3 bg-[#18181D]/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 text-xs flex items-center gap-2 z-[400]">

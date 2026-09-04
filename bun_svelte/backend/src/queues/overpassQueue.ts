@@ -10,7 +10,7 @@
  * 5. Structured Observability Logging (Safe, Non-Sensitive, Truncated Tokens)
  */
 
-import { Queue } from "bullmq";
+import { Queue, FlowProducer } from "bullmq";
 import { redisOptions } from "../config/redisConfig.js";
 import { redisClient } from "../config/redis.js";
 import { datasetSyncJobRepository } from "../repositories/datasetSyncJobRepository.js";
@@ -21,6 +21,7 @@ export const OVERPASS_QUEUE_NAME = "overpassSyncQueue";
 export const JOB_TYPE_SYNC_ROADS = "JOB_SYNC_ROADS";
 export const JOB_TYPE_SYNC_TOLL = "JOB_SYNC_TOLL";
 export const JOB_TYPE_SYNC_POI = "JOB_SYNC_POI";
+export const JOB_TYPE_AGGREGATOR = "JOB_FINALIZE_SPATIAL_SYNC";
 
 // Configurable Locking Constants
 export const SYNC_LOCK_TTL_MS = 60000; // 60 seconds TTL (Crash Recovery)
@@ -37,6 +38,10 @@ export const overpassSyncQueue = new Queue(OVERPASS_QUEUE_NAME, {
     removeOnComplete: { age: 86400, count: 100 },
     removeOnFail: { age: 86400 * 7, count: 500 },
   },
+});
+
+export const overpassFlowProducer = new FlowProducer({
+  connection: redisOptions as any,
 });
 
 /**
@@ -413,6 +418,184 @@ export const enqueueProtocolRoadsSyncJob = async ({
 
 export const addRoadSyncJob = enqueueProtocolRoadsSyncJob;
 export const addPoiSyncJob = enqueuePoiSyncJob;
+
+/**
+ * Enqueue Full Spatial Onboarding Pipeline via BullMQ FlowProducer
+ * Parent: JOB_FINALIZE_SPATIAL_SYNC
+ * Children: JOB_SYNC_TOLL, JOB_SYNC_ROADS, JOB_SYNC_POI
+ */
+export const enqueueSpatialOnboardingFlow = async ({
+  hubId = "hub",
+  cityName = null,
+  bbox = null,
+  userId = null,
+}: {
+  hubId?: string | number;
+  cityName?: string | null;
+  bbox?: any;
+  userId?: string | number | null;
+} = {}) => {
+  const opContext = await operationalContextService.getOperationalContext();
+  const effectiveCity = cityName || opContext.hubCityName;
+  const effectiveBbox = bbox || opContext.bbox;
+
+  const tollVer = (await datasetVersionRepository.getLatestVersionNumber("TOLL_ROADS")) + 1;
+  const roadsVer = (await datasetVersionRepository.getLatestVersionNumber("PROTOCOL_ROADS")) + 1;
+  const poiVer = (await datasetVersionRepository.getLatestVersionNumber("POI")) + 1;
+  const targetVer = Math.max(tollVer, roadsVer, poiVer);
+
+  const runNonce = Date.now();
+  const parentJobId = `flow_parent_spatial_${hubId}_v${targetVer}_${runNonce}`;
+  const tollJobId = `flow_child_spatial_${hubId}_v${targetVer}_TOLL_${runNonce}`;
+  const roadsJobId = `flow_child_spatial_${hubId}_v${targetVer}_ROADS_${runNonce}`;
+  const poiJobId = `flow_child_spatial_${hubId}_v${targetVer}_POI_${runNonce}`;
+
+  // Create initial audit entries
+  await datasetSyncJobRepository.createJob({
+    job_id: tollJobId,
+    dataset_type: "TOLL_ROADS",
+    triggered_by: userId ? String(userId) : null,
+    target_version: tollVer,
+  });
+
+  await datasetSyncJobRepository.createJob({
+    job_id: roadsJobId,
+    dataset_type: "PROTOCOL_ROADS",
+    triggered_by: userId ? String(userId) : null,
+    target_version: roadsVer,
+  });
+
+  await datasetSyncJobRepository.createJob({
+    job_id: poiJobId,
+    dataset_type: "POI",
+    triggered_by: userId ? String(userId) : null,
+    target_version: poiVer,
+  });
+
+  const flow = await overpassFlowProducer.add({
+    name: JOB_TYPE_AGGREGATOR,
+    queueName: OVERPASS_QUEUE_NAME,
+    data: {
+      hubId,
+      cityName: effectiveCity,
+      targetVersion: targetVer,
+      userId,
+      childrenJobIds: { toll: tollJobId, roads: roadsJobId, poi: poiJobId },
+      timestamp: Date.now(),
+    },
+    opts: {
+      jobId: parentJobId,
+      removeOnComplete: true,
+      removeOnFail: false,
+    },
+    children: [
+      {
+        name: JOB_TYPE_SYNC_TOLL,
+        queueName: OVERPASS_QUEUE_NAME,
+        data: {
+          datasetType: "TOLL_ROADS",
+          hubId,
+          cities: [effectiveCity],
+          bbox: effectiveBbox,
+          userId,
+          targetVersion: tollVer,
+        },
+        opts: {
+          jobId: tollJobId,
+          attempts: 3,
+          backoff: { type: "exponential", delay: 5000 },
+        },
+      },
+      {
+        name: JOB_TYPE_SYNC_ROADS,
+        queueName: OVERPASS_QUEUE_NAME,
+        data: {
+          datasetType: "PROTOCOL_ROADS",
+          hubId,
+          cities: [effectiveCity],
+          bbox: effectiveBbox,
+          userId,
+          targetVersion: roadsVer,
+        },
+        opts: {
+          jobId: roadsJobId,
+          attempts: 3,
+          backoff: { type: "exponential", delay: 5000 },
+        },
+      },
+      {
+        name: JOB_TYPE_SYNC_POI,
+        queueName: OVERPASS_QUEUE_NAME,
+        data: {
+          datasetType: "POI",
+          hubId,
+          cityName: effectiveCity,
+          bbox: effectiveBbox,
+          userId,
+          targetVersion: poiVer,
+        },
+        opts: {
+          jobId: poiJobId,
+          attempts: 3,
+          backoff: { type: "exponential", delay: 5000 },
+        },
+      },
+    ],
+  });
+
+  console.log(`🌲 [FLOW_PRODUCER] Inisialisasi Flow Sinkronisasi Spasial Onboarding (Parent: ${parentJobId})`);
+  return {
+    flowId: parentJobId,
+    parentJobId,
+    children: {
+      tollJobId,
+      roadsJobId,
+      poiJobId,
+    },
+    cityName: effectiveCity,
+    targetVersion: targetVer,
+  };
+};
+
+/**
+ * Partial retry for a single dataset type if failed
+ */
+export const retryPartialDatasetJob = async (
+  datasetType: "TOLL_ROADS" | "PROTOCOL_ROADS" | "POI",
+  options: { cityName?: string; bbox?: any; userId?: string | number | null } = {}
+) => {
+  if (datasetType === "TOLL_ROADS") {
+    return await enqueueTollSyncJob({
+      userId: options.userId,
+      cities: options.cityName ? [options.cityName] : undefined,
+      bbox: options.bbox,
+    });
+  } else if (datasetType === "PROTOCOL_ROADS") {
+    return await enqueueProtocolRoadsSyncJob({
+      userId: options.userId,
+      cities: options.cityName ? [options.cityName] : undefined,
+      bbox: options.bbox,
+    });
+  } else if (datasetType === "POI") {
+    return await enqueuePoiSyncJob({
+      userId: options.userId,
+      cityName: options.cityName,
+      bbox: options.bbox,
+    });
+  }
+  throw new Error(`Dataset type '${datasetType}' tidak valid untuk retry.`);
+};
+
+/**
+ * Publish Abort Signal via Redis Pub/Sub to cancel running jobs
+ */
+export const abortSpatialSyncFlow = async (hubId?: string | number) => {
+  const channel = "spatial:sync:abort";
+  const payload = JSON.stringify({ hubId: hubId || "all", timestamp: Date.now() });
+  await redisClient.publish(channel, payload);
+  console.log(`🛑 [ABORT_SIGNAL] Sinyal abort sinkronisasi dikirim ke channel '${channel}'`);
+  return { success: true, channel };
+};
 
 /**
  * Fetch Detailed Job Status from BullMQ and Audit DB

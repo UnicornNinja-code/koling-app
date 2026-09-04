@@ -43,7 +43,8 @@ export class SpatialETLPipelineService {
     onProgress?: (percent: number) => Promise<void>,
     lockLease?: SyncLockLease | null,
     initialExpectedActiveVersionId?: string | null,
-    customBbox?: BoundingBox
+    customBbox?: BoundingBox,
+    signal?: AbortSignal
   ): Promise<any> {
     const startTime = Date.now();
     const opContext = await operationalContextService.getOperationalContext();
@@ -89,8 +90,11 @@ export class SpatialETLPipelineService {
 
     let rawElements: any[] = [];
     try {
-      rawElements = await overpassApiClient.fetchOverpassData(query);
+      rawElements = await overpassApiClient.fetchOverpassData(query, signal);
     } catch (fetchErr: any) {
+      if (signal?.aborted || fetchErr.message?.includes("ABORTED")) {
+        throw fetchErr;
+      }
       console.warn("⚠️ [PIPELINE:POI] Overpass admin_level=5 error, mencoba fallback query nama kota standar...");
       const fallbackQuery = `
         [out:json][timeout:300];
@@ -103,7 +107,7 @@ export class SpatialETLPipelineService {
         );
         out center;
       `;
-      rawElements = await overpassApiClient.fetchOverpassData(fallbackQuery);
+      rawElements = await overpassApiClient.fetchOverpassData(fallbackQuery, signal);
     }
 
     if (!Array.isArray(rawElements) || rawElements.length === 0) {
@@ -187,6 +191,7 @@ export class SpatialETLPipelineService {
     if (validPois.length > 0) {
       const values = validPois.map((p) => [
         versionRecord.id,
+        effectiveCity,
         p.external_id,
         p.osm_type || null,
         p.osm_id || null,
@@ -205,15 +210,15 @@ export class SpatialETLPipelineService {
         const insertSql = format(
           `
           INSERT INTO pois_staging (
-            version_id, external_id, osm_type, osm_id, name, category,
+            version_id, hub_id, external_id, osm_type, osm_id, name, category,
             latitude, longitude, geom, metadata, validation_status
           )
           SELECT 
-            v.version_id::uuid, v.external_id, v.osm_type, v.osm_id::bigint, v.name, v.category,
+            v.version_id::uuid, v.hub_id, v.external_id, v.osm_type, v.osm_id::bigint, v.name, v.category,
             v.latitude::double precision, v.longitude::double precision,
             ST_SetSRID(ST_GeomFromGeoJSON(v.geojson), 4326),
             v.metadata::jsonb, v.validation_status
-          FROM (VALUES %L) AS v(version_id, external_id, osm_type, osm_id, name, category, latitude, longitude, geojson, metadata, validation_status);
+          FROM (VALUES %L) AS v(version_id, hub_id, external_id, osm_type, osm_id, name, category, latitude, longitude, geojson, metadata, validation_status);
         `,
           batch
         );
@@ -287,7 +292,8 @@ export class SpatialETLPipelineService {
     lockLease?: SyncLockLease | null,
     initialExpectedActiveVersionId?: string | null,
     hubCities?: string[],
-    customBbox?: BoundingBox
+    customBbox?: BoundingBox,
+    signal?: AbortSignal
   ): Promise<any> {
     const startTime = Date.now();
     const opContext = await operationalContextService.getOperationalContext();
@@ -331,7 +337,7 @@ export class SpatialETLPipelineService {
       `;
     }
 
-    const elements = await overpassApiClient.fetchOverpassData(query);
+    const elements = await overpassApiClient.fetchOverpassData(query, signal);
 
     await onProgress?.(30);
     await datasetSyncJobRepository.updateJob(jobId, {
@@ -503,7 +509,8 @@ export class SpatialETLPipelineService {
     onProgress?: (percent: number) => Promise<void>,
     lockLease?: SyncLockLease | null,
     initialExpectedActiveVersionId?: string | null,
-    customBbox?: BoundingBox
+    customBbox?: BoundingBox,
+    signal?: AbortSignal
   ): Promise<any> {
     const startTime = Date.now();
     const opContext = await operationalContextService.getOperationalContext();
@@ -545,8 +552,11 @@ export class SpatialETLPipelineService {
 
     let elements: any[] = [];
     try {
-      elements = await overpassApiClient.fetchOverpassData(query);
+      elements = await overpassApiClient.fetchOverpassData(query, signal);
     } catch (fetchErr: any) {
+      if (signal?.aborted || fetchErr.message?.includes("ABORTED")) {
+        throw fetchErr;
+      }
       console.warn("⚠️ [PIPELINE:PROTOCOL] Overpass API gagal atau timeout, mencoba fallback ke snapshot lokal 'jalan_protokol.geojson'...");
       const localGeoJsonPath = resolveProtocolGeoJsonPath();
       if (localGeoJsonPath && fs.existsSync(localGeoJsonPath)) {

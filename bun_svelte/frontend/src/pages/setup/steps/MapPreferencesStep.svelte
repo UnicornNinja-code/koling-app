@@ -24,34 +24,34 @@
   let { onNext, onPrev }: Props = $props();
 
   const basemaps = getBasemapProviders().filter(
-    (b) => ['openmaptiles-dark', 'openmaptiles-streets', 'openmaptiles-satellite', 'openmaptiles-outdoor', 'openmaptiles-light'].includes(b.id)
+    (b) => ['osm-standard', 'openmaptiles-dark', 'openmaptiles-streets', 'openmaptiles-satellite', 'openmaptiles-outdoor'].includes(b.id)
   );
 
   const basemapMetadata: Record<string, { label: string; desc: string; previewBg: string }> = {
+    'osm-standard': {
+      label: 'OpenStreetMap',
+      desc: 'Peta standar OSM global presisi (bawaan)',
+      previewBg: 'bg-[#1e293b]',
+    },
     'openmaptiles-dark': {
       label: 'Dark Matter',
-      desc: 'Latar gelap kontras tinggi (rekomendasi)',
+      desc: 'Latar gelap kontras tinggi (OpenMapTiles)',
       previewBg: 'bg-[#18181D]',
     },
     'openmaptiles-streets': {
       label: 'Streets Standard',
-      desc: 'Detail nama jalan & bangunan lengkap',
+      desc: 'Detail nama jalan & bangunan lengkap (OpenMapTiles)',
       previewBg: 'bg-[#1e293b]',
     },
     'openmaptiles-satellite': {
       label: 'Satelit Hybrid',
-      desc: 'Citra foto udara bumi dengan label jalan',
+      desc: 'Citra foto udara bumi & label (OpenMapTiles)',
       previewBg: 'bg-[#0f172a]',
     },
     'openmaptiles-outdoor': {
       label: 'Outdoor & Kontur',
-      desc: 'Detail elevasi & jalur aktivitas luar',
+      desc: 'Detail elevasi & jalur aktivitas luar (OpenMapTiles)',
       previewBg: 'bg-[#1c1917]',
-    },
-    'openmaptiles-light': {
-      label: 'Positron Light',
-      desc: 'Tampilan bersih minimalis latar terang',
-      previewBg: 'bg-[#f8fafc]',
     },
   };
 </script>
@@ -72,14 +72,40 @@
     </p>
   </div>
 
-  <!-- Visual Basemap Selector Cards -->
-  <div class="space-y-3">
+  <!-- 1. LIVE MAP PREVIEW PANEL AT THE VERY TOP (EXPANSIVE FULL WIDTH) -->
+  <div class="space-y-2">
     <div class="flex items-center justify-between">
       <h3 class="text-xs font-outfit-600 text-zinc-300 uppercase tracking-wide">
-        Pilih Tema Basemap Default
+        Pratinjau Interaktif Real-Time
       </h3>
-      <span class="text-[11px] font-mono text-[#FF634A]">
-        {basemapMetadata[setupStore.mapPreferences.basemapId]?.label || 'Dark Matter'}
+      <span class="text-[11px] text-[#FF634A] font-mono">
+        Tema Aktif: {basemapMetadata[setupStore.mapPreferences.basemapId]?.label || 'OpenStreetMap'}
+      </span>
+    </div>
+
+    <MapPreferencePreview
+      hubLat={setupStore.identity.centralHubLat}
+      hubLng={setupStore.identity.centralHubLng}
+      hubName={setupStore.identity.centralHubName}
+      radiusKm={setupStore.operationalPolicy.operationalRadiusKm}
+      basemapId={setupStore.mapPreferences.basemapId}
+      zoomLevel={setupStore.mapPreferences.defaultZoom}
+      showHubRadius={setupStore.mapPreferences.showHubRadius}
+      showProtocolRoads={setupStore.mapPreferences.showProtocolRoads}
+      showPoi={setupStore.mapPreferences.showPoi}
+      showWeather={setupStore.mapPreferences.showWeather}
+    />
+  </div>
+
+  <!-- 2. VISUAL BASEMAP THEME SELECTOR CARDS -->
+  <div class="space-y-3 pt-2">
+    <div class="flex items-center justify-between">
+      <h3 class="text-xs font-outfit-600 text-zinc-300 uppercase tracking-wide flex items-center gap-1.5">
+        <Map class="w-3.5 h-3.5 text-[#FF634A]" />
+        <span>Pilih Tema Basemap Default</span>
+      </h3>
+      <span class="text-[11px] text-zinc-400">
+        Klik kartu untuk langsung mengubah tampilan peta di atas
       </span>
     </div>
 
@@ -117,47 +143,23 @@
     </div>
   </div>
 
-  <!-- Live Map Preview & Layer Preferences Grid -->
-  <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-    <!-- Live Leaflet Preview Map (7 Cols) -->
-    <div class="lg:col-span-7 space-y-2">
-      <div class="flex items-center justify-between">
-        <h3 class="text-xs font-outfit-600 text-zinc-300 uppercase tracking-wide">
-          Pratinjau Interaktif Real-Time
-        </h3>
-        <span class="text-[11px] text-zinc-400">Live Render</span>
-      </div>
-
-      <MapPreferencePreview
-        hubLat={setupStore.identity.centralHubLat}
-        hubLng={setupStore.identity.centralHubLng}
-        hubName={setupStore.identity.centralHubName}
-        radiusKm={setupStore.operationalPolicy.operationalRadiusKm}
-        basemapId={setupStore.mapPreferences.basemapId}
-        zoomLevel={setupStore.mapPreferences.defaultZoom}
-        showHubRadius={setupStore.mapPreferences.showHubRadius}
-        showProtocolRoads={setupStore.mapPreferences.showProtocolRoads}
-        showPoi={setupStore.mapPreferences.showPoi}
-        showWeather={setupStore.mapPreferences.showWeather}
-      />
-    </div>
-
-    <!-- Startup Layer Controls & Zoom (5 Cols) -->
-    <div class="lg:col-span-5 space-y-4 bg-[#18181D] border border-[#272730] p-4 rounded-2xl">
-      <div class="border-b border-[#24242A] pb-3">
+  <!-- 3. STARTUP LAYER CONTROLS & ZOOM SETTINGS (2-COLUMN GRID) -->
+  <div class="grid grid-cols-1 md:grid-cols-12 gap-4 pt-2">
+    <!-- Zoom Setting (5 Cols) -->
+    <div class="md:col-span-5 space-y-3 bg-[#18181D] border border-[#272730] p-4 rounded-2xl flex flex-col justify-between">
+      <div class="space-y-1">
         <h3 class="text-xs font-outfit-600 text-zinc-300 uppercase tracking-wide flex items-center gap-2">
-          <Layers class="w-4 h-4 text-[#FF634A]" />
-          <span>Layer Aktif Saat Membuka Sistem</span>
+          <Compass class="w-4 h-4 text-[#FF634A]" />
+          <span>Level Zoom Awal Startup</span>
         </h3>
-        <p class="text-[11px] text-zinc-400 mt-0.5">
-          Tentukan elemen peta yang langsung ditampilkan saat startup.
+        <p class="text-[11px] text-zinc-400">
+          Tingkat pembesaran kamera peta saat sistem pertama kali dibuka.
         </p>
       </div>
 
-      <!-- Zoom Slider -->
-      <div class="space-y-1.5 bg-[#121214] p-3 rounded-xl border border-[#24242A]">
+      <div class="space-y-2 bg-[#121214] p-3.5 rounded-xl border border-[#24242A]">
         <div class="flex items-center justify-between text-xs">
-          <span class="text-zinc-300 font-outfit-600">Level Zoom Awal:</span>
+          <span class="text-zinc-300 font-outfit-600">Level Zoom:</span>
           <span class="font-mono text-[#FF634A] font-outfit-700">{setupStore.mapPreferences.defaultZoom}x</span>
         </div>
         <input
@@ -174,70 +176,82 @@
           <span>16x (Jalan)</span>
         </div>
       </div>
+    </div>
 
-      <!-- Layer Toggles -->
-      <div class="space-y-2.5">
+    <!-- Layer Toggles (7 Cols) -->
+    <div class="md:col-span-7 space-y-3 bg-[#18181D] border border-[#272730] p-4 rounded-2xl">
+      <div class="border-b border-[#24242A] pb-2">
+        <h3 class="text-xs font-outfit-600 text-zinc-300 uppercase tracking-wide flex items-center gap-2">
+          <Layers class="w-4 h-4 text-[#FF634A]" />
+          <span>Layer Aktif Saat Membuka Sistem</span>
+        </h3>
+        <p class="text-[11px] text-zinc-400 mt-0.5">
+          Pilih elemen overlay peta yang otomatis tampil saat startup.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         <!-- Hub Radius Toggle -->
         <label class="flex items-center justify-between p-2.5 rounded-xl bg-[#121214] border border-[#24242A] hover:border-zinc-700 cursor-pointer transition-all">
-          <div class="flex items-center gap-2.5">
-            <Radio class="w-4 h-4 text-[#FF634A]" />
+          <div class="flex items-center gap-2">
+            <Radio class="w-4 h-4 text-[#FF634A] shrink-0" />
             <div>
-              <p class="text-xs font-outfit-600 text-white">Lingkaran Radius Hub</p>
-              <p class="text-[10px] text-zinc-400">Batas jangkauan operasional {setupStore.operationalPolicy.operationalRadiusKm} KM</p>
+              <p class="text-xs font-outfit-600 text-white">Radius Hub</p>
+              <p class="text-[10px] text-zinc-400">{setupStore.operationalPolicy.operationalRadiusKm} KM</p>
             </div>
           </div>
           <input
             type="checkbox"
             bind:checked={setupStore.mapPreferences.showHubRadius}
-            class="w-4 h-4 rounded accent-[#FF634A] cursor-pointer"
+            class="w-4 h-4 rounded accent-[#FF634A] cursor-pointer shrink-0"
           />
         </label>
 
         <!-- Protocol Roads Toggle -->
         <label class="flex items-center justify-between p-2.5 rounded-xl bg-[#121214] border border-[#24242A] hover:border-zinc-700 cursor-pointer transition-all">
-          <div class="flex items-center gap-2.5">
-            <Map class="w-4 h-4 text-amber-400" />
+          <div class="flex items-center gap-2">
+            <Map class="w-4 h-4 text-amber-400 shrink-0" />
             <div>
-              <p class="text-xs font-outfit-600 text-white">Jalan Arteri & Protokol</p>
-              <p class="text-[10px] text-zinc-400">Garis jalan utama dan koridor lalu lintas</p>
+              <p class="text-xs font-outfit-600 text-white">Jalan Protokol</p>
+              <p class="text-[10px] text-zinc-400">Koridor arteri</p>
             </div>
           </div>
           <input
             type="checkbox"
             bind:checked={setupStore.mapPreferences.showProtocolRoads}
-            class="w-4 h-4 rounded accent-[#FF634A] cursor-pointer"
+            class="w-4 h-4 rounded accent-[#FF634A] cursor-pointer shrink-0"
           />
         </label>
 
-        <!-- POI Layer Toggle (Default OFF to avoid clutter) -->
+        <!-- POI Layer Toggle -->
         <label class="flex items-center justify-between p-2.5 rounded-xl bg-[#121214] border border-[#24242A] hover:border-zinc-700 cursor-pointer transition-all">
-          <div class="flex items-center gap-2.5">
-            <Layers class="w-4 h-4 text-blue-400" />
+          <div class="flex items-center gap-2">
+            <Layers class="w-4 h-4 text-blue-400 shrink-0" />
             <div>
-              <p class="text-xs font-outfit-600 text-white">Marker Titik POI</p>
-              <p class="text-[10px] text-zinc-400">Disarankan OFF saat awal agar peta tidak padat</p>
+              <p class="text-xs font-outfit-600 text-white">Marker POI</p>
+              <p class="text-[10px] text-zinc-400">Titik acuan penting</p>
             </div>
           </div>
           <input
             type="checkbox"
             bind:checked={setupStore.mapPreferences.showPoi}
-            class="w-4 h-4 rounded accent-[#FF634A] cursor-pointer"
+            class="w-4 h-4 rounded accent-[#FF634A] cursor-pointer shrink-0"
           />
         </label>
 
         <!-- Weather Overlay Toggle -->
         <label class="flex items-center justify-between p-2.5 rounded-xl bg-[#121214] border border-[#24242A] hover:border-zinc-700 cursor-pointer transition-all">
-          <div class="flex items-center gap-2.5">
-            <CloudSun class="w-4 h-4 text-emerald-400" />
+          <div class="flex items-center gap-2">
+            <CloudSun class="w-4 h-4 text-emerald-400 shrink-0" />
             <div>
-              <p class="text-xs font-outfit-600 text-white">Indikator Cuaca Wilayah</p>
-              <p class="text-[10px] text-zinc-400">Overlay suhu dan kondisi hujan Open-Meteo</p>
+              <p class="text-xs font-outfit-600 text-white">Cuaca Wilayah</p>
+              <p class="text-[10px] text-zinc-400">Open-Meteo</p>
             </div>
           </div>
           <input
             type="checkbox"
             bind:checked={setupStore.mapPreferences.showWeather}
-            class="w-4 h-4 rounded accent-[#FF634A] cursor-pointer"
+            class="w-4 h-4 rounded accent-[#FF634A] cursor-pointer shrink-0"
           />
         </label>
       </div>

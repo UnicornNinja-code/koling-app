@@ -78,20 +78,25 @@ export class POIRepository {
   }
 
   /**
-   * Fetch all Master Data POIs (with active categories)
+   * Fetch all Master Data POIs (with active categories, optionally scoped by hub_id)
    */
-  public async findAll(): Promise<any[]> {
+  public async findAll(hubId?: string | null): Promise<any[]> {
     const query = `
-      SELECT p.* 
+      SELECT 
+        p.*,
+        p.zone_id,
+        p.hub_id,
+        COALESCE(p.is_clustered, false) AS is_clustered
       FROM pois p
       LEFT JOIN poi_categories c ON p.category = c.name
       WHERE (c.is_active IS NULL OR c.is_active = true)
         AND p.status = 'APPROVED'
         AND (p.is_active = true OR p.is_active IS NULL)
         AND (p.operational_status = 'ELIGIBLE' OR p.operational_status IS NULL)
+        AND ($1::varchar IS NULL OR p.hub_id = $1 OR p.hub_id IS NULL)
       ORDER BY p.name ASC;
     `;
-    const { rows } = await this.pool.query(query);
+    const { rows } = await this.pool.query(query, [hubId || null]);
     return rows;
   }
 

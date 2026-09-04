@@ -9,6 +9,7 @@
     lng: number;
     address?: string;
     onLocationChange?: (info: { lat: number; lng: number; displayName: string; city?: string; timezone?: string }) => void;
+    onClear?: () => void;
   }
 
   let {
@@ -16,6 +17,7 @@
     lng = $bindable(0),
     address = $bindable(''),
     onLocationChange,
+    onClear,
   }: Props = $props();
 
   let mapContainer: HTMLDivElement;
@@ -25,7 +27,7 @@
   let isMapReady = $state(false);
 
   // Active basemap (Default: OpenStreetMap Standar)
-  let activeBasemapId = $state<'osm-standard' | 'openmaptiles-dark' | 'openmaptiles-satellite'>('osm-standard');
+  let activeBasemapId = $state<'osm-standard' | 'openmaptiles-streets' | 'openmaptiles-dark' | 'openmaptiles-satellite'>('osm-standard');
   let isBasemapMenuOpen = $state(false);
 
   // Search & Geocoding state
@@ -141,7 +143,7 @@
   /**
    * Switch basemap layer dynamically
    */
-  const switchBasemap = (providerId: 'osm-standard' | 'openmaptiles-dark' | 'openmaptiles-satellite') => {
+  const switchBasemap = (providerId: 'osm-standard' | 'openmaptiles-streets' | 'openmaptiles-dark' | 'openmaptiles-satellite') => {
     if (!mapInstance) return;
     const L = (window as any).L;
     if (!L) return;
@@ -477,14 +479,24 @@
         </button>
 
         {#if isBasemapMenuOpen}
-          <div class="absolute right-0 top-full mt-1 w-44 bg-[#18181D]/95 border border-[#272730] rounded-xl shadow-2xl backdrop-blur-xl p-1.5 space-y-1 z-[500]">
+          <div class="absolute right-0 top-full mt-1 w-48 bg-[#18181D]/95 border border-[#272730] rounded-xl shadow-2xl backdrop-blur-xl p-1.5 space-y-1 z-[500]">
             <button
               type="button"
               onclick={() => switchBasemap('osm-standard')}
               class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors cursor-pointer {activeBasemapId === 'osm-standard' ? 'bg-[#FF634A]/15 text-[#FF8573]' : 'text-zinc-300 hover:bg-white/5'}"
             >
-              <span>OpenStreetMap</span>
+              <span>OpenStreetMap (Bawaan)</span>
               {#if activeBasemapId === 'osm-standard'}
+                <Check class="w-3 h-3 text-[#FF634A]" />
+              {/if}
+            </button>
+            <button
+              type="button"
+              onclick={() => switchBasemap('openmaptiles-streets')}
+              class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors cursor-pointer {activeBasemapId === 'openmaptiles-streets' ? 'bg-[#FF634A]/15 text-[#FF8573]' : 'text-zinc-300 hover:bg-white/5'}"
+            >
+              <span>Streets (OpenMapTiles)</span>
+              {#if activeBasemapId === 'openmaptiles-streets'}
                 <Check class="w-3 h-3 text-[#FF634A]" />
               {/if}
             </button>
@@ -493,7 +505,7 @@
               onclick={() => switchBasemap('openmaptiles-dark')}
               class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors cursor-pointer {activeBasemapId === 'openmaptiles-dark' ? 'bg-[#FF634A]/15 text-[#FF8573]' : 'text-zinc-300 hover:bg-white/5'}"
             >
-              <span>Dark Matter</span>
+              <span>Dark Matter (OpenMapTiles)</span>
               {#if activeBasemapId === 'openmaptiles-dark'}
                 <Check class="w-3 h-3 text-[#FF634A]" />
               {/if}
@@ -503,7 +515,7 @@
               onclick={() => switchBasemap('openmaptiles-satellite')}
               class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors cursor-pointer {activeBasemapId === 'openmaptiles-satellite' ? 'bg-[#FF634A]/15 text-[#FF8573]' : 'text-zinc-300 hover:bg-white/5'}"
             >
-              <span>Satelit Hybrid</span>
+              <span>Satelit (OpenMapTiles)</span>
               {#if activeBasemapId === 'openmaptiles-satellite'}
                 <Check class="w-3 h-3 text-[#FF634A]" />
               {/if}
@@ -525,20 +537,38 @@
     </div>
   </div>
 
-  <!-- Realtime Coordinate & Sync Badge Bar -->
-  <div class="flex items-center justify-between px-3.5 py-2 bg-[#18181D] border border-[#272730] rounded-xl text-xs">
+  <!-- Realtime Coordinate & Sync Badge Bar with Clear Button inside -->
+  <div class="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 bg-[#18181D] border border-[#272730] rounded-xl text-xs">
     <div class="flex items-center gap-2">
       <span class="w-2 h-2 rounded-full {lat !== 0 && lng !== 0 ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}"></span>
       <span class="text-[11px] text-zinc-400">Koordinat Terpilih:</span>
+      {#if lat !== 0 && lng !== 0}
+        <span class="font-mono text-[11px] text-zinc-200 tracking-tight font-medium">
+          {lat.toFixed(6)}, {lng.toFixed(6)}
+        </span>
+      {:else}
+        <span class="text-[11px] text-amber-300/80 italic">
+          Belum ditentukan (klik peta atau gunakan pencarian)
+        </span>
+      {/if}
     </div>
-    {#if lat !== 0 && lng !== 0}
-      <span class="font-mono text-[11px] text-zinc-200 tracking-tight">
-        {lat.toFixed(6)}, {lng.toFixed(6)}
-      </span>
-    {:else}
-      <span class="text-[11px] text-amber-300/80 italic">
-        Belum ditentukan (klik peta atau gunakan pencarian)
-      </span>
+
+    {#if (lat !== 0 && lng !== 0) || address}
+      <button
+        type="button"
+        onclick={() => {
+          if (onClear) {
+            onClear();
+          } else {
+            clearLocation();
+          }
+        }}
+        class="px-3 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:border-rose-500/50 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer ml-auto"
+        title="Bersihkan pin peta dan seluruh kolom input lokasi"
+      >
+        <RotateCcw class="w-3.5 h-3.5 text-rose-400" />
+        <span>Clear Pin & Lokasi</span>
+      </button>
     {/if}
   </div>
 </div>

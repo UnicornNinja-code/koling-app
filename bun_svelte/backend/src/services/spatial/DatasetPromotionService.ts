@@ -100,16 +100,17 @@ export class DatasetPromotionService {
         // Step 4a: Upsert new and updated records from staging into production table
         const upsertPoiSql = `
           INSERT INTO pois (
-            version_id, external_id, osm_type, osm_id, logical_poi_id, name, category,
-            latitude, longitude, geom, metadata, status, approval_status, operational_status, is_active, updated_at
+            version_id, hub_id, external_id, osm_type, osm_id, logical_poi_id, name, category,
+            latitude, longitude, geom, metadata, status, approval_status, operational_status, zone_id, is_clustered, is_active, updated_at
           )
           SELECT 
-            s.version_id, s.external_id, s.osm_type, s.osm_id, gen_random_uuid(), s.name, s.category,
-            s.latitude, s.longitude, s.geom, s.metadata, 'APPROVED', 'APPROVED', 'ELIGIBLE', true, CURRENT_TIMESTAMP
+            s.version_id, s.hub_id, s.external_id, s.osm_type, s.osm_id, gen_random_uuid(), s.name, s.category,
+            s.latitude, s.longitude, s.geom, s.metadata, 'APPROVED', 'APPROVED', 'ELIGIBLE', NULL, false, true, CURRENT_TIMESTAMP
           FROM pois_staging s
           WHERE s.version_id = $1 AND s.validation_status != 'INVALID'
           ON CONFLICT (external_id) DO UPDATE SET
             version_id = EXCLUDED.version_id,
+            hub_id = COALESCE(EXCLUDED.hub_id, pois.hub_id),
             name = EXCLUDED.name,
             category = EXCLUDED.category,
             latitude = EXCLUDED.latitude,

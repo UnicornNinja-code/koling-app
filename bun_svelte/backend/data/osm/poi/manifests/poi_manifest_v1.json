@@ -1,10 +1,15 @@
 {
   "dataset": "poi",
   "version": 1,
-  "source": "INITIAL_DATABASE_BASELINE",
-  "fetched_at": "2026-09-02T03:58:21.609Z",
-  "feature_count": 3,
-  "checksum_sha256": "4eaa59fde985eae435b7eccc4d97dd81ece0525dcc29365ae22e81fdcfcf8d57",
+  "source": "OpenStreetMap Overpass API",
+  "fetched_at": "2026-09-04T03:26:27.235Z",
+  "feature_count": 485,
+  "checksum_sha256": "6a47c451a848722ccefd498014a19715bd95fe92b05fdd2cab6260742ec9a897",
   "validation_status": "VALIDATED",
-  "status": "ACTIVE"
+  "status": "ACTIVE",
+  "metadata": {
+    "city": "Tuban",
+    "raw_elements": 547,
+    "duplicates_filtered": 0
+  }
 }

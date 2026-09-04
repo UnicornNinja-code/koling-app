@@ -163,9 +163,10 @@ export const mapService = {
   searchLocation: async (query: string): Promise<GeocodeResult[]> => {
     if (!query || query.trim().length < 2) return [];
     try {
+      const nominatimBase = (import.meta.env.VITE_NOMINATIM_URL || 'https://nominatim.openstreetmap.org').replace(/\/$/, '');
       const cleanQuery = encodeURIComponent(query.trim());
       const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${cleanQuery}&countrycodes=id&viewbox=95.0,-11.0,141.0,6.0&bounded=1&limit=6&addressdetails=1`
+        `${nominatimBase}/search?format=json&q=${cleanQuery}&countrycodes=id&viewbox=95.0,-11.0,141.0,6.0&bounded=1&limit=6&addressdetails=1`
       );
       if (!res.ok) return [];
       const data = await res.json();
@@ -192,8 +193,9 @@ export const mapService = {
    */
   reverseGeocode: async (lat: number, lon: number): Promise<{ displayName: string; city?: string; addressDetails?: any } | null> => {
     try {
+      const nominatimBase = (import.meta.env.VITE_NOMINATIM_URL || 'https://nominatim.openstreetmap.org').replace(/\/$/, '');
       const res = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`
+        `${nominatimBase}/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`
       );
       if (!res.ok) return null;
       const data = await res.json();

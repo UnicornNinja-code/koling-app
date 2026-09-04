@@ -4,6 +4,7 @@
  */
 
 import { setupService, type SetupStatusResponse, type InitialFleetUnit } from '../../services/setupService';
+import { getSocket } from '../socket';
 
 export interface SyncTaskItem {
   id: string;
@@ -48,7 +49,7 @@ class SetupStore {
 
   // STEP 04: Preferensi Peta
   mapPreferences = $state({
-    basemapId: 'openmaptiles-dark',
+    basemapId: 'osm-standard',
     defaultZoom: 13,
     showHubRadius: true,
     showProtocolRoads: true,
@@ -83,49 +84,37 @@ class SetupStore {
     details: <any[]>[],
   });
 
-  // STEP 06: Sinkronisasi Data Pipeline Checklist
-  sync = $state<{
-    status: 'IDLE' | 'RUNNING' | 'COMPLETED' | 'FAILED';
-    tasks: SyncTaskItem[];
+  // STEP 06: Distributed Spatial ETL & State-Guarded Sync Pipeline
+  syncState = $state<'IDLE' | 'DRAFT' | 'LOCKED_SYNCING' | 'READY_FOR_REVIEW' | 'COMPLETED' | 'FAILED' | 'ABORTED'>('IDLE');
+  syncError = $state<string | null>(null);
+
+  datasets = $state<{
+    toll_roads: { status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED'; progress: number; count: number; version: number | null; error?: string };
+    protocol_roads: { status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED'; progress: number; count: number; version: number | null; error?: string };
+    poi: { status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED'; progress: number; count: number; version: number | null; error?: string };
   }>({
-    status: 'IDLE',
-    tasks: [
-      {
-        id: 'conn',
-        label: 'Inisialisasi Koneksi Geospasial',
-        desc: 'Verifikasi integrasi PostGIS dan aksesibilitas peta Leaflet',
-        status: 'PENDING',
-      },
-      {
-        id: 'poi',
-        label: 'Ekstraksi & Pemetaan POI Utama',
-        desc: 'Mengambil titik POI (Edukasi, Kuliner, Kantor, Pasar, dll.)',
-        status: 'PENDING',
-      },
-      {
-        id: 'roads',
-        label: 'Pemetaan Arteri & Jalan Protokol',
-        desc: 'Memvalidasi koridor jalur operasional dan regulasi jalan bebas hambatan',
-        status: 'PENDING',
-      },
-      {
-        id: 'geom',
-        label: 'Validasi Geometri & Proyeksi Spasial',
-        desc: 'Normalisasi koordinat WGS84 ke sistem referensi PostGIS (SRID 4326)',
-        status: 'PENDING',
-      },
-      {
-        id: 'cache',
-        label: 'Penyimpanan & Indeksasi Spasial',
-        desc: 'Membangun index spasial R-Tree dan cache agregasi data',
-        status: 'PENDING',
-      },
-    ],
+    toll_roads: { status: 'PENDING', progress: 0, count: 0, version: null },
+    protocol_roads: { status: 'PENDING', progress: 0, count: 0, version: null },
+    poi: { status: 'PENDING', progress: 0, count: 0, version: null },
   });
 
-  // Derived Helpers
   isCompleted = $derived(this.status === 'COMPLETED');
   isSetupRequired = $derived(this.status === 'REQUIRED' || this.status === 'IN_PROGRESS');
+  isSyncingLocked = $derived(this.syncState === 'LOCKED_SYNCING');
+  isAllDatasetsReady = $derived(
+    this.datasets.toll_roads.status === 'COMPLETED' &&
+    this.datasets.protocol_roads.status === 'COMPLETED' &&
+    this.datasets.poi.status === 'COMPLETED'
+  );
+  hasFailedDatasets = $derived(
+    this.datasets.toll_roads.status === 'FAILED' ||
+    this.datasets.protocol_roads.status === 'FAILED' ||
+    this.datasets.poi.status === 'FAILED' ||
+    this.syncState === 'FAILED'
+  );
+  overallSyncProgress = $derived(
+    Math.round((this.datasets.toll_roads.progress + this.datasets.protocol_roads.progress + this.datasets.poi.progress) / 3)
+  );
 
   /**
    * Fetch initialization status from PostgreSQL backend
@@ -259,6 +248,195 @@ class SetupStore {
     } catch (err) {
       console.error('[SetupStore] Gagal menerapkan konfigurasi sistem:', err);
       this.status = 'IN_PROGRESS';
+      return false;
+    }
+  }
+
+  /**
+   * Initialize Socket.IO listeners for real-time spatial sync progress
+   */
+  private socketInitialized = false;
+  initSocketListeners(): void {
+    if (this.socketInitialized) return;
+    const socket = getSocket();
+
+    socket.on('SPATIAL_SYNC_PROGRESS', (data: any) => {
+      const type = (data.datasetType || '').toLowerCase();
+      if (type.includes('toll')) {
+        this.datasets.toll_roads.progress = data.progress;
+        this.datasets.toll_roads.status = data.progress >= 100 ? 'COMPLETED' : 'PROCESSING';
+      } else if (type.includes('road') || type.includes('protocol')) {
+        this.datasets.protocol_roads.progress = data.progress;
+        this.datasets.protocol_roads.status = data.progress >= 100 ? 'COMPLETED' : 'PROCESSING';
+      } else if (type.includes('poi')) {
+        this.datasets.poi.progress = data.progress;
+        this.datasets.poi.status = data.progress >= 100 ? 'COMPLETED' : 'PROCESSING';
+      }
+    });
+
+    socket.on('SPATIAL_SYNC_DATASET_COMPLETED', (data: any) => {
+      const type = (data.datasetType || '').toLowerCase();
+      if (type.includes('toll')) {
+        this.datasets.toll_roads.status = 'COMPLETED';
+        this.datasets.toll_roads.progress = 100;
+        this.datasets.toll_roads.count = data.featuresCount || 0;
+        this.datasets.toll_roads.version = data.version;
+      } else if (type.includes('road') || type.includes('protocol')) {
+        this.datasets.protocol_roads.status = 'COMPLETED';
+        this.datasets.protocol_roads.progress = 100;
+        this.datasets.protocol_roads.count = data.featuresCount || 0;
+        this.datasets.protocol_roads.version = data.version;
+      } else if (type.includes('poi')) {
+        this.datasets.poi.status = 'COMPLETED';
+        this.datasets.poi.progress = 100;
+        this.datasets.poi.count = data.featuresCount || 0;
+        this.datasets.poi.version = data.version;
+      }
+    });
+
+    socket.on('SPATIAL_SYNC_DATASET_FAILED', (data: any) => {
+      const type = (data.datasetType || '').toLowerCase();
+      if (type.includes('toll')) {
+        this.datasets.toll_roads.status = 'FAILED';
+        this.datasets.toll_roads.error = data.error;
+      } else if (type.includes('road') || type.includes('protocol')) {
+        this.datasets.protocol_roads.status = 'FAILED';
+        this.datasets.protocol_roads.error = data.error;
+      } else if (type.includes('poi')) {
+        this.datasets.poi.status = 'FAILED';
+        this.datasets.poi.error = data.error;
+      }
+      this.syncState = 'FAILED';
+      this.syncError = data.error || 'Terjadi kesalahan pada salah satu proses ETL.';
+    });
+
+    socket.on('SPATIAL_SYNC_ALL_COMPLETED', (data: any) => {
+      if (data.success) {
+        this.syncState = 'READY_FOR_REVIEW';
+        this.datasets.toll_roads.status = 'COMPLETED';
+        this.datasets.toll_roads.progress = 100;
+        this.datasets.protocol_roads.status = 'COMPLETED';
+        this.datasets.protocol_roads.progress = 100;
+        this.datasets.poi.status = 'COMPLETED';
+        this.datasets.poi.progress = 100;
+      }
+    });
+
+    socket.on('SPATIAL_SYNC_ABORTED', (data: any) => {
+      this.syncState = 'ABORTED';
+      this.syncError = data.message || 'Sinkronisasi dibatalkan.';
+    });
+
+    this.socketInitialized = true;
+  }
+
+  /**
+   * Fetch current spatial sync status from backend
+   */
+  async fetchSpatialSyncStatus(): Promise<void> {
+    try {
+      const res = await setupService.getSpatialSyncStatus();
+      if (res) {
+        const rawFsm = typeof res.fsmState === 'object' ? res.fsmState?.value : res.fsmState;
+        this.syncState = rawFsm || (res.allReady ? 'READY_FOR_REVIEW' : 'IDLE');
+
+        if (res.datasets?.toll_roads?.active) {
+          this.datasets.toll_roads.status = 'COMPLETED';
+          this.datasets.toll_roads.progress = 100;
+          this.datasets.toll_roads.count = res.datasets.toll_roads.feature_count ?? 0;
+          this.datasets.toll_roads.version = res.datasets.toll_roads.version;
+        }
+        if (res.datasets?.protocol_roads?.active) {
+          this.datasets.protocol_roads.status = 'COMPLETED';
+          this.datasets.protocol_roads.progress = 100;
+          this.datasets.protocol_roads.count = res.datasets.protocol_roads.feature_count ?? 0;
+          this.datasets.protocol_roads.version = res.datasets.protocol_roads.version;
+        }
+        if (res.datasets?.poi?.active) {
+          this.datasets.poi.status = 'COMPLETED';
+          this.datasets.poi.progress = 100;
+          this.datasets.poi.count = res.datasets.poi.feature_count ?? 0;
+          this.datasets.poi.version = res.datasets.poi.version;
+        }
+        if (res.allReady) {
+          this.syncState = 'READY_FOR_REVIEW';
+        }
+      }
+    } catch (err: any) {
+      console.warn('[SetupStore] Gagal memuat status sinkronisasi:', err.message);
+    }
+  }
+
+  /**
+   * Start full FlowProducer pipeline
+   */
+  async startSpatialSync(): Promise<boolean> {
+    this.initSocketListeners();
+    this.syncState = 'LOCKED_SYNCING';
+    this.syncError = null;
+    this.datasets.toll_roads = { status: 'PROCESSING', progress: 5, count: 0, version: null };
+    this.datasets.protocol_roads = { status: 'PROCESSING', progress: 5, count: 0, version: null };
+    this.datasets.poi = { status: 'PROCESSING', progress: 5, count: 0, version: null };
+
+    try {
+      await setupService.startSpatialSync();
+      return true;
+    } catch (err: any) {
+      this.syncState = 'FAILED';
+      this.syncError = err.response?.data?.msg || err.message || 'Gagal memulai sinkronisasi.';
+      return false;
+    }
+  }
+
+  /**
+   * Partial retry for a single dataset
+   */
+  async retryDataset(datasetType: 'TOLL_ROADS' | 'PROTOCOL_ROADS' | 'POI'): Promise<boolean> {
+    this.initSocketListeners();
+    this.syncState = 'LOCKED_SYNCING';
+    if (datasetType === 'TOLL_ROADS') {
+      this.datasets.toll_roads = { status: 'PROCESSING', progress: 5, count: 0, version: null };
+    } else if (datasetType === 'PROTOCOL_ROADS') {
+      this.datasets.protocol_roads = { status: 'PROCESSING', progress: 5, count: 0, version: null };
+    } else if (datasetType === 'POI') {
+      this.datasets.poi = { status: 'PROCESSING', progress: 5, count: 0, version: null };
+    }
+
+    try {
+      await setupService.retryPartialSpatialSync(datasetType);
+      return true;
+    } catch (err: any) {
+      this.syncState = 'FAILED';
+      this.syncError = err.response?.data?.msg || err.message || `Gagal retry dataset ${datasetType}.`;
+      return false;
+    }
+  }
+
+  /**
+   * Retry all failed datasets
+   */
+  async retryFailedOnly(): Promise<void> {
+    if (this.datasets.toll_roads.status === 'FAILED') {
+      await this.retryDataset('TOLL_ROADS');
+    }
+    if (this.datasets.protocol_roads.status === 'FAILED') {
+      await this.retryDataset('PROTOCOL_ROADS');
+    }
+    if (this.datasets.poi.status === 'FAILED') {
+      await this.retryDataset('POI');
+    }
+  }
+
+  /**
+   * Abort running sync
+   */
+  async abortSpatialSync(): Promise<boolean> {
+    try {
+      await setupService.abortSpatialSync();
+      this.syncState = 'ABORTED';
+      return true;
+    } catch (err: any) {
+      console.error('[SetupStore] Gagal membatalkan sinkronisasi:', err);
       return false;
     }
   }

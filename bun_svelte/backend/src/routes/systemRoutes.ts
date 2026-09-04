@@ -10,9 +10,14 @@ import {
   getSetupStatus,
   saveSetupStep,
   applySystemSetup,
+  startSpatialSyncFlow,
+  retryPartialSpatialSync,
+  abortSpatialSync,
+  getSpatialSyncStatus,
 } from "../controllers/systemSettingController.js";
 import { authenticateToken } from "../middlewares/authMiddleware.js";
 import { checkRole } from "../middlewares/roleMiddleware.js";
+import { checkSetupFsmMutationLock } from "../middlewares/setupFsmMiddleware.js";
 
 const router = express.Router();
 
@@ -32,6 +37,7 @@ router.put(
   "/settings",
   authenticateToken,
   checkRole(["SUPERADMIN", "MANAGEMENT"]),
+  checkSetupFsmMutationLock,
   updateSystemSettings
 );
 
@@ -46,6 +52,7 @@ router.post(
   "/setup-step",
   authenticateToken,
   checkRole(["SUPERADMIN"]),
+  checkSetupFsmMutationLock,
   saveSetupStep
 );
 
@@ -54,6 +61,34 @@ router.post(
   authenticateToken,
   checkRole(["SUPERADMIN"]),
   applySystemSetup
+);
+
+// Distributed Spatial Sync Pipeline & Flow Control Endpoints
+router.post(
+  "/sync/start",
+  authenticateToken,
+  checkRole(["SUPERADMIN"]),
+  startSpatialSyncFlow
+);
+
+router.post(
+  "/sync/retry-partial",
+  authenticateToken,
+  checkRole(["SUPERADMIN"]),
+  retryPartialSpatialSync
+);
+
+router.post(
+  "/sync/abort",
+  authenticateToken,
+  checkRole(["SUPERADMIN"]),
+  abortSpatialSync
+);
+
+router.get(
+  "/sync/status",
+  authenticateToken,
+  getSpatialSyncStatus
 );
 
 export default router;

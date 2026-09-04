@@ -299,21 +299,6 @@
         <p class="text-xs sm:text-sm text-zinc-400 leading-relaxed">
           Pilih lokasi pada peta atau cari alamat di bawah. Kota operasional terhubung otomatis.
         </p>
-
-        <!-- Dynamic Clear Pin & Fields Floating Widget (Appears when any data is entered) -->
-        {#if hasLocationData}
-          <div class="pt-2 flex justify-center animate-in fade-in zoom-in-95 duration-200">
-            <button
-              type="button"
-              onclick={handleClearLocationData}
-              class="px-4 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:border-rose-500/50 rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-rose-950/30 transition-all cursor-pointer"
-              title="Bersihkan pin peta dan seluruh kolom input lokasi"
-            >
-              <RotateCcw class="w-3.5 h-3.5 text-rose-400" />
-              <span>Clear Pin & Kolom Lokasi</span>
-            </button>
-          </div>
-        {/if}
       </div>
 
       <!-- MAP PANEL AT THE VERY TOP -->
@@ -324,6 +309,7 @@
           bind:lng={setupStore.identity.centralHubLng}
           bind:address={setupStore.identity.centralHubAddress}
           onLocationChange={handleLocationPicked}
+          onClear={handleClearLocationData}
         />
       </div>
 

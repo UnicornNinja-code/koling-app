@@ -66,6 +66,14 @@ export class DatasetSyncJobRepository {
       INSERT INTO dataset_sync_jobs (
         job_id, dataset_type, triggered_by, target_version, previous_version, status, progress
       ) VALUES ($1, $2, $3, $4, $5, 'PENDING', 0)
+      ON CONFLICT (job_id) DO UPDATE SET
+        status = 'PENDING',
+        progress = 0,
+        error_details = NULL,
+        started_at = NOW(),
+        completed_at = NULL,
+        target_version = EXCLUDED.target_version,
+        triggered_by = EXCLUDED.triggered_by
       RETURNING *;
     `;
     const { rows } = await this.pool.query(query, [

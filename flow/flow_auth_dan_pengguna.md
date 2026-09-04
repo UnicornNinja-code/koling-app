@@ -38,14 +38,14 @@ Dokumen ini menjelaskan alur autentikasi pengguna, aktivasi akun baru, pemulihan
 10. Backend memperbarui kolom `last_login` pengguna dan menyimpan log login di `audit_logs`.
 11. Frontend menerima response sukses `200 OK`, menyimpan token ke `localStorage`, dan mengarahkan pengguna ke halaman dashboard utama.
 
-### D. Alternative Path 1: Masuk Menggunakan Google OAuth 2.0 (SSO)
+### D. Alternative Path 1: Masuk Menggunakan Google OAuth 2.0 (SSO) <- masih dinonaktifkan
 1. Pengguna mengklik tombol **"Masuk dengan Akun Google"** pada form login.
 2. Google Identity Services memverifikasi akun pengguna dan mengirimkan ID Token ke frontend.
 3. Frontend mengirim request `POST /api/auth/google` berisi `{ email, name, google_id }`.
 4. Backend mencocokkan email Google dengan whitelist akun terdaftar di tabel `users`.
 5. Jika email cocok dan berstatus aktif, backend mengaitkan `google_id`, menerbitkan JWT sesi login COZIS, dan mengarahkan pengguna ke Dashboard.
 
-### D2. Alternative Path 2: Pilihan Kredensial Cepat Demo
+### D2. Alternative Path 2: Pilihan Kredensial Cepat Demo <- dinonaktifkan
 1. Pada halaman login, pengguna mengklik salah satu kartu *Quick Demo Account* (**Super Admin**, **Supervisor**, atau **Rider**).
 2. Form secara otomatis terisi dengan kredensial preset, pengguna mengisi CAPTCHA, dan menekan tombol login.
 

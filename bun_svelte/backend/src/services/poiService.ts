@@ -206,10 +206,19 @@ export class POIEltPipelineService {
   }
 
   /**
-   * Fetch all approved POIs in the operational area
+   * Fetch all approved POIs in the operational area scoped by hub
    */
-  public async getAllOperationalPois(): Promise<any[]> {
-    return await this.repo.findAll();
+  public async getAllOperationalPois(hubIdOverride: string | null = null): Promise<any[]> {
+    let hubId = hubIdOverride;
+    if (!hubId) {
+      try {
+        const ctx = await operationalContextService.getOperationalContext();
+        hubId = ctx.hubCityName;
+      } catch (e) {
+        // Fallback to null (all)
+      }
+    }
+    return await this.repo.findAll(hubId);
   }
 
   /**
@@ -292,7 +301,7 @@ export const syncCityPoisService = (hubCity?: string | null) => poiEltPipelineSe
 export const reprocessLocalPoisService = (hubCity?: string | null) => poiEltPipelineService.processAndSyncPois(hubCity);
 export const reclusterExistingPoisService = () => poiEltPipelineService.reclusterExistingPois();
 export const getPoisByZoneService = (zoneId: number | string) => poiEltPipelineService.getPoisByZone(zoneId);
-export const getAllOperationalPoisService = () => poiEltPipelineService.getAllOperationalPois();
+export const getAllOperationalPoisService = (hubCity?: string | null) => poiEltPipelineService.getAllOperationalPois(hubCity);
 export const getDensitasDanDiversitasC1C2Service = (zoneId: number | string) => poiEltPipelineService.getDensitasDanDiversitasC1C2(zoneId);
 export const getLeakageReportService = () => poiEltPipelineService.getLeakageReport();
 

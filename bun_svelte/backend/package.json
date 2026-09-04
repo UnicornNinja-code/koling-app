@@ -6,6 +6,8 @@
   "main": "index.ts",
   "scripts": {
     "dev": "bun --watch index.ts",
+    "dev:fresh": "bun run db:reset && bun run db:migrate && bun run db:seed:fresh && bun run dev",
+    "fresh": "bun run db:reset && bun run db:migrate && bun run db:seed:fresh && bun run dev",
     "start": "bun index.ts",
     "typecheck": "tsc --noEmit",
     "db:migrate": "bun src/scripts/migrate.ts",
@@ -15,6 +17,7 @@
     "db:fresh": "bun src/scripts/setup-clean-db.ts",
     "db:seed:demo": "bun src/scripts/seed-demo.ts",
     "db:seed:fresh": "bun src/scripts/seed-fresh.ts",
+    "db:fresh:dev": "bun run db:reset && bun run db:migrate && bun run db:seed:fresh && bun run dev",
     "db:init": "bun src/scripts/setup-db.ts",
     "db:recluster": "bun src/scripts/recluster-poi.ts",
     "fetch:weather": "bun src/scripts/fetch-weather.ts",

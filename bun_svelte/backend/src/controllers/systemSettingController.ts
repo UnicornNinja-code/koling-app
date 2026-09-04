@@ -200,6 +200,148 @@ export const applySystemSetup = async (req: Request, res: Response): Promise<any
   }
 };
 
+import {
+  enqueueSpatialOnboardingFlow,
+  retryPartialDatasetJob,
+  abortSpatialSyncFlow,
+  getJobStatus,
+} from "../queues/overpassQueue.js";
+import { datasetVersionRepository } from "../repositories/datasetVersionRepository.js";
+import { datasetSyncJobRepository } from "../repositories/datasetSyncJobRepository.js";
+
+export const startSpatialSyncFlow = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const userId = (req as any).user?.id;
+    const fsmRecord = await SystemSettingModel.getByKey("SYSTEM_SETUP_FSM_STATE");
+    const currentState = fsmRecord?.value || "DRAFT";
+    if (currentState === "LOCKED_SYNCING") {
+      return res.status(409).json({
+        msg: "Sinkronisasi spasial sedang berlangsung. Harap tunggu hingga selesai atau batalkan proses aktif.",
+        state: currentState,
+      });
+    }
+
+    // Transition to LOCKED_SYNCING state
+    await SystemSettingModel.upsert("SYSTEM_SETUP_FSM_STATE", "LOCKED_SYNCING", "FSM State Setup Wizard");
+
+    const flowResult = await enqueueSpatialOnboardingFlow({
+      userId,
+    });
+
+    await auditLogger.logAction({
+      userId,
+      action: "SPATIAL_SYNC_FLOW_STARTED",
+      entityType: "SYSTEM",
+      details: flowResult,
+    });
+
+    return res.status(200).json({
+      success: true,
+      msg: "Alur sinkronisasi spasial terdistribusi (FlowProducer) berhasil dimulai.",
+      ...flowResult,
+    });
+  } catch (error: any) {
+    // Rollback FSM state to DRAFT on immediate dispatch error
+    await SystemSettingModel.upsert("SYSTEM_SETUP_FSM_STATE", "DRAFT", "FSM State Setup Wizard");
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Gagal memulai sinkronisasi spasial." });
+  }
+};
+
+export const retryPartialSpatialSync = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { dataset_type } = req.body;
+    const userId = (req as any).user?.id;
+
+    if (!dataset_type || !["TOLL_ROADS", "PROTOCOL_ROADS", "POI"].includes(dataset_type)) {
+      return res.status(400).json({ msg: "Parameter 'dataset_type' harus salah satu dari: TOLL_ROADS, PROTOCOL_ROADS, POI." });
+    }
+
+    await SystemSettingModel.upsert("SYSTEM_SETUP_FSM_STATE", "LOCKED_SYNCING", "FSM State Setup Wizard");
+    const retryResult = await retryPartialDatasetJob(dataset_type, { userId });
+
+    await auditLogger.logAction({
+      userId,
+      action: "SPATIAL_SYNC_PARTIAL_RETRY",
+      entityType: "SYSTEM",
+      details: { dataset_type, result: retryResult },
+    });
+
+    return res.status(200).json({
+      success: true,
+      msg: `Retry parsial dataset '${dataset_type}' berhasil dimasukkan ke antrean.`,
+      result: retryResult,
+    });
+  } catch (error: any) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Gagal melakukan retry parsial." });
+  }
+};
+
+export const abortSpatialSync = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const userId = (req as any).user?.id;
+    await abortSpatialSyncFlow();
+    await SystemSettingModel.upsert("SYSTEM_SETUP_FSM_STATE", "DRAFT", "FSM State Setup Wizard");
+
+    await auditLogger.logAction({
+      userId,
+      action: "SPATIAL_SYNC_ABORTED_BY_USER",
+      entityType: "SYSTEM",
+      details: { timestamp: new Date().toISOString() },
+    });
+
+    return res.status(200).json({
+      success: true,
+      msg: "Sinyal pembatalan sinkronisasi berhasil dikirim. State sistem dikembalikan ke DRAFT.",
+    });
+  } catch (error: any) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Gagal membatalkan sinkronisasi." });
+  }
+};
+
+export const getSpatialSyncStatus = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const fsmRecord = await SystemSettingModel.getByKey("SYSTEM_SETUP_FSM_STATE");
+    const fsmState = fsmRecord?.value || "DRAFT";
+    const tollActive = await datasetVersionRepository.findActiveVersion("TOLL_ROADS");
+    const roadsActive = await datasetVersionRepository.findActiveVersion("PROTOCOL_ROADS");
+    const poiActive = await datasetVersionRepository.findActiveVersion("POI");
+
+    const recentJobs = await datasetSyncJobRepository.findRecentJobs(10);
+
+    return res.status(200).json({
+      fsmState,
+      datasets: {
+        toll_roads: {
+          active: !!tollActive,
+          version: tollActive?.version || null,
+          feature_count: tollActive?.feature_count || 0,
+          updated_at: tollActive?.created_at || null,
+        },
+        protocol_roads: {
+          active: !!roadsActive,
+          version: roadsActive?.version || null,
+          feature_count: roadsActive?.feature_count || 0,
+          updated_at: roadsActive?.created_at || null,
+        },
+        poi: {
+          active: !!poiActive,
+          version: poiActive?.version || null,
+          feature_count: poiActive?.feature_count || 0,
+          updated_at: poiActive?.created_at || null,
+        },
+      },
+      allReady: Boolean(tollActive && roadsActive && poiActive),
+      recentJobs,
+    });
+  } catch (error: any) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Gagal memuat status sinkronisasi spasial." });
+  }
+};
+
 export const systemSettingController = {
   async getOperationalRules(req: Request, res: Response, next: NextFunction): Promise<any> {
     try {
@@ -224,5 +366,9 @@ export const systemSettingController = {
   getSetupStatus,
   saveSetupStep,
   applySystemSetup,
+  startSpatialSyncFlow,
+  retryPartialSpatialSync,
+  abortSpatialSync,
+  getSpatialSyncStatus,
 };
 

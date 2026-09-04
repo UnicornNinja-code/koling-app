@@ -218,10 +218,15 @@
 
         <div>
           <span class="text-[10px] text-zinc-500 uppercase tracking-wider block">Status Data Spasial</span>
-          <p class="font-outfit-600 text-emerald-400 mt-0.5 flex items-center gap-1">
-            <CheckCircle2 class="w-3.5 h-3.5 text-emerald-400" />
-            <span>Siap Digunakan</span>
-          </p>
+          <div class="mt-0.5 space-y-0.5 text-[11px] text-zinc-300">
+            <p class="text-emerald-400 flex items-center gap-1 font-outfit-600">
+              <CheckCircle2 class="w-3.5 h-3.5 text-emerald-400" />
+              <span>Semua Dataset Terindeks</span>
+            </p>
+            <p class="text-zinc-400 font-mono text-[10px]">
+              Tol: {setupStore.datasets.toll_roads.count || '-'} | Arteri: {setupStore.datasets.protocol_roads.count || '-'} | POI: {setupStore.datasets.poi.count || '-'}
+            </p>
+          </div>
         </div>
       </div>
 

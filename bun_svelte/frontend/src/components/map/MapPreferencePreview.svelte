@@ -21,7 +21,7 @@
     hubLng = 112.7521,
     hubName = 'Central Hub',
     radiusKm = 12,
-    basemapId = 'openmaptiles-dark',
+    basemapId = 'osm-standard',
     zoomLevel = 13,
     showHubRadius = true,
     showProtocolRoads = true,
@@ -243,7 +243,7 @@
 </script>
 
 <div class="space-y-2">
-  <div class="relative w-full h-64 sm:h-80 rounded-2xl overflow-hidden border border-[#272730] shadow-inner bg-[#121214]">
+  <div class="relative w-full h-80 sm:h-96 md:h-[420px] rounded-2xl overflow-hidden border border-[#272730] shadow-inner bg-[#121214]">
     <div bind:this={mapContainer} class="w-full h-full"></div>
 
     <!-- Active Layers Pill Bar Overlay -->

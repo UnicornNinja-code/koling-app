@@ -106,4 +106,36 @@ export const setupService = {
     const res = await axiosInstance.post("/system/apply-setup", payload);
     return res.data;
   },
+
+  /**
+   * Start distributed spatial ETL flow via BullMQ FlowProducer
+   */
+  startSpatialSync: async (): Promise<any> => {
+    const res = await axiosInstance.post("/system/sync/start");
+    return res.data;
+  },
+
+  /**
+   * Partial retry for single failed dataset
+   */
+  retryPartialSpatialSync: async (dataset_type: "TOLL_ROADS" | "PROTOCOL_ROADS" | "POI"): Promise<any> => {
+    const res = await axiosInstance.post("/system/sync/retry-partial", { dataset_type });
+    return res.data;
+  },
+
+  /**
+   * Abort active spatial sync pipeline
+   */
+  abortSpatialSync: async (): Promise<any> => {
+    const res = await axiosInstance.post("/system/sync/abort");
+    return res.data;
+  },
+
+  /**
+   * Get real-time spatial sync status and active versions
+   */
+  getSpatialSyncStatus: async (): Promise<any> => {
+    const res = await axiosInstance.get("/system/sync/status");
+    return res.data;
+  },
 };
