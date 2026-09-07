@@ -1,21 +1,27 @@
 /*
  * RedisGeoService.ts
- * Clean Architecture Singleton Service for Redis Geospatial Indexing in TypeScript
+ * Multi-Tenant Singleton Service for Redis Geospatial Indexing & Spatial Presence
+ * MOVA Architecture Stage 5 (Live LBS & Presence)
  */
 
 import { redisClient } from "../../config/redis.js";
 
+export interface RiderLocationPayload {
+  tenantId: string;
+  riderId: string;
+  riderName?: string;
+  lat: number;
+  lon: number;
+  accuracy?: number;
+  speed?: number;
+  heading?: number;
+  capturedAt?: string;
+  zoneId?: string | null;
+  isInsideGeofence?: boolean;
+}
+
 export class RedisGeoService {
   private static instance: RedisGeoService | null = null;
-  private geoKey: string;
-
-  constructor() {
-    if (RedisGeoService.instance) {
-      return RedisGeoService.instance;
-    }
-    this.geoKey = "RIDERS_GEO_INDEX";
-    RedisGeoService.instance = this;
-  }
 
   public static getInstance(): RedisGeoService {
     if (!RedisGeoService.instance) {
@@ -24,86 +30,190 @@ export class RedisGeoService {
     return RedisGeoService.instance;
   }
 
+  private getGeoKey(tenantId: string): string {
+    return `tenant:${tenantId}:riders_geo`;
+  }
+
+  private getMetaKey(tenantId: string, riderId: string): string {
+    return `tenant:${tenantId}:rider_meta:${riderId}`;
+  }
+
+  private getLastPosKey(tenantId: string, riderId: string): string {
+    return `tenant:${tenantId}:last_pos:${riderId}`;
+  }
+
+  private getThrottleKey(tenantId: string, riderId: string): string {
+    return `tenant:${tenantId}:rider_throttle:${riderId}`;
+  }
+
+  private getSeqKey(tenantId: string, riderId: string, deviceId: string): string {
+    return `tenant:${tenantId}:rider_seq:${riderId}:${deviceId}`;
+  }
+
   /**
-   * Update or Add Rider Location into Redis Geospatial Index Set
+   * Check and update rate throttle (minimum 5-second interval)
    */
-  public async updateRiderLocation({
-    riderId,
-    riderName,
-    lat,
-    lon,
-    speed = 0,
-    heading = 0,
-  }: {
-    riderId: string | number;
-    riderName?: string;
-    lat: number | string;
-    lon: number | string;
-    speed?: number;
-    heading?: number;
-  }): Promise<any> {
-    if (!riderId || lat === undefined || lon === undefined) {
-      throw new Error("riderId, lat, dan lon harus diisi.");
+  public async checkAndSetThrottle(tenantId: string, riderId: string, intervalSeconds: number = 5): Promise<boolean> {
+    const key = this.getThrottleKey(tenantId, riderId);
+    try {
+      if (typeof (redisClient as any).set === "function") {
+        const result = await (redisClient as any).set(key, "1", { NX: true, EX: intervalSeconds });
+        return result !== null;
+      }
+      return true;
+    } catch {
+      return true;
+    }
+  }
+
+  /**
+   * Check monotonic sequence to prevent GPS replay attacks
+   */
+  public async validateAndSetSequence(tenantId: string, riderId: string, deviceId: string, sequence: number): Promise<boolean> {
+    const key = this.getSeqKey(tenantId, riderId, deviceId);
+    try {
+      let lastSeqStr: string | null = null;
+      if (typeof (redisClient as any).get === "function") {
+        lastSeqStr = await (redisClient as any).get(key);
+      }
+      if (lastSeqStr !== null) {
+        const lastSeq = parseInt(lastSeqStr, 10);
+        if (sequence <= lastSeq) {
+          return false; // Replay or out-of-order sequence detected
+        }
+      }
+      if (typeof (redisClient as any).set === "function") {
+        await (redisClient as any).set(key, String(sequence), { EX: 86400 });
+      }
+      return true;
+    } catch {
+      return true;
+    }
+  }
+
+  /**
+   * Retrieve last accepted coordinate for distance filtering
+   */
+  public async getLastPosition(tenantId: string, riderId: string): Promise<{ latitude: number; longitude: number; captured_at?: string } | null> {
+    const key = this.getLastPosKey(tenantId, riderId);
+    try {
+      let data: any = null;
+      if (typeof (redisClient as any).hGetAll === "function") {
+        data = await (redisClient as any).hGetAll(key);
+      } else if (typeof (redisClient as any).hgetall === "function") {
+        data = await (redisClient as any).hgetall(key);
+      }
+      if (data && data.latitude && data.longitude) {
+        return {
+          latitude: parseFloat(data.latitude),
+          longitude: parseFloat(data.longitude),
+          captured_at: data.captured_at,
+        };
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Save last accepted coordinate
+   */
+  public async setLastPosition(tenantId: string, riderId: string, lat: number, lon: number, capturedAt?: string): Promise<void> {
+    const key = this.getLastPosKey(tenantId, riderId);
+    try {
+      const payload: Record<string, string> = {
+        latitude: String(lat),
+        longitude: String(lon),
+        captured_at: capturedAt || new Date().toISOString(),
+      };
+      if (typeof (redisClient as any).hSet === "function") {
+        await (redisClient as any).hSet(key, payload);
+      } else if (typeof (redisClient as any).hset === "function") {
+        await (redisClient as any).hset(key, payload);
+      }
+      if (typeof (redisClient as any).expire === "function") {
+        await (redisClient as any).expire(key, 86400);
+      }
+    } catch {}
+  }
+
+  /**
+   * Update or Add Rider Location into Tenant-Scoped Redis Geospatial Index
+   */
+  public async updateRiderLocation(payload: RiderLocationPayload): Promise<any> {
+    const { tenantId, riderId, riderName, lat, lon, speed = 0, heading = 0, zoneId, isInsideGeofence = true } = payload;
+    if (!tenantId || !riderId || lat === undefined || lon === undefined) {
+      throw new Error("tenantId, riderId, lat, dan lon harus diisi.");
     }
 
-    const latitude = parseFloat(String(lat));
-    const longitude = parseFloat(String(lon));
+    const geoKey = this.getGeoKey(tenantId);
+    const metaKey = this.getMetaKey(tenantId, riderId);
 
     try {
       if (typeof (redisClient as any).geoAdd === "function") {
-        await (redisClient as any).geoAdd(this.geoKey, { longitude, latitude, member: String(riderId) });
+        await (redisClient as any).geoAdd(geoKey, { longitude: lon, latitude: lat, member: riderId });
       } else if (typeof (redisClient as any).geoadd === "function") {
-        await (redisClient as any).geoadd(this.geoKey, longitude, latitude, String(riderId));
+        await (redisClient as any).geoadd(geoKey, lon, lat, riderId);
       }
 
-      const metaKey = `RIDER_META:${riderId}`;
-      const payload: Record<string, string> = {
-        rider_id: String(riderId),
-        rider_name: String(riderName || "Rider Operasional"),
-        latitude: String(latitude),
-        longitude: String(longitude),
-        speed: String(parseFloat(String(speed))),
-        heading: String(parseFloat(String(heading))),
+      const metaPayload: Record<string, string> = {
+        tenant_id: tenantId,
+        rider_id: riderId,
+        rider_name: riderName || "Rider Operasional",
+        latitude: String(lat),
+        longitude: String(lon),
+        speed: String(speed),
+        heading: String(heading),
+        zone_id: zoneId || "",
+        is_inside_geofence: isInsideGeofence ? "true" : "false",
         updated_at: new Date().toISOString(),
       };
 
       if (typeof (redisClient as any).hSet === "function") {
-        await (redisClient as any).hSet(metaKey, payload);
+        await (redisClient as any).hSet(metaKey, metaPayload);
       } else if (typeof (redisClient as any).hset === "function") {
-        await (redisClient as any).hset(metaKey, payload);
+        await (redisClient as any).hset(metaKey, metaPayload);
       }
 
       if (typeof (redisClient as any).expire === "function") {
         await (redisClient as any).expire(metaKey, 86400);
       }
-      return { riderId, latitude, longitude, speed, heading };
+
+      return {
+        tenant_id: tenantId,
+        rider_id: riderId,
+        latitude: lat,
+        longitude: lon,
+        speed,
+        heading,
+        zone_id: zoneId || null,
+        is_inside_geofence: isInsideGeofence,
+      };
     } catch (err: any) {
-      console.warn(`⚠️ [RedisGeoService] Error updating location for rider '${riderId}':`, err.message);
-      return { riderId, latitude, longitude, speed, heading, degraded: true };
+      console.warn(`⚠️ [RedisGeoService] Error updating location for rider '${riderId}' in tenant '${tenantId}':`, err.message);
+      return { tenant_id: tenantId, rider_id: riderId, latitude: lat, longitude: lon, degraded: true };
     }
   }
 
   /**
-   * Fetch Nearby Active Riders within Radius X km
+   * Fetch Nearby Active Riders within Tenant and Radius
    */
   public async getNearbyRiders({
+    tenantId,
     lon,
     lat,
     radiusKm = 5,
     limit = 50,
   }: {
-    lon: number | string;
-    lat: number | string;
+    tenantId: string;
+    lon: number;
+    lat: number;
     radiusKm?: number;
     limit?: number;
   }): Promise<any> {
-    if (lat === undefined || lon === undefined) {
-      throw new Error("Koordinat lon dan lat harus diisi.");
-    }
-
-    const longitude = parseFloat(String(lon));
-    const latitude = parseFloat(String(lat));
-    const radius = parseFloat(String(radiusKm));
+    const geoKey = this.getGeoKey(tenantId);
+    const radius = radiusKm;
 
     try {
       let rawResults: any[] = [];
@@ -112,10 +222,10 @@ export class RedisGeoService {
       if (typeof (redisClient as any).geoSearch === "function") {
         try {
           const res = await (redisClient as any).geoSearch(
-            this.geoKey,
-            { longitude, latitude },
+            geoKey,
+            { longitude: lon, latitude: lat },
             { radius, unit: "km" },
-            { WITHDIST: true, WITHCOORD: true }
+            { WITHDIST: true, WITHCOORD: true, COUNT: limit }
           );
 
           if (Array.isArray(res)) {
@@ -123,47 +233,37 @@ export class RedisGeoService {
               if (typeof r === "string") return [r, "0", ["0", "0"]];
               const memberStr = typeof r.member === "string" ? r.member : String(r.member);
               const distStr = r.distance !== undefined ? String(r.distance) : "0";
-              const coords = r.coordinates
-                ? [String(r.coordinates.longitude), String(r.coordinates.latitude)]
-                : ["0", "0"];
+              const coords = r.coordinates ? [String(r.coordinates.longitude), String(r.coordinates.latitude)] : ["0", "0"];
               return [memberStr, distStr, coords];
             });
             searchSuccess = true;
           }
-        } catch (e) {
+        } catch {
           if (typeof (redisClient as any).geoRadius === "function") {
             try {
-              const res = await (redisClient as any).geoRadius(
-                this.geoKey,
-                { longitude, latitude },
-                radius,
-                "km",
-                { WITHDIST: true, WITHCOORD: true }
-              );
-
+              const res = await (redisClient as any).geoRadius(geoKey, { longitude: lon, latitude: lat }, radius, "km", {
+                WITHDIST: true,
+                WITHCOORD: true,
+                COUNT: limit,
+              });
               if (Array.isArray(res)) {
                 rawResults = res.map((r) => {
                   if (typeof r === "string") return [r, "0", ["0", "0"]];
                   const memberStr = typeof r.member === "string" ? r.member : String(r.member);
                   const distStr = r.distance !== undefined ? String(r.distance) : "0";
-                  const coords = r.coordinates
-                    ? [String(r.coordinates.longitude), String(r.coordinates.latitude)]
-                    : ["0", "0"];
+                  const coords = r.coordinates ? [String(r.coordinates.longitude), String(r.coordinates.latitude)] : ["0", "0"];
                   return [memberStr, distStr, coords];
                 });
                 searchSuccess = true;
               }
-            } catch (err) {}
-          }
-          if (!searchSuccess) {
-            throw e;
+            } catch {}
           }
         }
       }
 
       if (!rawResults || rawResults.length === 0) {
         return {
-          query_center: { latitude, longitude },
+          query_center: { latitude: lat, longitude: lon },
           radius_km: radius,
           total_riders_found: 0,
           riders: [],
@@ -173,8 +273,7 @@ export class RedisGeoService {
       const riders = await Promise.all(
         rawResults.map(async (item) => {
           const [riderId, distStr, coords] = item;
-          const metaKey = `RIDER_META:${riderId}`;
-
+          const metaKey = this.getMetaKey(tenantId, riderId);
           let meta: any = null;
           try {
             if (typeof (redisClient as any).hGetAll === "function") {
@@ -182,7 +281,7 @@ export class RedisGeoService {
             } else if (typeof (redisClient as any).hgetall === "function") {
               meta = await (redisClient as any).hgetall(metaKey);
             }
-          } catch (mErr) {}
+          } catch {}
 
           return {
             rider_id: riderId,
@@ -196,6 +295,8 @@ export class RedisGeoService {
             telemetry: {
               speed: parseFloat(meta?.speed || 0),
               heading: parseFloat(meta?.heading || 0),
+              zone_id: meta?.zone_id || null,
+              is_inside_geofence: meta?.is_inside_geofence === "true",
               updated_at: meta?.updated_at || null,
             },
           };
@@ -203,15 +304,14 @@ export class RedisGeoService {
       );
 
       return {
-        query_center: { latitude, longitude },
+        query_center: { latitude: lat, longitude: lon },
         radius_km: radius,
         total_riders_found: riders.length,
         riders,
       };
     } catch (err: any) {
-      console.warn("⚠️ [RedisGeoService] Error in getNearbyRiders:", err.message);
       return {
-        query_center: { latitude, longitude },
+        query_center: { latitude: lat, longitude: lon },
         radius_km: radius,
         total_riders_found: 0,
         riders: [],
@@ -223,15 +323,16 @@ export class RedisGeoService {
   /**
    * Get Single Rider Live Position & Telemetry Metadata
    */
-  public async getRiderLocation(riderId: string | number): Promise<any | null> {
-    if (!riderId) throw new Error("riderId harus diisi.");
+  public async getRiderLocation(tenantId: string, riderId: string): Promise<any | null> {
+    const geoKey = this.getGeoKey(tenantId);
+    const metaKey = this.getMetaKey(tenantId, riderId);
 
     try {
       let pos: any = null;
       if (typeof (redisClient as any).geoPos === "function") {
-        pos = await (redisClient as any).geoPos(this.geoKey, String(riderId));
+        pos = await (redisClient as any).geoPos(geoKey, riderId);
       } else if (typeof (redisClient as any).geopos === "function") {
-        pos = await (redisClient as any).geopos(this.geoKey, String(riderId));
+        pos = await (redisClient as any).geopos(geoKey, riderId);
       }
 
       if (!pos || !pos[0]) {
@@ -239,16 +340,17 @@ export class RedisGeoService {
       }
 
       const coords = pos[0].longitude !== undefined ? [pos[0].longitude, pos[0].latitude] : pos[0];
-
-      const metaKey = `RIDER_META:${riderId}`;
       let meta: any = null;
-      if (typeof (redisClient as any).hGetAll === "function") {
-        meta = await (redisClient as any).hGetAll(metaKey);
-      } else if (typeof (redisClient as any).hgetall === "function") {
-        meta = await (redisClient as any).hgetall(metaKey);
-      }
+      try {
+        if (typeof (redisClient as any).hGetAll === "function") {
+          meta = await (redisClient as any).hGetAll(metaKey);
+        } else if (typeof (redisClient as any).hgetall === "function") {
+          meta = await (redisClient as any).hgetall(metaKey);
+        }
+      } catch {}
 
       return {
+        tenant_id: tenantId,
         rider_id: riderId,
         rider_name: meta?.rider_name || "Rider Operasional",
         location: {
@@ -258,65 +360,35 @@ export class RedisGeoService {
         telemetry: {
           speed: parseFloat(meta?.speed || 0),
           heading: parseFloat(meta?.heading || 0),
+          zone_id: meta?.zone_id || null,
+          is_inside_geofence: meta?.is_inside_geofence === "true",
           updated_at: meta?.updated_at || null,
         },
       };
-    } catch (err: any) {
-      console.warn(`⚠️ [RedisGeoService] Error in getRiderLocation for '${riderId}':`, err.message);
+    } catch {
       return null;
     }
   }
 
   /**
-   * Calculate Exact Geodesic Distance Between Two Active Riders in Redis (GEODIST)
+   * Remove Rider Location from Redis
    */
-  public async calculateRiderDistance(riderId1: string | number, riderId2: string | number): Promise<any | null> {
-    if (!riderId1 || !riderId2) {
-      throw new Error("riderId1 dan riderId2 harus diisi.");
-    }
-
-    try {
-      let distKmVal: any = null;
-      if (typeof (redisClient as any).geoDist === "function") {
-        distKmVal = await (redisClient as any).geoDist(this.geoKey, String(riderId1), String(riderId2), "km");
-      } else if (typeof (redisClient as any).geodist === "function") {
-        distKmVal = await (redisClient as any).geodist(this.geoKey, String(riderId1), String(riderId2), "km");
-      }
-
-      if (distKmVal === null || distKmVal === undefined) {
-        return null;
-      }
-
-      const distKm = parseFloat(String(distKmVal));
-      return {
-        rider1_id: riderId1,
-        rider2_id: riderId2,
-        distance_km: distKm,
-        distance_meters: Math.round(distKm * 1000),
-      };
-    } catch (err: any) {
-      console.warn(`⚠️ [RedisGeoService] Error in calculateRiderDistance:`, err.message);
-      return null;
-    }
-  }
-
-  /**
-   * Remove Rider Location from Redis Spatial Index Set
-   */
-  public async removeRiderLocation(riderId: string | number): Promise<boolean> {
-    if (!riderId) return false;
+  public async removeRiderLocation(tenantId: string, riderId: string): Promise<boolean> {
+    const geoKey = this.getGeoKey(tenantId);
+    const metaKey = this.getMetaKey(tenantId, riderId);
+    const lastPosKey = this.getLastPosKey(tenantId, riderId);
     try {
       if (typeof (redisClient as any).zRem === "function") {
-        await (redisClient as any).zRem(this.geoKey, String(riderId));
+        await (redisClient as any).zRem(geoKey, riderId);
       } else if (typeof (redisClient as any).zrem === "function") {
-        await (redisClient as any).zrem(this.geoKey, String(riderId));
+        await (redisClient as any).zrem(geoKey, riderId);
       }
       if (typeof (redisClient as any).del === "function") {
-        await (redisClient as any).del(`RIDER_META:${riderId}`);
+        await (redisClient as any).del(metaKey);
+        await (redisClient as any).del(lastPosKey);
       }
       return true;
-    } catch (err: any) {
-      console.warn(`⚠️ [RedisGeoService] Error removing rider '${riderId}':`, err.message);
+    } catch {
       return false;
     }
   }

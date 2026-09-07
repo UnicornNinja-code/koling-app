@@ -9,7 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const backendTarget = env.VITE_SOCKET_URL || (env.VITE_API_URL ? env.VITE_API_URL.replace(/\/api\/?$/, '') : 'http://localhost:9000')
+  const backendTarget = env.VITE_SOCKET_URL || (env.VITE_API_URL ? env.VITE_API_URL.replace(/\/api\/?$/, '') : 'http://localhost:9968')
 
   return {
     plugins: [
@@ -23,7 +23,9 @@ export default defineConfig(({ mode }) => {
       }
     },
     server: {
-      port: 5173,
+      host: true,
+      allowedHosts: true,
+      port: 9967,
       proxy: {
         '/api': {
           target: backendTarget,

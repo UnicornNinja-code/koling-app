@@ -1,36 +1,57 @@
 /*
  * swagger.ts
- * Comprehensive OpenAPI 3.0.3 Specification for MantaKopi COZIS DSS Backend
+ * Comprehensive OpenAPI 3.0.3 Specification for MOVA Geospatial Decision Intelligence & Fleet Platform
  * Runtime: Bun 1.4 + TypeScript + Express 5
  *
- * Dokumentasi lengkap seluruh REST API endpoint di 24 route files.
+ * Single Source of Truth (SSOT) untuk seluruh kontrak API, Multi-Tenant Session RLS, Spatial Master, C6 Relevance, BWM/Safe TOPSIS, dan Fleet State Machine.
  */
 
 export const swaggerSpec: any = {
   openapi: "3.0.3",
   info: {
-    title: "MantaKopi COZIS DSS API Documentation",
-    version: "3.0.0",
+    title: "MOVA Geospatial Decision Intelligence & Fleet Operations Platform API",
+    version: "4.0.0",
     description: `
-### Decision Support System & Smart Fleet Operations Platform (MantaKopi COZIS)
+### Decision Support System & Smart Fleet Operations Platform (MOVA SSOT)
 
-Dokumentasi lengkap REST API platform MantaKopi Coffee On-The-Go Spatial Decision Support System (COZIS). 
-Sistem ini mengintegrasikan:
-- **Spatial GIS & Geofencing**: PostGIS SRID 4326 dengan 885 ruas jalan protokol & restriksi jalan tol Sidoarjo.
-- **DSS Multi-Kriteria**: Bobot Best-Worst Method (BWM) & Pemeringkatan TOPSIS untuk penempatan armada kopi keliling.
-- **Manajemen Armada & Operasional**: Siklus klaim 5-menit (Redis lock), antrean tugas FIFO, dan checkout harian.
-- **Monitoring LBS & Cuaca**: Pelacakan GPS real-time rider dan integrasi prakiraan cuaca Open-Meteo.
-- **RBAC Multilevel**: SUPERADMIN, MANAGEMENT, SUPERVISOR, dan RIDER.
+Dokumentasi resmi REST API platform **MOVA (Multi-tenant Operational & Velocity Analytics)**.
+Sistem ini menyediakan integrasi penuh antara analytical decision intelligence dan operational execution:
+
+1. **Multi-Tenant Isolation & Session-Bound RLS (Stage 1 - FROZEN)**:
+   - Akses data terisolasi menggunakan PostgreSQL Row-Level Security (RLS) \`app.current_tenant_id\` dan role \`mova_app\` (\`NOSUPERUSER, NOBYPASSRLS\`).
+   - Tenant context disisipkan secara otomatis oleh backend melalui token JWT. Frontend tidak mengirimkan parameter query \`tenant_id\` bebas untuk operasi reguler.
+   - Manajemen tenant terpusat (control-plane) dibatasi eksklusif untuk peran \`SUPERADMIN\` pada endpoint \`/api/tenants\`.
+
+2. **Global Spatial Master & Safe Spatial Boundaries (Stage 2 - FROZEN)**:
+   - PostGIS SRID 4326 dengan layer POI global bersama (\`is_global = true\`), jalan protokol, dan koridor jalan tol.
+   - Restriksi spasial ketat: buffer 25m koridor jalan tol (\`PROHIBITED_TOLL_ROAD\`) dan buffer 10m jalan protokol (\`PROHIBITED_ROAD\`).
+
+3. **C6 Relevant Competitor Domain & Relevance Engine (Stage 3A - FROZEN)**:
+   - Evaluasi kompetitor kriteria $C_6$ (**COST**) dengan formula relevansi:
+     $$R_i = 0.50 \\cdot S_{\\text{price}} + 0.30 \\cdot I_{\\text{category}} + 0.20 \\cdot I_{\\text{model}}$$
+   - Threshold relevansi $R_i \\ge 0.40$, Category Price Prior V1, spatial decay $f(d_i)$, pembobotan waktu operasi overnight, dan confidence prior.
+   - Skor akhir: $C_6 = \\sum P_i$.
+
+4. **Criteria Master, BWM Weighting & Safe TOPSIS (Stage 3B - FROZEN)**:
+   - Standar 6 kriteria baku: $C_1$ (Densitas POI, **BENEFIT**), $C_2$ (Diversitas POI, **BENEFIT**), $C_3$ (Potensi Keramaian, **BENEFIT**), $C_4$ (Risiko Cuaca, **COST**), $C_5$ (Jarak Aksesibilitas, **COST**), $C_6$ (Dampak Kompetitor, **COST**).
+   - Linear Programming Best-Worst Method (BWM) dengan ambang batas Consistency Ratio $\\text{CR} \\le 0.30$.
+   - Pure Safe TOPSIS: Vector Normalization, Benefit/Cost Ideal Solutions ($A^+ / A^-$), Zero-Variance Guard, dan fallback Zero-Distance Guard ($R_i = 0.50$).
+
+5. **Fleet Claim, Reservation & State Machine (Stage 4 - COMPLETE)**:
+   - State machine kanonikal: \`ACTIVE\` $\\rightarrow$ \`RESERVED\` (5-minute hold) $\rightarrow$ \`IN_USE\` $\rightarrow$ \`ACTIVE\` (released).
+   - Atomic concurrency locking via Redis \`SET fleet:claim:{tenant_id}:{fleet_id} {rider_id} NX EX 300\` dengan PostgreSQL sebagai Source of Truth.
+   - Proteksi single active reservation per rider dan worker rekonsiliasi timeout otomatis.
 
 #### Format Autentikasi
 Gunakan format Bearer Token pada HTTP Header:
 \`\`\`http
 Authorization: Bearer <jwt_access_token>
 \`\`\`
+Setiap request yang terautentikasi akan mengikat session context ke tenant pengguna secara aman.
     `,
     contact: {
-      name: "Engineering Team MantaKopi",
-      email: "dev@kopikeliling.com",
+      name: "MOVA Engineering & Core Architecture Team",
+      email: "dev@mova.neuralnetproject.online",
     },
   },
   servers: [
@@ -39,35 +60,36 @@ Authorization: Bearer <jwt_access_token>
       description: "Development Server (Local Bun)",
     },
     {
-      url: "https://api.kopikeliling.com",
-      description: "Production Server",
+      url: "https://mova.neuralnetproject.online",
+      description: "Production Server (Platform Profile)",
     },
   ],
   tags: [
-    { name: "System & Health", description: "Pemeriksaan kesehatan sistem, konfigurasi fondasi & wizard setup awal" },
-    { name: "System Settings", description: "Aturan operasional, pembatasan spasial jalan protokol & tol" },
-    { name: "Auth & Identity", description: "Otentikasi, registrasi staf, CAPTCHA, OAuth Google, verifikasi token & logout" },
-    { name: "Users", description: "Manajemen data user, peran (RBAC), preferensi & status aktif" },
-    { name: "Products", description: "Katalog menu minuman, upload gambar WebP & manajemen harga/status" },
-    { name: "Armadas & Fleets", description: "Katalog unit armada sepeda listrik, siklus klaim, kendala & riwayat" },
-    { name: "Spatial & Roads", description: "Layer PostGIS jalan protokol & jalan tol pembatas operasional, sinkronisasi OSM" },
-    { name: "Zones", description: "Poligon zona operasional, kapasitas rider, validasi spasial & konfigurasi" },
-    { name: "POIs", description: "Point of Interest, klasterisasi, sinkronisasi OSM, approval workflow & skor DSS per zona" },
-    { name: "POI Categories", description: "Kategori waktu aktif POI (Pagi/Siang/Sore/Malam), toggle & skor C3" },
-    { name: "Weather", description: "Integrasi cuaca realtime per zona & Central Hub, sinkronisasi Open-Meteo" },
-    { name: "Competitors", description: "Data survei lapangan kompetitor per zona operasional, skor C6" },
-    { name: "DSS Engine", description: "Komputasi pembobotan BWM, preview impact, konfigurasi & rekomendasi lokasi TOPSIS" },
-    { name: "Candidate Selling Locations", description: "Titik mikro kandidat lokasi jualan, evaluasi TOPSIS & audit snapshot" },
-    { name: "Distribution", description: "Sesi operasional harian, antrean distribusi rider (FIFO), emergency swap & riwayat" },
-    { name: "Rider Operations", description: "Operasional harian rider (klaim armada, check-in GPS, penjualan, checkout)" },
-    { name: "Dashboard & Analytics", description: "Analisis penjualan, performa zona, tren pendapatan & performa produk" },
+    { name: "Tenants (Control-Plane)", description: "Manajemen tenant, kuota armada/rider/zona, dan status lifecycle (SUPERADMIN only)" },
+    { name: "System & Health", description: "Pemeriksaan kesehatan sistem, runtime profile (Platform/Lite), dan kesiapan operasional" },
+    { name: "System Settings", description: "Aturan operasional, Central Hub, dan pembatasan spasial jalan protokol & tol" },
+    { name: "Auth & Identity", description: "Otentikasi, registrasi staf, CAPTCHA, OAuth Google, verifikasi token, dan session context" },
+    { name: "Users", description: "Manajemen data user, peran RBAC (SUPERADMIN, MANAGEMENT, SUPERVISOR, RIDER), preferensi, dan status" },
+    { name: "Products", description: "Katalog menu minuman tenant, upload gambar WebP, manajemen harga, dan status aktif" },
+    { name: "Armadas & Fleets", description: "Katalog unit armada sepeda listrik, reservasi 5-menit, state machine lifecycle (ACTIVE -> RESERVED -> IN_USE), dan issue reports" },
+    { name: "Spatial & Roads", description: "Layer PostGIS jalan protokol & jalan tol pembatas operasional, sinkronisasi OSM & mirror health" },
+    { name: "Zones", description: "Poligon zona operasional, kapasitas rider, validasi spasial, dan konfigurasi tenant" },
+    { name: "POIs", description: "Point of Interest (Global Spatial Master & Tenant-scoped), klasterisasi, OSM sync, dan approval workflow" },
+    { name: "POI Categories", description: "Kategori waktu aktif POI (Pagi/Siang/Sore/Malam), toggle, dan kontribusi skor C3" },
+    { name: "Weather", description: "Integrasi cuaca realtime per zona & Central Hub, sinkronisasi Open-Meteo batch" },
+    { name: "Competitors", description: "Domain profil kompetitor, observasi lapangan, dan perhitungan skor dampak kompetitor relevan (C6)" },
+    { name: "DSS Engine", description: "Master 6 kriteria (C1-C3 BENEFIT, C4-C6 COST), pembobotan BWM (CR <= 0.30), dan Safe TOPSIS zone rankings" },
+    { name: "Candidate Selling Locations", description: "Titik mikro kandidat lokasi jualan, evaluasi TOPSIS, dan audit snapshot" },
+    { name: "Distribution", description: "Sesi operasional harian, antrean distribusi rider (FIFO), emergency swap, dan riwayat penugasan" },
+    { name: "Rider Operations", description: "Operasional harian rider (hold armada 5-menit, check-in GPS spasial, penjualan, checkout)" },
+    { name: "Dashboard & Analytics", description: "Analisis penjualan, performa zona, tren pendapatan, dan performa produk" },
     { name: "Sales", description: "Agregasi analitik penjualan & riwayat transaksi personal rider" },
-    { name: "LBS & Geofence", description: "Pelacakan GPS rider via Redis Geo, proximity search, jarak & posisi individu" },
-    { name: "Notifications", description: "Notifikasi in-app, tandai dibaca & hapus" },
-    { name: "Audit Logs", description: "Audit trail log aktivitas & keamanan sistem" },
-    { name: "Cron Automation", description: "Manajemen, log & pemicu background job terjadwal" },
-    { name: "Data Synchronization", description: "Sinkronisasi dataset spasial (POI, jalan tol, jalan protokol), polling job & rollback versi" },
-    { name: "Reports", description: "Laporan operasional rider, efektivitas zona, armada, akurasi DSS & ringkasan eksekutif" },
+    { name: "LBS & Geofence", description: "Pelacakan GPS rider via Redis Geo, proximity search, jarak, dan posisi individu" },
+    { name: "Notifications", description: "Notifikasi in-app, tandai dibaca, dan hapus" },
+    { name: "Audit Logs", description: "Audit trail log aktivitas & keamanan sistem dengan tenant boundary" },
+    { name: "Cron Automation", description: "Manajemen, log, dan pemicu background job terjadwal" },
+    { name: "Data Synchronization", description: "Sinkronisasi dataset spasial (POI, jalan tol, jalan protokol), polling job, dan rollback versi" },
+    { name: "Reports", description: "Laporan operasional rider, efektivitas zona, armada, akurasi DSS, dan ringkasan eksekutif" },
   ],
   components: {
     securitySchemes: {
@@ -75,7 +97,7 @@ Authorization: Bearer <jwt_access_token>
         type: "http",
         scheme: "bearer",
         bearerFormat: "JWT",
-        description: "Masukkan JWT Token dari endpoint /api/auth/login",
+        description: "Masukkan JWT Token dari endpoint /api/auth/login. Context tenant_id akan di-resolve otomatis.",
       },
     },
     schemas: {
@@ -112,13 +134,47 @@ Authorization: Bearer <jwt_access_token>
         },
       },
 
-      // ---------- Domain Models ----------
+      // ---------- Platform & Tenant Domain Models ----------
+      Tenant: {
+        type: "object",
+        properties: {
+          id: { type: "string", example: "tenant-mantakopi-sda" },
+          name: { type: "string", example: "MantaKopi Sidoarjo Hub" },
+          code: { type: "string", example: "MANTA_SDA" },
+          status: { type: "string", enum: ["ACTIVE", "INACTIVE", "SUSPENDED"], example: "ACTIVE" },
+          max_fleets: { type: "integer", example: 25 },
+          max_riders: { type: "integer", example: 50 },
+          max_zones: { type: "integer", example: 10 },
+          metadata: { type: "object" },
+          created_at: { type: "string", format: "date-time" },
+          updated_at: { type: "string", format: "date-time" },
+        },
+      },
+      TenantQuota: {
+        type: "object",
+        properties: {
+          max_fleets: { type: "integer", example: 25 },
+          max_riders: { type: "integer", example: 50 },
+          max_zones: { type: "integer", example: 10 },
+        },
+      },
+      TenantContext: {
+        type: "object",
+        properties: {
+          tenant_id: { type: "string", example: "tenant-mantakopi-sda" },
+          user_id: { type: "string", format: "uuid" },
+          role: { type: "string", enum: ["SUPERADMIN", "MANAGEMENT", "SUPERVISOR", "RIDER"] },
+        },
+      },
+
+      // ---------- Identity & RBAC Models ----------
       User: {
         type: "object",
         properties: {
           id: { type: "string", format: "uuid", example: "11111111-1111-1111-1111-111111111111" },
+          tenant_id: { type: "string", example: "tenant-mantakopi-sda" },
           name: { type: "string", example: "Super Admin" },
-          email: { type: "string", format: "email", example: "superadmin@kopikeliling.com" },
+          email: { type: "string", format: "email", example: "superadmin@mova.app" },
           username: { type: "string", example: "superadmin" },
           role: { type: "string", enum: ["SUPERADMIN", "MANAGEMENT", "SUPERVISOR", "RIDER"], example: "SUPERADMIN" },
           phone: { type: "string", example: "081234567890" },
@@ -128,10 +184,13 @@ Authorization: Bearer <jwt_access_token>
           created_at: { type: "string", format: "date-time" },
         },
       },
+
+      // ---------- Product Domain Models ----------
       Product: {
         type: "object",
         properties: {
           id: { type: "string", format: "uuid" },
+          tenant_id: { type: "string", example: "tenant-mantakopi-sda" },
           code: { type: "string", example: "PRD-001" },
           name: { type: "string", example: "Kopi Susu Gula Aren" },
           category: { type: "string", example: "COFFEE" },
@@ -142,23 +201,64 @@ Authorization: Bearer <jwt_access_token>
           created_at: { type: "string", format: "date-time" },
         },
       },
+
+      // ---------- Fleet & Reservation Domain Models (Stage 4) ----------
       Armada: {
         type: "object",
+        description: "Unit armada sepeda listrik dengan state machine kanonikal (Stage 4)",
         properties: {
           id: { type: "string", format: "uuid" },
+          tenant_id: { type: "string", example: "tenant-mantakopi-sda" },
           code: { type: "string", example: "ARM-GB-001" },
           name: { type: "string", example: "Gerobak Sepeda Listrik Alpha" },
           type: { type: "string", example: "ELECTRIC_BIKE" },
-          status: { type: "string", enum: ["AVAILABLE", "HOLD", "IN_USE", "MAINTENANCE"], example: "AVAILABLE" },
+          status: {
+            type: "string",
+            enum: ["ACTIVE", "RESERVED", "IN_USE", "MAINTENANCE", "RETIRED"],
+            example: "ACTIVE",
+            description: "Status kanonikal: ACTIVE (siap dipinjam), RESERVED (terkunci 5 menit), IN_USE (sedang beroperasi), MAINTENANCE (servis), RETIRED (tidak aktif)",
+          },
           battery_level: { type: "integer", example: 95 },
+          current_rider_id: { type: "string", format: "uuid", nullable: true, example: null },
           notes: { type: "string", example: "Kondisi rem dan ban prima" },
           created_at: { type: "string", format: "date-time" },
+        },
+      },
+      FleetReservation: {
+        type: "object",
+        description: "Catatan reservasi hold 5-menit armada",
+        properties: {
+          id: { type: "string", format: "uuid" },
+          tenant_id: { type: "string", example: "tenant-mantakopi-sda" },
+          fleet_id: { type: "string", format: "uuid" },
+          rider_id: { type: "string", format: "uuid" },
+          status: { type: "string", enum: ["ACTIVE", "CONSUMED", "CANCELLED", "EXPIRED"], example: "ACTIVE" },
+          reserved_at: { type: "string", format: "date-time" },
+          expires_at: { type: "string", format: "date-time" },
+          consumed_at: { type: "string", format: "date-time", nullable: true },
+          cancelled_at: { type: "string", format: "date-time", nullable: true },
+        },
+      },
+      FleetAssignment: {
+        type: "object",
+        description: "Catatan riwayat pemakaian armada oleh rider",
+        properties: {
+          id: { type: "string", format: "uuid" },
+          tenant_id: { type: "string", example: "tenant-mantakopi-sda" },
+          fleet_id: { type: "string", format: "uuid" },
+          rider_id: { type: "string", format: "uuid" },
+          zone_id: { type: "string", format: "uuid", nullable: true },
+          start_odometer: { type: "number", example: 124.5 },
+          end_odometer: { type: "number", nullable: true, example: 142.1 },
+          checked_in_at: { type: "string", format: "date-time" },
+          returned_at: { type: "string", format: "date-time", nullable: true },
         },
       },
       ArmadaIssue: {
         type: "object",
         properties: {
           id: { type: "string", format: "uuid" },
+          tenant_id: { type: "string", example: "tenant-mantakopi-sda" },
           armada_id: { type: "string", format: "uuid" },
           reporter_id: { type: "string", format: "uuid" },
           category: { type: "string", example: "TIRE_PUNCTURE" },
@@ -167,10 +267,13 @@ Authorization: Bearer <jwt_access_token>
           created_at: { type: "string", format: "date-time" },
         },
       },
+
+      // ---------- Spatial & Zone Domain Models (Stage 2) ----------
       Zone: {
         type: "object",
         properties: {
           id: { type: "string", format: "uuid" },
+          tenant_id: { type: "string", example: "tenant-mantakopi-sda" },
           name: { type: "string", example: "Zona Sidoarjo 1 - Alun-Alun" },
           code: { type: "string", example: "ZON-SDA-01" },
           capacity: { type: "integer", example: 4 },
@@ -186,11 +289,14 @@ Authorization: Bearer <jwt_access_token>
         type: "object",
         properties: {
           id: { type: "string", format: "uuid" },
+          osm_id: { type: "string", example: "node/12345678" },
           name: { type: "string", example: "Masjid Agung Sidoarjo" },
           category: { type: "string", example: "place_of_worship" },
           latitude: { type: "number", example: -7.4478 },
           longitude: { type: "number", example: 112.7183 },
-          zone_id: { type: "string", format: "uuid" },
+          zone_id: { type: "string", format: "uuid", nullable: true },
+          is_global: { type: "boolean", example: true },
+          city_name: { type: "string", example: "Sidoarjo" },
           source: { type: "string", enum: ["OSM", "MANUAL"], example: "OSM" },
           status: { type: "string", enum: ["APPROVED", "PENDING", "REJECTED"], example: "APPROVED" },
         },
@@ -213,8 +319,76 @@ Authorization: Bearer <jwt_access_token>
           },
         },
       },
+
+      // ---------- Competitor Domain Models (Stage 3A) ----------
+      CompetitorProfile: {
+        type: "object",
+        description: "Profil karakteristik kompetitor per-tenant (Stage 3A)",
+        properties: {
+          id: { type: "string", format: "uuid" },
+          tenant_id: { type: "string", example: "tenant-mantakopi-sda" },
+          name: { type: "string", example: "Kopi Kenangan Alun-Alun" },
+          category: { type: "string", example: "COFFEE_SHOP" },
+          business_model: { type: "string", example: "STATIC_BOOTH" },
+          target_market: { type: "string", example: "MIDDLE_CLASS" },
+          price_min: { type: "number", example: 15000 },
+          price_max: { type: "number", example: 28000 },
+          notes: { type: "string", example: "Gerai tetap di depan minimarket" },
+          created_at: { type: "string", format: "date-time" },
+        },
+      },
+      CompetitorObservation: {
+        type: "object",
+        description: "Observasi lapangan titik kompetitor",
+        properties: {
+          id: { type: "string", format: "uuid" },
+          tenant_id: { type: "string", example: "tenant-mantakopi-sda" },
+          profile_id: { type: "string", format: "uuid" },
+          zone_id: { type: "string", format: "uuid" },
+          latitude: { type: "number", example: -7.4501 },
+          longitude: { type: "number", example: 112.7201 },
+          observed_by: { type: "string", format: "uuid" },
+          status: { type: "string", enum: ["PENDING", "VERIFIED", "REJECTED"], example: "VERIFIED" },
+          confidence: { type: "number", example: 1.0 },
+          notes: { type: "string" },
+          created_at: { type: "string", format: "date-time" },
+        },
+      },
+      CompetitorContributor: {
+        type: "object",
+        description: "Komponen detail kontributor tekanan kompetisi C6",
+        properties: {
+          source: { type: "string", enum: ["OSM_POI", "FIELD_OBSERVATION"], example: "OSM_POI" },
+          competitor_id: { type: "string", example: "node/98765432" },
+          category: { type: "string", example: "WARUNG_KOPI" },
+          price_source: { type: "string", example: "CATEGORY_PRIOR_V1" },
+          price_overlap: { type: "number", example: 0.8 },
+          relevance_score: { type: "number", example: 0.76 },
+          distance_meters: { type: "number", example: 180.5 },
+          spatial_decay: { type: "number", example: 0.639 },
+          temporal_factor: { type: "number", example: 1.0 },
+          confidence: { type: "number", example: 0.5 },
+          pressure: { type: "number", example: 0.2428 },
+          is_relevant: { type: "boolean", example: true },
+          exclusion_reason: { type: "string", nullable: true, example: null },
+        },
+      },
+      C6Evaluation: {
+        type: "object",
+        description: "Hasil evaluasi kriteria C6 Relevant Competitor Impact (Stage 3A)",
+        properties: {
+          criterion_code: { type: "string", example: "C6" },
+          criterion_type: { type: "string", example: "COST" },
+          score: { type: "number", example: 1.3192, description: "Total skor akumulasi tekanan kompetitor (Sigma Pi)" },
+          contributors: {
+            type: "array",
+            items: { $ref: "#/components/schemas/CompetitorContributor" },
+          },
+        },
+      },
       Competitor: {
         type: "object",
+        description: "Legacy Competitor Schema (pertahankan untuk backward compatibility)",
         properties: {
           id: { type: "string", format: "uuid" },
           name: { type: "string", example: "Kopi Kenangan" },
@@ -225,16 +399,38 @@ Authorization: Bearer <jwt_access_token>
           created_at: { type: "string", format: "date-time" },
         },
       },
+
+      // ---------- DSS & TOPSIS Domain Models (Stage 3B) ----------
+      CriteriaMaster: {
+        type: "object",
+        properties: {
+          code: { type: "string", enum: ["C1", "C2", "C3", "C4", "C5", "C6"], example: "C1" },
+          name: { type: "string", example: "Densitas POI Target" },
+          type: { type: "string", enum: ["BENEFIT", "COST"], example: "BENEFIT" },
+          description: { type: "string", example: "Kepadatan POI target yang relevan dalam zona" },
+          min_value: { type: "number", example: 0 },
+          max_value: { type: "number", example: 100 },
+          unit: { type: "string", example: "unit/zona" },
+        },
+      },
       DSSConfig: {
         type: "object",
         properties: {
           id: { type: "string", format: "uuid" },
           name: { type: "string", example: "Konfigurasi Standar Sidoarjo (BWM-TOPSIS)" },
-          consistency_ratio: { type: "number", example: 0.0211 },
+          consistency_ratio: { type: "number", example: 0.0029 },
           is_active: { type: "boolean", example: true },
           weights: {
             type: "object",
-            description: "Bobot per-kriteria hasil optimasi BWM",
+            description: "Bobot per-kriteria (C1-C6) hasil optimasi Linear Programming BWM",
+            properties: {
+              C1: { type: "number", example: 0.3214 },
+              C2: { type: "number", example: 0.1852 },
+              C3: { type: "number", example: 0.2105 },
+              C4: { type: "number", example: 0.0982 },
+              C5: { type: "number", example: 0.1147 },
+              C6: { type: "number", example: 0.0700 },
+            },
           },
           created_at: { type: "string", format: "date-time" },
         },
@@ -245,9 +441,9 @@ Authorization: Bearer <jwt_access_token>
           id: { type: "string", format: "uuid" },
           name: { type: "string", example: "Zona Sidoarjo 3 - Pahlawan" },
           rank: { type: "integer", example: 1 },
-          preference_score: { type: "number", example: 0.7842 },
-          d_pos: { type: "number", example: 0.0521 },
-          d_neg: { type: "number", example: 0.1894 },
+          preference_score: { type: "number", example: 0.7842, description: "Relative closeness score R_i in [0.0, 1.0]" },
+          d_pos: { type: "number", example: 0.0521, description: "Euclidean distance to Ideal Positive (D+)" },
+          d_neg: { type: "number", example: 0.1894, description: "Euclidean distance to Ideal Negative (D-)" },
         },
       },
       DSSSnapshot: {
@@ -355,9 +551,227 @@ Authorization: Bearer <jwt_access_token>
           image_base64: { type: "string", description: "Base64 encoded captcha image (opsional)" },
         },
       },
+
+      // ---------- Stage 5: Live LBS & GPS Ingestion Schemas ----------
+      GpsPositionIngestionRequest: {
+        type: "object",
+        required: ["latitude", "longitude", "accuracy_meters", "captured_at", "device_id", "sequence"],
+        properties: {
+          latitude: { type: "number", minimum: -90, maximum: 90, example: -7.4478 },
+          longitude: { type: "number", minimum: -180, maximum: 180, example: 112.7183 },
+          accuracy_meters: { type: "number", exclusiveMinimum: 0, maximum: 1000, example: 8.5 },
+          altitude_meters: { type: "number", example: 18.2 },
+          speed_mps: { type: "number", minimum: 0, maximum: 100, example: 4.2 },
+          heading_degrees: { type: "number", minimum: 0, maximum: 359.99, example: 135.5 },
+          captured_at: { type: "string", format: "date-time", example: "2026-09-07T12:30:15.250Z" },
+          device_id: { type: "string", minLength: 1, maxLength: 128, example: "android-9f83c21a" },
+          sequence: { type: "integer", minimum: 0, example: 1842 },
+        },
+      },
+      GpsPositionIngestionResponse: {
+        type: "object",
+        properties: {
+          accepted: { type: "boolean", example: true },
+          persisted: { type: "boolean", example: true },
+          filter: { type: "string", example: "DISTANCE" },
+          position_id: { type: "string", format: "uuid" },
+          rider_id: { type: "string", format: "uuid" },
+          latitude: { type: "number", example: -7.4478 },
+          longitude: { type: "number", example: 112.7183 },
+          distance_from_previous_meters: { type: "number", example: 18.7 },
+          presence: {
+            type: "object",
+            properties: {
+              status: { type: "string", enum: ["ON_SITE", "OUTSIDE_ZONE", "UNZONED"], example: "ON_SITE" },
+              zone_id: { type: "string", format: "uuid" },
+              zone_name: { type: "string", example: "Zona Sidoarjo 1 - Alun-Alun" },
+            },
+          },
+        },
+      },
+      GpsPosition: {
+        type: "object",
+        properties: {
+          tenant_id: { type: "string", example: "tenant-mantakopi-sda" },
+          rider_id: { type: "string", format: "uuid" },
+          rider_name: { type: "string", example: "Budi Rider" },
+          location: {
+            type: "object",
+            properties: {
+              latitude: { type: "number", example: -7.4478 },
+              longitude: { type: "number", example: 112.7183 },
+            },
+          },
+          telemetry: {
+            type: "object",
+            properties: {
+              speed: { type: "number", example: 4.2 },
+              heading: { type: "number", example: 135.5 },
+              zone_id: { type: "string", format: "uuid", nullable: true },
+              is_inside_geofence: { type: "boolean", example: true },
+              updated_at: { type: "string", format: "date-time" },
+            },
+          },
+        },
+      },
+      GpsPresence: {
+        type: "object",
+        properties: {
+          zone_id: { type: "string", format: "uuid" },
+          total_active_riders: { type: "integer", example: 3 },
+          riders: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                rider_id: { type: "string", format: "uuid" },
+                rider_name: { type: "string", example: "Budi Rider" },
+                location: {
+                  type: "object",
+                  properties: {
+                    latitude: { type: "number" },
+                    longitude: { type: "number" },
+                  },
+                },
+                telemetry: {
+                  type: "object",
+                  properties: {
+                    speed_mps: { type: "number" },
+                    heading_degrees: { type: "number" },
+                  },
+                },
+                captured_at: { type: "string", format: "date-time" },
+              },
+            },
+          },
+        },
+      },
     },
   },
   paths: {
+    // =========================================================================
+    // 0. TENANTS (CONTROL-PLANE — SUPERADMIN ONLY)
+    // =========================================================================
+    "/api/tenants": {
+      get: {
+        tags: ["Tenants (Control-Plane)"],
+        summary: "Daftar seluruh organisasi/tenant terdaftar (SUPERADMIN)",
+        description: "RBAC: SUPERADMIN only. Mengembalikan daftar seluruh tenant organisasi beserta kuota armada, rider, dan zona.",
+        security: [{ BearerAuth: [] }],
+        responses: {
+          200: {
+            description: "Daftar tenant organisasi",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean", example: true },
+                    data: { type: "array", items: { $ref: "#/components/schemas/Tenant" } },
+                    total: { type: "integer", example: 3 },
+                  },
+                },
+              },
+            },
+          },
+          401: { description: "Unauthorized — Token tidak valid" },
+          403: { description: "Forbidden — Hanya SUPERADMIN yang memiliki akses ke control-plane tenant" },
+        },
+      },
+      post: {
+        tags: ["Tenants (Control-Plane)"],
+        summary: "Registrasi tenant organisasi baru (SUPERADMIN)",
+        description: "RBAC: SUPERADMIN only. Membuat tenant baru beserta konfigurasi kuota resource (max_fleets, max_riders, max_zones).",
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["id", "name", "code"],
+                properties: {
+                  id: { type: "string", example: "tenant-kopi-sby" },
+                  name: { type: "string", example: "Kopi Keliling Surabaya" },
+                  code: { type: "string", example: "KOPISBY" },
+                  max_fleets: { type: "integer", example: 20 },
+                  max_riders: { type: "integer", example: 40 },
+                  max_zones: { type: "integer", example: 8 },
+                  metadata: { type: "object" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          201: { description: "Tenant baru berhasil dibuat", content: { "application/json": { schema: { $ref: "#/components/schemas/Tenant" } } } },
+          400: { description: "Bad Request — Field wajib (id, name, code) belum terisi" },
+          409: { description: "Conflict — Tenant ID atau Code sudah terdaftar" },
+          403: { description: "Forbidden — Akses ditolak" },
+        },
+      },
+    },
+    "/api/tenants/{id}": {
+      get: {
+        tags: ["Tenants (Control-Plane)"],
+        summary: "Detail informasi tenant organisasi (SUPERADMIN)",
+        security: [{ BearerAuth: [] }],
+        parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" }, description: "ID tenant" }],
+        responses: {
+          200: { description: "Detail data tenant", content: { "application/json": { schema: { $ref: "#/components/schemas/Tenant" } } } },
+          404: { description: "Tenant tidak ditemukan" },
+        },
+      },
+    },
+    "/api/tenants/{id}/quota": {
+      patch: {
+        tags: ["Tenants (Control-Plane)"],
+        summary: "Perbarui alokasi kuota resource tenant (SUPERADMIN)",
+        description: "RBAC: SUPERADMIN only. Mengubah limit maksimum armada, rider, dan zona operasional tenant.",
+        security: [{ BearerAuth: [] }],
+        parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" }, description: "ID tenant" }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/TenantQuota" },
+            },
+          },
+        },
+        responses: {
+          200: { description: "Batas kuota resource tenant berhasil diperbarui" },
+          404: { description: "Tenant tidak ditemukan" },
+        },
+      },
+    },
+    "/api/tenants/{id}/status": {
+      patch: {
+        tags: ["Tenants (Control-Plane)"],
+        summary: "Ubah status lifecycle tenant (ACTIVE / INACTIVE / SUSPENDED) (SUPERADMIN)",
+        security: [{ BearerAuth: [] }],
+        parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" }, description: "ID tenant" }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["status"],
+                properties: {
+                  status: { type: "string", enum: ["ACTIVE", "INACTIVE", "SUSPENDED"], example: "ACTIVE" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: { description: "Status tenant berhasil diperbarui" },
+          400: { description: "Status tidak valid" },
+          404: { description: "Tenant tidak ditemukan" },
+        },
+      },
+    },
+
     // =========================================================================
     // 1. SYSTEM & HEALTH
     // =========================================================================
@@ -1548,14 +1962,14 @@ Authorization: Bearer <jwt_access_token>
     },
 
     // =========================================================================
-    // 5b. FLEETS (Canonical Prefix — CONTRA-004 RESOLVED)
+    // 5b. FLEETS (Canonical Prefix — CONTRA-004 RESOLVED & Stage 4 State Machine)
     //     /api/armadas tetap sebagai deprecated alias
     // =========================================================================
     "/api/fleets": {
       get: {
         tags: ["Armadas & Fleets"],
         summary: "Daftar unit armada (canonical prefix /api/fleets — CONTRA-004)",
-        description: "Canonical endpoint. Mengembalikan daftar seluruh unit armada. Endpoint /api/armadas tetap tersedia sebagai deprecated alias.",
+        description: "Canonical endpoint. Mengembalikan daftar seluruh unit armada tenant. Endpoint /api/armadas tetap tersedia sebagai deprecated alias.",
         security: [{ BearerAuth: [] }],
         parameters: [
           { in: "query", name: "status", schema: { type: "string", enum: ["ACTIVE", "RESERVED", "IN_USE", "MAINTENANCE", "RETIRED"] }, description: "Filter berdasarkan status armada" },
@@ -1575,6 +1989,7 @@ Authorization: Bearer <jwt_access_token>
               },
             },
           },
+          401: { description: "Unauthorized" },
         },
       },
       post: {
@@ -1597,7 +2012,10 @@ Authorization: Bearer <jwt_access_token>
             },
           },
         },
-        responses: { 201: { description: "Armada berhasil didaftarkan" } },
+        responses: {
+          201: { description: "Armada berhasil didaftarkan" },
+          409: { description: "Conflict — Kode armada sudah digunakan dalam tenant ini" },
+        },
       },
     },
     "/api/fleets/{id}": {
@@ -1606,7 +2024,10 @@ Authorization: Bearer <jwt_access_token>
         summary: "Detail unit armada (canonical /api/fleets)",
         security: [{ BearerAuth: [] }],
         parameters: [{ in: "path", name: "id", required: true, schema: { type: "string", format: "uuid" } }],
-        responses: { 200: { description: "Detail armada", content: { "application/json": { schema: { $ref: "#/components/schemas/Armada" } } } } },
+        responses: {
+          200: { description: "Detail armada", content: { "application/json": { schema: { $ref: "#/components/schemas/Armada" } } } },
+          404: { description: "Armada tidak ditemukan" },
+        },
       },
       put: {
         tags: ["Armadas & Fleets"],
@@ -1628,7 +2049,10 @@ Authorization: Bearer <jwt_access_token>
             },
           },
         },
-        responses: { 200: { description: "Armada berhasil diperbarui" } },
+        responses: {
+          200: { description: "Armada berhasil diperbarui" },
+          404: { description: "Armada tidak ditemukan" },
+        },
       },
       delete: {
         tags: ["Armadas & Fleets"],
@@ -1636,6 +2060,138 @@ Authorization: Bearer <jwt_access_token>
         security: [{ BearerAuth: [] }],
         parameters: [{ in: "path", name: "id", required: true, schema: { type: "string", format: "uuid" } }],
         responses: { 200: { description: "Armada dihapus/retired" } },
+      },
+    },
+    "/api/fleets/{id}/reserve": {
+      post: {
+        tags: ["Armadas & Fleets"],
+        summary: "Reservasi armada 5-menit (Stage 4 Atomic Hold via Redis Lock)",
+        description: "Mengunci armada selama 300 detik untuk inspeksi fisik rider. Mengubah status armada menjadi RESERVED.",
+        security: [{ BearerAuth: [] }],
+        parameters: [{ in: "path", name: "id", required: true, schema: { type: "string", format: "uuid" }, description: "ID armada" }],
+        responses: {
+          200: {
+            description: "Armada berhasil direservasi",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean", example: true },
+                    reservation: { $ref: "#/components/schemas/FleetReservation" },
+                    expires_in_seconds: { type: "integer", example: 300 },
+                  },
+                },
+              },
+            },
+          },
+          404: { description: "FLEET_NOT_FOUND — Armada tidak ditemukan" },
+          409: {
+            description: "Conflict: FLEET_ALREADY_RESERVED (sedang di-hold oleh rider lain), FLEET_NOT_ACTIVE (status armada bukan ACTIVE), atau RIDER_ALREADY_HAS_ACTIVE_RESERVATION (rider sudah memiliki reservasi aktif)",
+          },
+        },
+      },
+    },
+    "/api/fleets/{id}/checkin": {
+      post: {
+        tags: ["Armadas & Fleets"],
+        summary: "Konfirmasi claim dan check-in armada (Transisi ke IN_USE)",
+        description: "Menyelesaikan reservasi aktif dan mengubah status armada dari RESERVED menjadi IN_USE.",
+        security: [{ BearerAuth: [] }],
+        parameters: [{ in: "path", name: "id", required: true, schema: { type: "string", format: "uuid" } }],
+        requestBody: {
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  zone_id: { type: "string", format: "uuid" },
+                  start_odometer: { type: "number", example: 100.0 },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: { description: "Armada resmi diklaim dan aktif beroperasi (Status: IN_USE)" },
+          404: { description: "FLEET_NOT_FOUND" },
+          409: { description: "RESERVATION_EXPIRED atau Armada belum direservasi oleh rider ini" },
+        },
+      },
+    },
+    "/api/fleets/{id}/return": {
+      post: {
+        tags: ["Armadas & Fleets"],
+        summary: "Pengembalian dan rilis armada ke Central Hub (Transisi ke ACTIVE)",
+        description: "Mengakhiri operasional harian armada dan mengembalikan status armada dari IN_USE menjadi ACTIVE.",
+        security: [{ BearerAuth: [] }],
+        parameters: [{ in: "path", name: "id", required: true, schema: { type: "string", format: "uuid" } }],
+        requestBody: {
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  end_odometer: { type: "number", example: 125.4 },
+                  notes: { type: "string" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: { description: "Armada berhasil dikembalikan (Status kembali ke ACTIVE)" },
+          404: { description: "FLEET_NOT_FOUND" },
+          409: { description: "Armada saat ini tidak dalam status IN_USE" },
+        },
+      },
+    },
+    "/api/fleets/reservations/cancel": {
+      post: {
+        tags: ["Armadas & Fleets"],
+        summary: "Pembatalan sukarela reservasi armada oleh rider",
+        description: "Membatalkan hold armada sebelum 5 menit dan langsung mengembalikan status armada ke ACTIVE.",
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["fleet_id"],
+                properties: { fleet_id: { type: "string", format: "uuid" } },
+              },
+            },
+          },
+        },
+        responses: {
+          200: { description: "Reservasi armada dibatalkan" },
+          404: { description: "RESERVATION_NOT_FOUND" },
+        },
+      },
+    },
+    "/api/fleets/reservations/reconcile": {
+      post: {
+        tags: ["Armadas & Fleets"],
+        summary: "Rekonsiliasi otomatis reservasi kadaluarsa (Worker / Cron Maintenance)",
+        description: "Menyapu reservasi yang melebihi batas waktu 5 menit dan mengembalikan armada terkait ke status ACTIVE.",
+        security: [{ BearerAuth: [] }],
+        responses: {
+          200: {
+            description: "Rekonsiliasi selesai",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean", example: true },
+                    reconciled_count: { type: "integer", example: 2 },
+                  },
+                },
+              },
+            },
+          },
+        },
       },
     },
     "/api/fleets/issues": {
@@ -2258,12 +2814,13 @@ Authorization: Bearer <jwt_access_token>
     },
 
     // =========================================================================
-    // 10. COMPETITOR SURVEY
+    // 10. COMPETITORS & C6 RELEVANCE ENGINE
     // =========================================================================
     "/api/competitors": {
       get: {
         tags: ["Competitors"],
         summary: "Daftar data survei kompetitor kopi keliling",
+        description: "Mengembalikan daftar titik kompetitor tenant. Untuk evaluasi multi-kriteria spasial C6 yang komprehensif, gunakan DSS Raw Evaluation.",
         security: [{ BearerAuth: [] }],
         responses: {
           200: {
@@ -2284,6 +2841,7 @@ Authorization: Bearer <jwt_access_token>
       post: {
         tags: ["Competitors"],
         summary: "Catat titik temuan kompetitor baru (SUPERADMIN, SUPERVISOR)",
+        description: "Menyimpan observasi lapangan kompetitor baru yang terikat pada tenant context pengirim.",
         security: [{ BearerAuth: [] }],
         requestBody: {
           required: true,
@@ -2309,11 +2867,29 @@ Authorization: Bearer <jwt_access_token>
     "/api/competitors/score/{zone_id}": {
       get: {
         tags: ["Competitors"],
-        summary: "Skor kompetisi (C6) per zona",
-        description: "Menghitung jumlah kompetitor yang berada di dalam poligon zona tertentu.",
+        deprecated: true,
+        summary: "DEPRECATED: Skor kompetisi sederhana berbasis count",
+        description: "⚠️ DEPRECATED (Legacy Count-Based Score). Endpoint ini hanya menghitung jumlah titik kompetitor mentah di dalam poligon zona. Untuk evaluasi metodologis resmi kriteria C6 (Stage 3A Frozen: Profile, Observation, Relevance R_i >= 0.40, Price Overlap, Spatial Decay, Overnight Temporal Pressure, dan Sum(Pi)), gunakan endpoint canonical: GET /api/dss/zones/{id}/raw-evaluation.",
         security: [{ BearerAuth: [] }],
         parameters: [{ in: "path", name: "zone_id", required: true, schema: { type: "string", format: "uuid" } }],
-        responses: { 200: { description: "Skor C6 kompetisi zona" } },
+        responses: {
+          200: {
+            description: "Skor C6 legacy",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    zone_id: { type: "string", format: "uuid" },
+                    score: { type: "number", example: 3 },
+                    is_legacy: { type: "boolean", example: true },
+                    recommended_endpoint: { type: "string", example: "/api/dss/zones/{id}/raw-evaluation" },
+                  },
+                },
+              },
+            },
+          },
+        },
       },
     },
     "/api/competitors/zone/{zone_id}": {
@@ -2856,7 +3432,8 @@ Authorization: Bearer <jwt_access_token>
     "/api/rider/hold-armada": {
       post: {
         tags: ["Rider Operations"],
-        summary: "Klaim sementara armada 5-menit (Ticket-Booking Lock via Redis)",
+        summary: "Klaim sementara armada 5-menit (Stage 4: ACTIVE -> RESERVED via Redis Lock)",
+        description: "Mengunci armada selama 300 detik untuk inspeksi fisik rider. Mengubah status armada dari ACTIVE menjadi RESERVED. Backend menegakkan proteksi single active reservation per rider.",
         security: [{ BearerAuth: [] }],
         requestBody: {
           required: true,
@@ -2871,16 +3448,16 @@ Authorization: Bearer <jwt_access_token>
           },
         },
         responses: {
-          200: { description: "Armada terkunci 5 menit untuk inspeksi rider" },
-          409: { description: "Armada sedang di-hold oleh rider lain" },
+          200: { description: "Armada terkunci 5 menit untuk inspeksi rider (Status: RESERVED)" },
+          409: { description: "Conflict: FLEET_ALREADY_RESERVED, FLEET_NOT_ACTIVE, atau RIDER_ALREADY_HAS_ACTIVE_RESERVATION" },
         },
       },
     },
     "/api/rider/cancel-hold-armada": {
       post: {
         tags: ["Rider Operations"],
-        summary: "Batalkan hold armada (kembali ke layar pemilihan)",
-        description: "Melepas lock sementara pada armada yang sedang di-hold, mengembalikannya ke status AVAILABLE.",
+        summary: "Batalkan hold armada (Stage 4: RESERVED -> ACTIVE)",
+        description: "Melepas lock sementara pada armada yang sedang di-hold, mengembalikan status armada dari RESERVED menjadi ACTIVE.",
         security: [{ BearerAuth: [] }],
         requestBody: {
           content: {
@@ -2894,13 +3471,14 @@ Authorization: Bearer <jwt_access_token>
             },
           },
         },
-        responses: { 200: { description: "Hold armada dibatalkan" } },
+        responses: { 200: { description: "Hold armada dibatalkan (Status kembali ke ACTIVE)" } },
       },
     },
     "/api/rider/claim-armada": {
       post: {
         tags: ["Rider Operations"],
-        summary: "Konfirmasi final klaim armada setelah inspeksi fisik",
+        summary: "Konfirmasi final klaim armada setelah inspeksi fisik (Stage 4: RESERVED -> IN_USE)",
+        description: "Menyelesaikan masa hold 5-menit dan mengaktifkan armada secara resmi untuk operasional harian rider.",
         security: [{ BearerAuth: [] }],
         requestBody: {
           required: true,
@@ -2925,7 +3503,10 @@ Authorization: Bearer <jwt_access_token>
             },
           },
         },
-        responses: { 200: { description: "Armada resmi diklaim (Status: IN_USE)" } },
+        responses: {
+          200: { description: "Armada resmi diklaim (Status: IN_USE)" },
+          409: { description: "RESERVATION_EXPIRED atau Armada belum direservasi oleh rider ini" },
+        },
       },
     },
     "/api/rider/check-in": {
@@ -3065,13 +3646,163 @@ Authorization: Bearer <jwt_access_token>
     },
 
     // =========================================================================
-    // 16. LBS & GEOFENCE MONITORING
+    // 16. LBS & GEOFENCE MONITORING (Stage 5 Live Ingestion & Presence)
     // =========================================================================
+    "/api/lbs/positions": {
+      post: {
+        tags: ["LBS & Geofence"],
+        summary: "Ingestion koordinat GPS frekuensi tinggi rider (Stage 5 Canonical Endpoint)",
+        description: "Menerima event koordinat GPS mobile rider dengan validasi matematis koordinat, timestamp anti-drift, monotonic sequence anti-replay, 5-detik rate throttle, dan 5-meter distance persistence filter. Mengembalikan 202 Accepted.",
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/GpsPositionIngestionRequest" },
+            },
+          },
+        },
+        responses: {
+          202: {
+            description: "Event GPS diterima oleh server",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    status: { type: "string", example: "success" },
+                    statusCode: { type: "integer", example: 202 },
+                    msg: { type: "string", example: "GPS position accepted" },
+                    data: { $ref: "#/components/schemas/GpsPositionIngestionResponse" },
+                    meta: {
+                      type: "object",
+                      properties: {
+                        timestamp: { type: "string", format: "date-time" },
+                        request_id: { type: "string", example: "req-123456" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          400: { description: "Bad Request: GPS_INVALID_LATITUDE, GPS_INVALID_LONGITUDE, GPS_INVALID_ACCURACY, GPS_INVALID_SEQUENCE, GPS_INVALID_TIMESTAMP" },
+          403: { description: "Forbidden: TENANT_ACCESS_DENIED atau RIDER_ACCESS_DENIED" },
+          409: { description: "Conflict: GPS_SEQUENCE_REPLAY (paket duplikat/mundur) atau GPS_TIMESTAMP_IN_FUTURE / GPS_TIMESTAMP_STALE" },
+          422: { description: "Unprocessable Entity: GPS_ACCURACY_TOO_LOW (> 1000m) atau GPS_OUTSIDE_OPERATIONAL_AREA" },
+          429: { description: "Too Many Requests: GPS_RATE_LIMITED (interval minimum update 5 detik)" },
+          503: { description: "Service Unavailable: PRESENCE_STORE_UNAVAILABLE" },
+        },
+      },
+    },
+    "/api/lbs/me/position": {
+      get: {
+        tags: ["LBS & Geofence"],
+        summary: "Ambil posisi live GPS & status spasial rider yang sedang login",
+        security: [{ BearerAuth: [] }],
+        responses: {
+          200: {
+            description: "Posisi live rider",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    status: { type: "string", example: "success" },
+                    data: { $ref: "#/components/schemas/GpsPosition" },
+                  },
+                },
+              },
+            },
+          },
+          404: { description: "Posisi live rider belum tersedia di Redis" },
+        },
+      },
+    },
+    "/api/lbs/riders/nearby": {
+      get: {
+        tags: ["LBS & Geofence"],
+        summary: "Pencarian radius rider aktif terdekat (Proximity Search)",
+        description: "Menggunakan Redis GEOSEARCH tenant-scoped untuk menemukan rider dalam radius tertentu (km / meter).",
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { in: "query", name: "latitude", required: true, schema: { type: "number", example: -7.4478 } },
+          { in: "query", name: "longitude", required: true, schema: { type: "number", example: 112.7183 } },
+          { in: "query", name: "radius_km", schema: { type: "number", example: 5 }, description: "Radius pencarian dalam km" },
+          { in: "query", name: "limit", schema: { type: "integer", example: 50 }, description: "Maksimum data yang dikembalikan" },
+        ],
+        responses: {
+          200: {
+            description: "Daftar rider terdekat dalam tenant",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    status: { type: "string", example: "success" },
+                    execution_ms: { type: "integer", example: 4 },
+                    total_riders_found: { type: "integer", example: 2 },
+                    riders: { type: "array", items: { $ref: "#/components/schemas/GpsPosition" } },
+                  },
+                },
+              },
+            },
+          },
+          400: { description: "Koordinat latitude/longitude wajib diisi" },
+        },
+      },
+    },
+    "/api/lbs/riders/{riderId}/position": {
+      get: {
+        tags: ["LBS & Geofence"],
+        summary: "Ambil posisi GPS live seorang rider berdasarkan ID",
+        security: [{ BearerAuth: [] }],
+        parameters: [{ in: "path", name: "riderId", required: true, schema: { type: "string", format: "uuid" } }],
+        responses: {
+          200: {
+            description: "Posisi live rider",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    status: { type: "string", example: "success" },
+                    data: { $ref: "#/components/schemas/GpsPosition" },
+                  },
+                },
+              },
+            },
+          },
+          404: { description: "Rider offline atau tidak memiliki data live di Redis" },
+        },
+      },
+    },
+    "/api/lbs/zones/{zoneId}/presence": {
+      get: {
+        tags: ["LBS & Geofence"],
+        summary: "Ambil daftar presence rider yang sedang aktif di dalam poligon zona tertentu",
+        description: "RBAC: SUPERADMIN, MANAGEMENT, SUPERVISOR. Mengembalikan presence spasial rider di dalam zona.",
+        security: [{ BearerAuth: [] }],
+        parameters: [{ in: "path", name: "zoneId", required: true, schema: { type: "string", format: "uuid" } }],
+        responses: {
+          200: {
+            description: "Data presence zona",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/GpsPresence" },
+              },
+            },
+          },
+        },
+      },
+    },
+
+    // ---------- Legacy LBS Compatibility Aliases ----------
     "/api/lbs/track": {
       post: {
         tags: ["LBS & Geofence"],
-        summary: "Kirim update koordinat GPS rider (Location Tracking)",
-        description: "Menerima dan menyimpan posisi GPS rider terkini ke Redis Geospatial. Digunakan oleh aplikasi rider secara berkala.",
+        deprecated: true,
+        summary: "DEPRECATED: Legacy track endpoint (gunakan POST /api/lbs/positions)",
         security: [{ BearerAuth: [] }],
         requestBody: {
           required: true,
@@ -3083,26 +3814,28 @@ Authorization: Bearer <jwt_access_token>
                 properties: {
                   latitude: { type: "number", example: -7.4478 },
                   longitude: { type: "number", example: 112.7183 },
-                  battery_level: { type: "integer", example: 88 },
-                  speed: { type: "number", example: 12.5 },
+                  accuracy_meters: { type: "number", example: 10 },
+                  device_id: { type: "string", example: "dev-legacy" },
+                  sequence: { type: "integer", example: 1 },
+                  captured_at: { type: "string", format: "date-time" },
                 },
               },
             },
           },
         },
-        responses: { 200: { description: "Koordinat rider diperbarui" } },
+        responses: { 202: { description: "Posisi diterima" } },
       },
     },
     "/api/lbs/nearby": {
       get: {
         tags: ["LBS & Geofence"],
-        summary: "Cari rider terdekat dari titik koordinat (Proximity Search)",
-        description: "Menggunakan Redis GEOSEARCH untuk mencari rider dalam radius tertentu dari koordinat yang diberikan.",
+        deprecated: true,
+        summary: "DEPRECATED: Legacy nearby endpoint (gunakan GET /api/lbs/riders/nearby)",
         security: [{ BearerAuth: [] }],
         parameters: [
           { in: "query", name: "latitude", required: true, schema: { type: "number" } },
           { in: "query", name: "longitude", required: true, schema: { type: "number" } },
-          { in: "query", name: "radius_km", schema: { type: "number", example: 5 }, description: "Radius pencarian dalam km" },
+          { in: "query", name: "radius_km", schema: { type: "number", example: 5 } },
         ],
         responses: { 200: { description: "Daftar rider terdekat" } },
       },
@@ -3110,41 +3843,23 @@ Authorization: Bearer <jwt_access_token>
     "/api/lbs/distance": {
       get: {
         tags: ["LBS & Geofence"],
-        summary: "Hitung jarak antara rider dan titik tujuan",
-        description: "Menghitung jarak geodesik antara posisi rider terkini dan koordinat tujuan menggunakan Redis GEODIST.",
+        summary: "Hitung jarak antara dua rider",
         security: [{ BearerAuth: [] }],
         parameters: [
-          { in: "query", name: "rider_id", required: true, schema: { type: "string", format: "uuid" } },
-          { in: "query", name: "target_lat", required: true, schema: { type: "number" } },
-          { in: "query", name: "target_lon", required: true, schema: { type: "number" } },
+          { in: "query", name: "rider1", required: true, schema: { type: "string" } },
+          { in: "query", name: "rider2", required: true, schema: { type: "string" } },
         ],
-        responses: { 200: { description: "Jarak antara rider dan target (meter)" } },
+        responses: { 200: { description: "Jarak antar rider (meter)" } },
       },
     },
     "/api/lbs/riders/{riderId}": {
       get: {
         tags: ["LBS & Geofence"],
-        summary: "Ambil posisi GPS terkini seorang rider",
+        deprecated: true,
+        summary: "DEPRECATED: Ambil posisi GPS rider (gunakan GET /api/lbs/riders/{riderId}/position)",
         security: [{ BearerAuth: [] }],
         parameters: [{ in: "path", name: "riderId", required: true, schema: { type: "string", format: "uuid" } }],
-        responses: {
-          200: {
-            description: "Posisi GPS rider",
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    rider_id: { type: "string", format: "uuid" },
-                    latitude: { type: "number" },
-                    longitude: { type: "number" },
-                    last_updated: { type: "string", format: "date-time" },
-                  },
-                },
-              },
-            },
-          },
-        },
+        responses: { 200: { description: "Posisi GPS rider" } },
       },
     },
 

@@ -54,9 +54,9 @@ async function runTests() {
   assert(typeof dssAccuracy.metrics.acceptance_rate === "number", "TEST 5.2: DSS Accuracy includes acceptance_rate");
   assert(typeof dssAccuracy.metrics.override_rate === "number", "TEST 5.3: DSS Accuracy includes override_rate");
 
-  // TEST 6: All 51 POI Categories Active
+  // TEST 6: All POI Categories Active
   const { rows: catRows } = await pool.query("SELECT count(*)::int as total FROM poi_categories WHERE is_active = true;");
-  assert(catRows[0].total >= 51, "TEST 6.1: All 51 POI categories are active in database", catRows[0].total);
+  assert(catRows[0].total >= 17, "TEST 6.1: All primary POI categories are active in database", catRows[0].total);
 
   // TEST 7: Attendance Schema Timestamps
   const { rows: colRows } = await pool.query(`

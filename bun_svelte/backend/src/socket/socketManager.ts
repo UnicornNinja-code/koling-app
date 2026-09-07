@@ -1,6 +1,7 @@
 /*
  * socketManager.ts
- * Singleton Socket.io Server Manager with JWT Handshake Auth & Room Control in TypeScript
+ * Singleton Socket.io Server Manager with Multi-Tenant JWT Handshake Auth & Room Control
+ * MOVA Architecture Stage 5 (Live LBS & Real-Time Presence)
  */
 
 import { Server, Socket } from "socket.io";
@@ -15,6 +16,7 @@ export interface AuthenticatedSocket extends Socket {
     name: string;
     email: string;
     role: string;
+    tenantId?: string;
   };
 }
 
@@ -69,11 +71,14 @@ export class SocketManager {
         }
 
         const decoded = jwt.verify(token, env.JWT_SECRET) as JwtPayload;
+        const tenantId = decoded.tenantId || (decoded as any).tenant_id || "thesis-default";
+
         socket.user = {
           id: decoded.id,
           name: decoded.name,
           email: decoded.email,
           role: decoded.role,
+          tenantId: tenantId,
         };
         return next();
       } catch (err) {
@@ -85,20 +90,24 @@ export class SocketManager {
     this.io.on("connection", (socket: AuthenticatedSocket) => {
       const user = socket.user;
       if (!user) return;
-      console.log(`🔌 [SOCKET.IO CONNECTED] Socket ID: ${socket.id} | User: ${user.name} (${user.role})`);
+      const tenantId = user.tenantId || "thesis-default";
+      console.log(`🔌 [SOCKET.IO CONNECTED] Socket ID: ${socket.id} | User: ${user.name} (${user.role}) | Tenant: ${tenantId}`);
 
-      // Auto Join Rooms based on Role
+      // Auto Join Tenant-Scoped Rooms based on Role
       if (user.role === "SUPERADMIN" || user.role === "MANAGEMENT") {
+        socket.join(`tenant:${tenantId}:management`);
+        socket.join(`tenant:${tenantId}:supervisors`);
+        // Legacy fallback rooms
         socket.join("management_room");
         socket.join("supervisors_room");
-        console.log(` 👤 Executive User '${user.name}' bergabung ke rooms: management_room, supervisors_room`);
       } else if (user.role === "SUPERVISOR") {
+        socket.join(`tenant:${tenantId}:supervisors`);
         socket.join("supervisors_room");
-        console.log(` 👤 Supervisor '${user.name}' bergabung ke room: supervisors_room`);
       } else if (user.role === "RIDER") {
+        socket.join(`tenant:${tenantId}:riders`);
+        socket.join(`tenant:${tenantId}:rider:${user.id}`);
         socket.join("riders_room");
         socket.join(`rider_${user.id}_room`);
-        console.log(` 🚴 Rider '${user.name}' bergabung ke room: rider_${user.id}_room`);
       }
 
       // Disconnect Handler
@@ -107,33 +116,37 @@ export class SocketManager {
       });
     });
 
-    console.log("⚡ Socket.io Real-Time Server initialized successfully!");
+    console.log("⚡ Socket.io Multi-Tenant Real-Time Server initialized successfully!");
     return this.io;
   }
 
   /**
-   * Broadcast event to Management Room (Superadmin & Management only)
+   * Broadcast event to Tenant Supervisor Room (Supervisors, Management, Superadmin in tenant)
    */
-  public broadcastToManagement(event: string, data: any): void {
+  public broadcastToTenantSupervisors(tenantId: string, event: string, data: any): void {
     if (this.io) {
-      this.io.to("management_room").emit(event, data);
-    }
-  }
-
-  /**
-   * Broadcast event to Supervisors Room (Supervisor, Management, & Superadmin)
-   */
-  public broadcastToSupervisors(event: string, data: any): void {
-    if (this.io) {
+      this.io.to(`tenant:${tenantId}:supervisors`).emit(event, data);
+      // Legacy room broadcast
       this.io.to("supervisors_room").emit(event, data);
     }
   }
 
   /**
-   * Send event to specific Rider Room
+   * Broadcast event to Tenant Management Room
    */
-  public sendToRider(riderId: number | string, event: string, data: any): void {
+  public broadcastToTenantManagement(tenantId: string, event: string, data: any): void {
     if (this.io) {
+      this.io.to(`tenant:${tenantId}:management`).emit(event, data);
+      this.io.to("management_room").emit(event, data);
+    }
+  }
+
+  /**
+   * Send event to specific Tenant Rider Room
+   */
+  public sendToTenantRider(tenantId: string, riderId: number | string, event: string, data: any): void {
+    if (this.io) {
+      this.io.to(`tenant:${tenantId}:rider:${riderId}`).emit(event, data);
       this.io.to(`rider_${riderId}_room`).emit(event, data);
     }
   }
@@ -144,6 +157,25 @@ export class SocketManager {
   public broadcastAll(event: string, data: any): void {
     if (this.io) {
       this.io.emit(event, data);
+    }
+  }
+
+  // Legacy compatibility helpers
+  public broadcastToManagement(event: string, data: any): void {
+    if (this.io) {
+      this.io.to("management_room").emit(event, data);
+    }
+  }
+
+  public broadcastToSupervisors(event: string, data: any): void {
+    if (this.io) {
+      this.io.to("supervisors_room").emit(event, data);
+    }
+  }
+
+  public sendToRider(riderId: number | string, event: string, data: any): void {
+    if (this.io) {
+      this.io.to(`rider_${riderId}_room`).emit(event, data);
     }
   }
 }

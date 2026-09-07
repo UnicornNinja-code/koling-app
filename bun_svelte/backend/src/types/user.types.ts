@@ -8,6 +8,7 @@ export type UserStatus = "ACTIVE" | "INACTIVE" | "SUSPENDED" | "PENDING";
 
 export interface User {
   id: number | string;
+  tenant_id?: string;
   username?: string | null;
   name: string;
   email: string;
@@ -27,6 +28,7 @@ export interface User {
 
 export interface UserSanitized {
   id: number | string;
+  tenant_id?: string;
   username?: string | null;
   name: string;
   email: string;
@@ -44,6 +46,7 @@ export interface UserSanitized {
 }
 
 export interface CreateUserDto {
+  tenant_id?: string;
   username?: string;
   name: string;
   email: string;
@@ -58,6 +61,7 @@ export interface CreateUserDto {
 }
 
 export interface UpdateUserDto {
+  tenant_id?: string;
   username?: string;
   name?: string;
   email?: string;
@@ -73,6 +77,7 @@ export interface UpdateUserDto {
 
 export interface JwtPayload {
   id: number | string;
+  tenant_id?: string;
   name: string;
   email: string;
   role: UserRole;

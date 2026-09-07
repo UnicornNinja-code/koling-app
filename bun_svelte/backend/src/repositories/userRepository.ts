@@ -30,7 +30,7 @@ export class UserRepository {
 
   public async findAll(): Promise<UserSanitized[]> {
     const query = `
-      SELECT id, email, username, name, role, birth_date, is_active, first_login, created_at, updated_at
+      SELECT id, tenant_id, email, username, name, role, birth_date, is_active, first_login, created_at, updated_at
       FROM users
       ORDER BY created_at DESC;
     `;
@@ -40,7 +40,7 @@ export class UserRepository {
 
   public async findById(id: number | string): Promise<UserSanitized | null> {
     const query = `
-      SELECT id, email, username, name, role, birth_date, is_active, first_login, created_at, updated_at
+      SELECT id, tenant_id, email, username, name, role, birth_date, is_active, first_login, created_at, updated_at
       FROM users
       WHERE id = $1;
     `;
@@ -50,7 +50,7 @@ export class UserRepository {
 
   public async findByIdWithPassword(id: number | string): Promise<User | null> {
     const query = `
-      SELECT id, email, username, password, name, role, birth_date, is_active, first_login, created_at, updated_at
+      SELECT id, tenant_id, email, username, password, name, role, birth_date, is_active, first_login, created_at, updated_at
       FROM users
       WHERE id = $1;
     `;
@@ -74,6 +74,7 @@ export class UserRepository {
   }
 
   public async createUser({
+    tenant_id = "thesis-default",
     email,
     username,
     password,
@@ -82,6 +83,7 @@ export class UserRepository {
     isActive = false,
     firstLogin = false,
   }: {
+    tenant_id?: string;
     email: string;
     username?: string;
     password?: string;
@@ -91,11 +93,11 @@ export class UserRepository {
     firstLogin?: boolean;
   }): Promise<UserSanitized> {
     const query = `
-      INSERT INTO users (email, username, password, name, role, is_active, first_login)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING id, email, username, name, role, is_active, first_login, created_at, updated_at;
+      INSERT INTO users (tenant_id, email, username, password, name, role, is_active, first_login)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING id, tenant_id, email, username, name, role, is_active, first_login, created_at, updated_at;
     `;
-    const values = [email, username || email.split("@")[0], password, name, role, isActive, firstLogin];
+    const values = [tenant_id, email, username || email.split("@")[0], password, name, role, isActive, firstLogin];
     const { rows } = await this.pool.query(query, values);
     return rows[0];
   }

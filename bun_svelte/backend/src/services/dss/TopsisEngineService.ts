@@ -129,11 +129,11 @@ export class TopsisEngineService {
     console.log("--------------------------------------------------------------------------------");
 
     const m = activeZones.length;
-    const n = criteriaSpecs.length;
     const rawMatrix: any[] = [];
 
     for (let i = 0; i < m; i++) {
       const zone = activeZones[i];
+      const tenantId = (options as any).tenantId || (zone as any).tenant_id || "thesis-default";
 
       const c1c2Res = await poiRepository.getDensitasDanDiversitasByZonePolygon(zone.polygon);
       const c1Val = c1c2Res?.skor_c1 || 0;
@@ -147,13 +147,20 @@ export class TopsisEngineService {
 
       const c5Res = await poiDistanceService.calculateZoneC5Score(zone.id, riderLat, riderLon);
       const c5Val = c5Res?.skor_c5 ?? c5Res?.distance_km ?? 0;
+      const centroid = c5Res?.centroid || { latitude: -7.4478, longitude: 112.7183 };
 
-      const c6Res = await poiCompetitorService.getZoneC6Score(zone.id);
-      const c6Val = c6Res?.skor_c6 || 0;
+      // C6: Relevant Competitor Impact Score from Stage 3A Engine (COST)
+      const c6Res = await competitorRelevanceService.evaluateC6ForCoordinate(
+        tenantId,
+        centroid.latitude,
+        centroid.longitude,
+        new Date().toTimeString().split(" ")[0]
+      );
+      const c6Val = c6Res.value;
 
       const zoneRow = {
-        zone_id: zone.id,
-        zone_name: zone.name,
+        id: zone.id,
+        name: zone.name,
         scores: {
           C1: c1Val,
           C2: c2Val,
@@ -165,105 +172,26 @@ export class TopsisEngineService {
       };
 
       rawMatrix.push(zoneRow);
-      console.log(`   • [Zona ${i + 1}] ${zone.name.padEnd(28)} | C1:${c1Val.toString().padStart(3)} | C2:${c2Val.toString().padStart(3)} | C3:${c3Val.toFixed(1).padStart(5)} | C4:${c4Val.toFixed(0).padStart(3)}% | C5:${c5Val.toFixed(2).padStart(5)}km | C6:${c6Val.toString().padStart(3)}`);
+      console.log(`   • [Zona ${i + 1}] ${zone.name.padEnd(28)} | C1:${c1Val.toString().padStart(3)} | C2:${c2Val.toString().padStart(3)} | C3:${c3Val.toFixed(1).padStart(5)} | C4:${c4Val.toFixed(0).padStart(3)}% | C5:${c5Val.toFixed(2).padStart(5)}km | C6:${c6Val.toFixed(2).padStart(5)}`);
     }
 
-    // --- STEP 2: VECTOR NORMALIZATION MATRIX (R_m x 6) ---
-    const sumSquares: Record<string, number> = {};
-    criteriaSpecs.forEach((crit) => {
-      let sumSq = 0;
-      for (let i = 0; i < m; i++) {
-        const val = rawMatrix[i].scores[crit.code] || 0;
-        sumSq += val * val;
-      }
-      sumSquares[crit.code] = Math.sqrt(sumSq);
-    });
+    // --- STEP 2 to 6: SAFE TOPSIS EXECUTION (Pure Mathematical Engine) ---
+    const topsisResult = safeTopsisEngine.execute(rawMatrix, criteriaSpecs as any);
 
-    const normalizedMatrix: any[] = [];
-    for (let i = 0; i < m; i++) {
-      const normRow: any = { zone_id: rawMatrix[i].zone_id, zone_name: rawMatrix[i].zone_name, r: {} };
-      criteriaSpecs.forEach((crit) => {
-        const denom = sumSquares[crit.code];
-        normRow.r[crit.code] = denom > 0 ? rawMatrix[i].scores[crit.code] / denom : 0;
-      });
-      normalizedMatrix.push(normRow);
-    }
+    const normalizedMatrix = topsisResult.normalized_matrix;
+    const weightedMatrix = topsisResult.weighted_matrix;
+    const idealPositive = topsisResult.ideal_solutions.positive;
+    const idealNegative = topsisResult.ideal_solutions.negative;
 
-    // --- STEP 3: WEIGHTED NORMALIZED MATRIX (V_m x 6) ---
-    const weightedMatrix: any[] = [];
-    for (let i = 0; i < m; i++) {
-      const weightRow: any = { zone_id: normalizedMatrix[i].zone_id, zone_name: normalizedMatrix[i].zone_name, y: {} };
-      criteriaSpecs.forEach((crit) => {
-        weightRow.y[crit.code] = normRowValue(normalizedMatrix[i].r[crit.code]) * (crit.weight || (1 / n));
-      });
-      weightedMatrix.push(weightRow);
-    }
-
-    // --- STEP 4: POSITIVE (A+) AND NEGATIVE (A-) IDEAL SOLUTIONS ---
-    const idealPositive: Record<string, number> = {};
-    const idealNegative: Record<string, number> = {};
-
-    criteriaSpecs.forEach((crit) => {
-      const colValues = weightedMatrix.map((row) => row.y[crit.code]);
-      const maxVal = Math.max(...colValues);
-      const minVal = Math.min(...colValues);
-
-      if (crit.type === "BENEFIT") {
-        idealPositive[crit.code] = maxVal;
-        idealNegative[crit.code] = minVal;
-      } else {
-        idealPositive[crit.code] = minVal;
-        idealNegative[crit.code] = maxVal;
-      }
-    });
-
-    // --- STEP 5: EUCLIDEAN DISTANCES (D+ & D-) ---
-    const distanceResults: any[] = [];
-    for (let i = 0; i < m; i++) {
-      let sumSqPos = 0;
-      let sumSqNeg = 0;
-
-      criteriaSpecs.forEach((crit) => {
-        const yVal = weightedMatrix[i].y[crit.code];
-        const diffPos = yVal - idealPositive[crit.code];
-        const diffNeg = yVal - idealNegative[crit.code];
-
-        sumSqPos += diffPos * diffPos;
-        sumSqNeg += diffNeg * diffNeg;
-      });
-
-      const dPos = Math.sqrt(sumSqPos);
-      const dNeg = Math.sqrt(sumSqNeg);
-
-      distanceResults.push({
-        zone_id: weightedMatrix[i].zone_id,
-        zone_name: weightedMatrix[i].zone_name,
-        d_pos: dPos,
-        d_neg: dNeg,
-      });
-    }
-
-    // --- STEP 6: PREFERENCE SCORE & RANKING ---
-    const finalRankings = distanceResults.map((item) => {
-      const denom = item.d_pos + item.d_neg;
-      const preferenceScore = denom > 0 ? item.d_neg / denom : 0;
-      const roundedScore = parseFloat(preferenceScore.toFixed(4));
-      return {
-        zone_id: item.zone_id,
-        zone_name: item.zone_name,
-        preference_score: roundedScore,
-        score: roundedScore,
-        d_pos: parseFloat(item.d_pos.toFixed(4)),
-        d_neg: parseFloat(item.d_neg.toFixed(4)),
-      };
-    });
-
-    finalRankings.sort((a, b) => {
-      if (Math.abs(b.preference_score - a.preference_score) > 1e-9) {
-        return b.preference_score - a.preference_score;
-      }
-      return String(a.zone_name).localeCompare(String(b.zone_name)) || String(a.zone_id).localeCompare(String(b.zone_id));
-    });
+    const finalRankings = topsisResult.rankings.map((item) => ({
+      zone_id: item.id,
+      zone_name: item.name,
+      preference_score: item.score,
+      score: item.score,
+      d_pos: item.d_positive,
+      d_neg: item.d_negative,
+      rank: item.rank,
+    }));
 
     finalRankings.forEach((item: any, index: number) => {
       item.rank = index + 1;

@@ -1,6 +1,7 @@
 /*
  * RawCriteriaEvaluationService.ts
  * Domain Service for DSS Phase 1 — Raw Criteria Evaluation Engine (DSS-CRITERIA-v1.0) in TypeScript
+ * Standarisasi Kriteria: C1-C3 BENEFIT, C4-C6 COST
  */
 
 import { ZoneModel } from "../../models/zoneModel.js";
@@ -8,18 +9,11 @@ import { poiRepository } from "../../repositories/poiRepository.js";
 import { poiTimeCrowdService } from "../poi/POITimeCrowdService.js";
 import { poiWeatherService } from "../poi/POIWeatherService.js";
 import { poiDistanceService } from "../poi/POIDistanceService.js";
-import { poiCompetitorService } from "../poi/POICompetitorService.js";
+import { competitorRelevanceService } from "../competitor/CompetitorRelevanceService.js";
 import { TimeSlotEvaluator } from "../../utils/TimeSlotEvaluator.js";
 
 export class RawCriteriaEvaluationService {
   private static instance: RawCriteriaEvaluationService | null = null;
-
-  constructor() {
-    if (RawCriteriaEvaluationService.instance) {
-      return RawCriteriaEvaluationService.instance;
-    }
-    RawCriteriaEvaluationService.instance = this;
-  }
 
   public static getInstance(): RawCriteriaEvaluationService {
     if (!RawCriteriaEvaluationService.instance) {
@@ -34,6 +28,7 @@ export class RawCriteriaEvaluationService {
   public async evaluateZoneRawCriteria(
     zoneId: number | string,
     options: {
+      tenantId?: string;
       timeSlot?: string;
       riderLat?: number | string | null;
       riderLon?: number | string | null;
@@ -46,41 +41,38 @@ export class RawCriteriaEvaluationService {
       throw error;
     }
 
+    const tenantId = options.tenantId || (zone as any).tenant_id || "thesis-default";
     const evaluatedAt = new Date();
     const activeSlot = options.timeSlot || TimeSlotEvaluator.getSlot(evaluatedAt);
     const { riderLat = null, riderLon = null } = options;
 
-    // 1. Fetch C1 & C2 (Density & Diversity)
+    // 1. Fetch C1 & C2 (Density & Diversity) - BENEFIT
     const c1c2Res = await poiRepository.getDensitasDanDiversitasByZonePolygon(zone.polygon);
     const c1Val = parseInt(String(c1c2Res?.skor_c1 || 0), 10);
     const c2Val = parseInt(String(c1c2Res?.skor_c2 || 0), 10);
 
-    // 2. Fetch C3 (Time Crowd Score + Detailed Breakdown)
+    // 2. Fetch C3 (Time Crowd Score + Detailed Breakdown) - BENEFIT
     const c3Res = await poiTimeCrowdService.calculateZoneC3Score(zone.polygon, activeSlot);
     const c3Details = await poiRepository.getTimeCrowdDetailsByZonePolygon(zone.polygon, activeSlot);
     const c3Val = parseFloat((c3Res?.total_c3_score || 0).toFixed(2));
 
-    // 3. Fetch C4 (Weather Risk Cost)
+    // 3. Fetch C4 (Weather Risk Cost) - COST
     const c4Res = await poiWeatherService.calculateZoneC4Score(zone.id, evaluatedAt);
     const c4Val = parseFloat((c4Res?.skor_c4 ?? c4Res?.max_precipitation_probability ?? 0).toFixed(2));
 
-    // 4. Fetch C5 (Distance Cost to Zone Centroid)
+    // 4. Fetch C5 (Distance Cost to Zone Centroid) - COST
     const c5Res = await poiDistanceService.calculateZoneC5Score(zone.id, riderLat, riderLon);
     const c5Val = parseFloat((c5Res?.skor_c5 ?? c5Res?.distance_km ?? 0).toFixed(2));
+    const centroid = c5Res?.centroid || { latitude: -7.4478, longitude: 112.7183 };
 
-    // 5. Fetch C6 (Market Competition Index Cost)
-    const c6Res = await poiCompetitorService.getZoneC6Score(zone.id);
-    const c6Val = parseInt(String(c6Res?.skor_c6 || 0), 10);
-
-    const formattedCompetitors = (c6Res?.details || []).map((comp: any) => ({
-      id: comp.id,
-      name: comp.name,
-      category: comp.category,
-      source: comp.source,
-      threat_level: parseInt(String(comp.weight || 1), 10),
-      latitude: comp.latitude,
-      longitude: comp.longitude,
-    }));
+    // 5. Fetch C6 (Relevant Competitor Impact Score) - COST
+    const c6Res = await competitorRelevanceService.evaluateC6ForCoordinate(
+      tenantId,
+      centroid.latitude,
+      centroid.longitude,
+      evaluatedAt.toTimeString().split(" ")[0]
+    );
+    const c6Val = c6Res.value;
 
     return {
       zone_id: zone.id,
@@ -107,7 +99,7 @@ export class RawCriteriaEvaluationService {
         },
         C3: {
           code: "C3",
-          name: "Keramaian Waktu",
+          name: "Potensi Keramaian Waktu",
           type: "BENEFIT",
           raw_value: c3Val,
           unit: "SCORE",
@@ -115,7 +107,7 @@ export class RawCriteriaEvaluationService {
         },
         C4: {
           code: "C4",
-          name: "Kondisi Cuaca",
+          name: "Risiko Cuaca",
           type: "COST",
           raw_value: c4Val,
           unit: "PERCENT",
@@ -130,23 +122,27 @@ export class RawCriteriaEvaluationService {
         },
         C5: {
           code: "C5",
-          name: "Jarak Aksesibilitas",
+          name: "Jarak Aksesibilitas Rider",
           type: "COST",
           raw_value: c5Val,
           unit: "KM",
           details: {
             distance_meters: c5Res?.distance_meters || 0,
-            centroid: c5Res?.centroid || { latitude: 0, longitude: 0 },
+            centroid: centroid,
             origin: c5Res?.origin || { type: "HUB_DEFAULT_LOCATION", latitude: 0, longitude: 0 },
           },
         },
         C6: {
           code: "C6",
-          name: "Tingkat Persaingan",
+          name: "Dampak Kompetitor Relevan",
           type: "COST",
           raw_value: c6Val,
           unit: "INDEX",
-          details: formattedCompetitors,
+          details: {
+            total_candidates: c6Res.total_candidates_analyzed,
+            relevant_competitors: c6Res.relevant_competitors_count,
+            contributors: c6Res.contributors,
+          },
         },
       },
     };

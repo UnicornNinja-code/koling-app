@@ -69,6 +69,7 @@
 
   const allNavItems = [
     { label: 'Dashboard', route: '/dashboard', iconClass: 'ri-dashboard-3-line', activeIconClass: 'ri-dashboard-3-fill', roles: ['SUPERADMIN', 'MANAGEMENT', 'SUPERVISOR'] },
+    { label: 'Live Presence', route: '/presence', iconClass: 'ri-radar-line', activeIconClass: 'ri-radar-fill', roles: ['SUPERADMIN', 'MANAGEMENT', 'SUPERVISOR'] },
     { label: 'Map Ops', route: '/map', iconClass: 'ri-map-2-line', activeIconClass: 'ri-map-2-fill', roles: ['SUPERADMIN', 'MANAGEMENT', 'SUPERVISOR'] },
     { label: 'Zona Wilayah', route: '/zones', iconClass: 'ri-road-map-line', activeIconClass: 'ri-road-map-fill', roles: ['SUPERADMIN', 'SUPERVISOR'] },
     { label: 'Eksplorasi POI', route: '/pois', iconClass: 'ri-building-line', activeIconClass: 'ri-building-fill', roles: ['SUPERADMIN', 'SUPERVISOR'] },

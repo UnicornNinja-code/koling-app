@@ -38,6 +38,7 @@ import dashboardRoutes from "./src/routes/dashboardRoutes.js";
 import notificationRoutes from "./src/routes/notificationRoutes.js";
 import dataSyncRoutes from "./src/routes/dataSyncRoutes.js";
 import reportRoutes from "./src/routes/reportRoutes.js";
+import tenantRoutes from "./src/routes/tenantRoutes.js";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "./src/docs/swagger.js";
 
@@ -65,6 +66,10 @@ app.use(
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
       if (!origin) return callback(null, true);
       const allowedOrigins = [
+        "http://localhost:9967",
+        "http://127.0.0.1:9967",
+        "http://localhost:9968",
+        "http://127.0.0.1:9968",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "http://localhost:3000",
@@ -186,6 +191,7 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/data-sync", dataSyncRoutes);
 app.use("/api/reports", reportRoutes);
+app.use("/api/tenants", tenantRoutes);
 
 // Global Centralized Error Handling Middleware (PART 00 Canonical Error Envelope)
 app.use((err: any, req: Request, res: Response, _next: NextFunction): any => {

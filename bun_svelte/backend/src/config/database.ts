@@ -14,11 +14,3 @@ export const pool = new Pool({
   connectionTimeoutMillis: 5000,
 });
 
-pool.connect((err, client, release) => {
-  if (err) {
-    console.error("❌ Gagal terhubung ke PostgreSQL:", err.message);
-    return;
-  }
-  console.log("🐘 PostgreSQL & PostGIS berhasil terhubung!");
-  release?.();
-});

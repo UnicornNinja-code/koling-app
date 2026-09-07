@@ -18,6 +18,7 @@
   // Desktop Management Suite
   import AppShell from './components/layout/AppShell.svelte';
   import SuperAdminDashboardPage from './pages/superadmin/SuperAdminDashboardPage.svelte';
+  import OperationalPresencePage from './pages/presence/OperationalPresencePage.svelte';
   import SuperAdminMapPage from './pages/superadmin/SuperAdminMapPage.svelte';
   import SuperAdminZonesPage from './pages/superadmin/SuperAdminZonesPage.svelte';
   import SuperAdminPoisPage from './pages/superadmin/SuperAdminPoisPage.svelte';
@@ -140,6 +141,11 @@
       <SuperAdminDashboardPage onNavigate={navigate} />
     </AppShell>
   {/if}
+
+{:else if router.currentPath === '/presence'}
+  <AppShell currentRoute="/presence" onNavigate={navigate}>
+    <OperationalPresencePage onNavigate={navigate} />
+  </AppShell>
 
 {:else if router.currentPath === '/map'}
   <AppShell currentRoute="/map" onNavigate={navigate}>
