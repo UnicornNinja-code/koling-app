@@ -58,6 +58,7 @@ CREATE INDEX IF NOT EXISTS idx_dataset_sync_jobs_created_at ON dataset_sync_jobs
 CREATE TABLE IF NOT EXISTS pois_staging (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   version_id uuid NOT NULL REFERENCES dataset_versions(id) ON DELETE CASCADE,
+  hub_id varchar(100) NULL DEFAULT NULL,
   external_id varchar(255) NOT NULL,
   osm_type varchar(20),
   osm_id bigint,

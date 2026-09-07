@@ -2,9 +2,9 @@
   "dataset": "protocol_roads",
   "version": 1,
   "source": "OpenStreetMap Overpass API",
-  "fetched_at": "2026-09-04T03:26:23.366Z",
-  "feature_count": 78,
-  "checksum_sha256": "26cd7584a6ad58282ef52ed5a8be1313a51173c621380eba7eea8dd856248861",
+  "fetched_at": "2026-09-04T14:44:14.603Z",
+  "feature_count": 270,
+  "checksum_sha256": "71326d1e4a44e3c455b1704730e79d6b3eab22c4160da822f61dd5df32e10645",
   "validation_status": "VALIDATED",
   "status": "ACTIVE"
 }

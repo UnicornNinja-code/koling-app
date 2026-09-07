@@ -457,6 +457,82 @@ CREATE TABLE IF NOT EXISTS protocol_roads (
 CREATE INDEX IF NOT EXISTS idx_protocol_roads_geom_gist ON protocol_roads USING GIST (geom);
 CREATE INDEX IF NOT EXISTS idx_protocol_roads_restriction ON protocol_roads (restriction_type);
 
+-- Dataset Versioning & Spatial Staging
+CREATE TABLE IF NOT EXISTS dataset_versions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  dataset_type varchar(50) NOT NULL,
+  version integer NOT NULL,
+  status varchar(30) NOT NULL DEFAULT 'STAGING',
+  source varchar(100) NOT NULL DEFAULT 'OVERPASS_API',
+  feature_count integer NOT NULL DEFAULT 0,
+  checksum varchar(64),
+  snapshot_path varchar(500),
+  manifest_path varchar(500),
+  validation_summary jsonb DEFAULT '{}',
+  error_message text,
+  fetched_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  validated_at timestamp,
+  promoted_at timestamp,
+  created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT uq_dataset_type_version UNIQUE(dataset_type, version)
+);
+
+CREATE TABLE IF NOT EXISTS dataset_sync_jobs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  job_id varchar(100) UNIQUE NOT NULL,
+  dataset_type varchar(50) NOT NULL,
+  triggered_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  status varchar(30) NOT NULL DEFAULT 'PENDING',
+  progress integer NOT NULL DEFAULT 0,
+  records_fetched integer DEFAULT 0,
+  records_inserted integer DEFAULT 0,
+  records_updated integer DEFAULT 0,
+  duplicates_count integer DEFAULT 0,
+  invalid_geometries_count integer DEFAULT 0,
+  target_version integer,
+  previous_version integer,
+  duration_ms integer,
+  error_details jsonb,
+  started_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  completed_at timestamp,
+  created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS pois_staging (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  version_id uuid NOT NULL REFERENCES dataset_versions(id) ON DELETE CASCADE,
+  hub_id varchar(100) NULL DEFAULT NULL,
+  external_id varchar(255) NOT NULL,
+  osm_type varchar(20),
+  osm_id bigint,
+  name varchar(255) NOT NULL,
+  category varchar(100) NOT NULL,
+  latitude double precision NOT NULL,
+  longitude double precision NOT NULL,
+  geom geometry(Point, 4326),
+  metadata jsonb DEFAULT '{}',
+  validation_status varchar(30) DEFAULT 'PENDING',
+  validation_notes text,
+  created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE pois_staging ADD COLUMN IF NOT EXISTS hub_id varchar(100) NULL DEFAULT NULL;
+
+CREATE TABLE IF NOT EXISTS protocol_roads_staging (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  version_id uuid NOT NULL REFERENCES dataset_versions(id) ON DELETE CASCADE,
+  external_id varchar(255) NOT NULL,
+  name varchar(255),
+  highway_type varchar(100),
+  restriction_type varchar(100) NOT NULL,
+  geom geometry(LineString, 4326),
+  metadata jsonb DEFAULT '{}',
+  validation_status varchar(30) DEFAULT 'PENDING',
+  validation_notes text,
+  created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- ========================================================
 -- MEMBUAT TRIGGER FOR AUTO UPDATED_AT (Aman & Idempotent)
 -- ========================================================

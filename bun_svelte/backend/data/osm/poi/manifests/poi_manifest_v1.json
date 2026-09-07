@@ -2,14 +2,14 @@
   "dataset": "poi",
   "version": 1,
   "source": "OpenStreetMap Overpass API",
-  "fetched_at": "2026-09-04T03:26:27.235Z",
-  "feature_count": 485,
-  "checksum_sha256": "6a47c451a848722ccefd498014a19715bd95fe92b05fdd2cab6260742ec9a897",
+  "fetched_at": "2026-09-04T14:45:22.441Z",
+  "feature_count": 657,
+  "checksum_sha256": "7f03deef430f6bba9946129c33f9c693cc2f6e42e6e4b632a844edcdb88e32a3",
   "validation_status": "VALIDATED",
   "status": "ACTIVE",
   "metadata": {
-    "city": "Tuban",
-    "raw_elements": 547,
-    "duplicates_filtered": 0
+    "city": "Srengat",
+    "raw_elements": 672,
+    "duplicates_filtered": 8
   }
 }
