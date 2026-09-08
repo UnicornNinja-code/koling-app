@@ -10,7 +10,7 @@ export const swaggerSpec: any = {
   openapi: "3.0.3",
   info: {
     title: "MOVA Geospatial Decision Intelligence & Fleet Operations Platform API",
-    version: "4.0.0",
+    version: "4.2.0",
     description: `
 ### Decision Support System & Smart Fleet Operations Platform (MOVA SSOT)
 
@@ -41,6 +41,13 @@ Sistem ini menyediakan integrasi penuh antara analytical decision intelligence d
    - State machine kanonikal: \`ACTIVE\` $\\rightarrow$ \`RESERVED\` (5-minute hold) $\rightarrow$ \`IN_USE\` $\rightarrow$ \`ACTIVE\` (released).
    - Atomic concurrency locking via Redis \`SET fleet:claim:{tenant_id}:{fleet_id} {rider_id} NX EX 300\` dengan PostgreSQL sebagai Source of Truth.
    - Proteksi single active reservation per rider dan worker rekonsiliasi timeout otomatis.
+
+6. **Operational Reporting & Asynchronous Export Engine (Stage 7-05 - FROZEN)**:
+   - Asynchronous job execution pipeline (HTTP 202 Accepted) backed by BullMQ worker and PostgreSQL persistence (\`report_export_jobs\`).
+   - Resource Governance: Max 2 concurrent export jobs per tenant, max 90-day time range, dan max 100,000 row hard limit dengan indikator eksplisit \`truncated: true\`.
+   - Canonical Report Types: \`PRESENCE_COMPLIANCE_REPORT\` (READY), \`ZONE_PERFORMANCE_REPORT\` (READY), \`RIDER_DUTY_REPORT\` (READY), \`SALES_SETTLEMENT_REPORT\` (DEFERRED).
+   - Multi-Format Serialization: Streaming RFC 4180 CSV, Streaming O(1) Memory XLSX (ExcelJS), dan Executive Presentation PDF (PDFKit, A4 portrait, Top-50 rankings, pagination, 50-page limit guard).
+   - Artifact Security: Encapsulated filesystem containment (\`storage/reports/{tenantId}/\`), 24-hour TTL lifecycle dengan automatic cleanup cron, internal path concealment, dan authenticated streaming downloads via \`/api/reports/export/{id}/download\`.
 
 #### Format Autentikasi
 Gunakan format Bearer Token pada HTTP Header:
@@ -90,6 +97,7 @@ Setiap request yang terautentikasi akan mengikat session context ke tenant pengg
     { name: "Cron Automation", description: "Manajemen, log, dan pemicu background job terjadwal" },
     { name: "Data Synchronization", description: "Sinkronisasi dataset spasial (POI, jalan tol, jalan protokol), polling job, dan rollback versi" },
     { name: "Reports", description: "Laporan operasional rider, efektivitas zona, armada, akurasi DSS, dan ringkasan eksekutif" },
+    { name: "Historical Operational Analytics", description: "Analitik historis kehadiran, kepatuhan, episode deviasi, performa zona, performa rider, dan perbandingan periode (S7-03)" },
   ],
   components: {
     securitySchemes: {
@@ -108,6 +116,14 @@ Setiap request yang terautentikasi akan mengikat session context ke tenant pengg
           status: { type: "string", example: "success" },
           statusCode: { type: "integer", example: 200 },
           msg: { type: "string", example: "Operasi berhasil dieksekusi" },
+          data: { type: "object", description: "Payload data utama" },
+          meta: {
+            type: "object",
+            properties: {
+              timestamp: { type: "string", format: "date-time" },
+              request_id: { type: "string", example: "req-1234567890" },
+            },
+          },
         },
       },
       ApiError: {
@@ -131,6 +147,416 @@ Setiap request yang terautentikasi akan mengikat session context ke tenant pengg
               request_id: { type: "string", example: "req-1234567890" },
             },
           },
+        },
+      },
+
+      // ---------- S7-03 Historical Operational Analytics Read Models (v4.1.0) ----------
+      AnalyticsGrain: {
+        type: "string",
+        enum: ["hour", "day", "week", "month"],
+        example: "day",
+      },
+      AnalyticsTimeContext: {
+        type: "object",
+        required: ["rangeStart", "rangeEnd", "timezone", "grain", "boundarySemantics"],
+        properties: {
+          rangeStart: { type: "string", format: "date-time", example: "2026-09-01T00:00:00.000Z" },
+          rangeEnd: { type: "string", format: "date-time", example: "2026-09-02T00:00:00.000Z" },
+          timezone: { type: "string", example: "Asia/Jakarta" },
+          grain: { $ref: "#/components/schemas/AnalyticsGrain" },
+          boundarySemantics: { type: "string", enum: ["[start, end)"], example: "[start, end)" },
+        },
+      },
+      PresenceComplianceDistribution: {
+        type: "object",
+        required: ["compliant", "deviated", "outside", "unassigned"],
+        properties: {
+          compliant: { type: "integer", example: 85 },
+          deviated: { type: "integer", example: 10 },
+          outside: { type: "integer", example: 5 },
+          unassigned: { type: "integer", example: 10 },
+        },
+      },
+      PresenceMetrics: {
+        type: "object",
+        required: ["observedRiders", "totalEvents", "presenceEvents", "complianceDistribution", "eligibleEventsCount", "complianceRate"],
+        properties: {
+          observedRiders: { type: "integer", example: 12 },
+          totalEvents: { type: "integer", example: 110 },
+          presenceEvents: {
+            type: "object",
+            properties: {
+              ENTER: { type: "integer", example: 30 },
+              EXIT: { type: "integer", example: 30 },
+              ON_SITE: { type: "integer", example: 30 },
+              OUTSIDE_ZONE: { type: "integer", example: 5 },
+              DEVIATED: { type: "integer", example: 15 },
+            },
+          },
+          complianceDistribution: { $ref: "#/components/schemas/PresenceComplianceDistribution" },
+          eligibleEventsCount: { type: "integer", example: 100 },
+          complianceRate: { type: "number", nullable: true, example: 85.0 },
+        },
+      },
+      AnalyticsTimelinePoint: {
+        type: "object",
+        required: ["bucketStart", "totalEvents", "complianceDistribution", "eligibleEventsCount", "complianceRate"],
+        properties: {
+          bucketStart: { type: "string", format: "date-time", example: "2026-09-01T00:00:00.000Z" },
+          totalEvents: { type: "integer", example: 25 },
+          complianceDistribution: { $ref: "#/components/schemas/PresenceComplianceDistribution" },
+          eligibleEventsCount: { type: "integer", example: 25 },
+          complianceRate: { type: "number", nullable: true, example: 92.0 },
+        },
+      },
+      AnalyticsTimeline: {
+        type: "object",
+        required: ["grain", "timezone", "points"],
+        properties: {
+          grain: { $ref: "#/components/schemas/AnalyticsGrain" },
+          timezone: { type: "string", example: "Asia/Jakarta" },
+          points: {
+            type: "array",
+            items: { $ref: "#/components/schemas/AnalyticsTimelinePoint" },
+          },
+        },
+      },
+      PresenceAnalyticsResult: {
+        type: "object",
+        required: ["timeContext", "metrics"],
+        properties: {
+          timeContext: { $ref: "#/components/schemas/AnalyticsTimeContext" },
+          metrics: { $ref: "#/components/schemas/PresenceMetrics" },
+          timeline: { $ref: "#/components/schemas/AnalyticsTimeline" },
+        },
+      },
+      DeviationEpisode: {
+        type: "object",
+        required: ["id", "tenantId", "riderId", "startEventId", "startedAt", "eventCount", "open"],
+        properties: {
+          id: { type: "string", example: "ep_tenant-mantakopi-sda_rider-1_evt-101" },
+          tenantId: { type: "string", example: "tenant-mantakopi-sda" },
+          riderId: { type: "string", format: "uuid", example: "22222222-2222-2222-2222-222222222222" },
+          riderName: { type: "string", nullable: true, example: "Budi Santoso" },
+          zoneId: { type: "string", nullable: true, example: "zone-alun-alun" },
+          zoneName: { type: "string", nullable: true, example: "Zona Alun-Alun Sidoarjo" },
+          startedAt: { type: "string", format: "date-time", example: "2026-09-01T10:15:00.000Z" },
+          endedAt: { type: "string", format: "date-time", nullable: true, example: "2026-09-01T10:45:00.000Z" },
+          durationSeconds: { type: "integer", nullable: true, example: 1800 },
+          open: { type: "boolean", example: false },
+          eventCount: { type: "integer", example: 3 },
+          startEventId: { type: "string", example: "evt-101" },
+          endEventId: { type: "string", nullable: true, example: "evt-104" },
+        },
+      },
+      HistoricalDeviationSummary: {
+        type: "object",
+        required: ["range", "metrics", "episodes"],
+        properties: {
+          range: {
+            type: "object",
+            properties: {
+              rangeStart: { type: "string", format: "date-time" },
+              rangeEnd: { type: "string", format: "date-time" },
+              timezone: { type: "string" },
+            },
+          },
+          metrics: {
+            type: "object",
+            properties: {
+              eventCount: { type: "integer", example: 15 },
+              episodeCount: { type: "integer", example: 5 },
+              affectedRidersCount: { type: "integer", example: 4 },
+              averageDurationSeconds: { type: "number", nullable: true, example: 320.0 },
+              openEpisodesCount: { type: "integer", example: 1 },
+            },
+          },
+          episodes: {
+            type: "array",
+            items: { $ref: "#/components/schemas/DeviationEpisode" },
+          },
+        },
+      },
+      ZoneAnalyticsMetrics: {
+        type: "object",
+        required: ["zoneId", "zoneName", "observedRiders", "totalEvents", "complianceDistribution", "eligibleEventsCount", "complianceRate", "affectedRiders", "deviationEpisodes", "openDeviationEpisodes"],
+        properties: {
+          zoneId: { type: "string", example: "zone-alun-alun" },
+          zoneName: { type: "string", example: "Zona Alun-Alun Sidoarjo" },
+          observedRiders: { type: "integer", example: 6 },
+          totalEvents: { type: "integer", example: 60 },
+          complianceDistribution: { $ref: "#/components/schemas/PresenceComplianceDistribution" },
+          eligibleEventsCount: { type: "integer", example: 60 },
+          complianceRate: { type: "number", nullable: true, example: 83.33 },
+          affectedRiders: { type: "integer", example: 2 },
+          deviationEpisodes: { type: "integer", example: 3 },
+          openDeviationEpisodes: { type: "integer", example: 0 },
+        },
+      },
+      ZoneAnalyticsResult: {
+        type: "object",
+        required: ["timeContext", "zones"],
+        properties: {
+          timeContext: { $ref: "#/components/schemas/AnalyticsTimeContext" },
+          zones: {
+            type: "array",
+            items: { $ref: "#/components/schemas/ZoneAnalyticsMetrics" },
+          },
+          timeline: { $ref: "#/components/schemas/AnalyticsTimeline" },
+        },
+      },
+      RiderAnalyticsMetrics: {
+        type: "object",
+        required: ["riderId", "riderName", "totalEvents", "observedDays", "complianceDistribution", "eligibleEventsCount", "complianceRate", "deviationEvents", "deviationEpisodes", "openDeviationEpisodes", "affectedZones"],
+        properties: {
+          riderId: { type: "string", format: "uuid", example: "22222222-2222-2222-2222-222222222222" },
+          riderName: { type: "string", nullable: true, example: "Budi Santoso" },
+          totalEvents: { type: "integer", example: 45 },
+          observedDays: { type: "integer", example: 1 },
+          complianceDistribution: { $ref: "#/components/schemas/PresenceComplianceDistribution" },
+          eligibleEventsCount: { type: "integer", example: 45 },
+          complianceRate: { type: "number", nullable: true, example: 91.11 },
+          deviationEvents: { type: "integer", example: 4 },
+          deviationEpisodes: { type: "integer", example: 1 },
+          openDeviationEpisodes: { type: "integer", example: 0 },
+          affectedZones: { type: "integer", example: 2 },
+        },
+      },
+      RiderAnalyticsResult: {
+        type: "object",
+        required: ["timeContext", "riders"],
+        properties: {
+          timeContext: { $ref: "#/components/schemas/AnalyticsTimeContext" },
+          riders: {
+            type: "array",
+            items: { $ref: "#/components/schemas/RiderAnalyticsMetrics" },
+          },
+          timeline: { $ref: "#/components/schemas/AnalyticsTimeline" },
+        },
+      },
+      PeriodDeltaDirection: {
+        type: "string",
+        enum: ["UP", "DOWN", "UNCHANGED", "UP_FROM_ZERO", "DOWN_TO_ZERO", "UNAVAILABLE"],
+        example: "UP",
+      },
+      PeriodMetricComparison: {
+        type: "object",
+        required: ["current", "previous", "absoluteDelta", "direction"],
+        properties: {
+          current: { type: "number", nullable: true, example: 120 },
+          previous: { type: "number", nullable: true, example: 100 },
+          absoluteDelta: { type: "number", nullable: true, example: 20 },
+          direction: { $ref: "#/components/schemas/PeriodDeltaDirection" },
+        },
+      },
+      AnalyticsPeriod: {
+        type: "object",
+        required: ["rangeStart", "rangeEnd", "timezone"],
+        properties: {
+          rangeStart: { type: "string", format: "date-time", example: "2026-09-02T00:00:00.000Z" },
+          rangeEnd: { type: "string", format: "date-time", example: "2026-09-03T00:00:00.000Z" },
+          timezone: { type: "string", example: "Asia/Jakarta" },
+        },
+      },
+      PeriodComparisonContext: {
+        type: "object",
+        required: ["current", "previous"],
+        properties: {
+          current: { $ref: "#/components/schemas/AnalyticsPeriod" },
+          previous: { $ref: "#/components/schemas/AnalyticsPeriod" },
+        },
+      },
+      PeriodComparisonResult: {
+        type: "object",
+        required: ["context", "metrics"],
+        properties: {
+          context: { $ref: "#/components/schemas/PeriodComparisonContext" },
+          metrics: {
+            type: "object",
+            required: [
+              "observedRiders", "totalEvents", "compliantEvents", "deviatedEvents",
+              "outsideEvents", "unassignedEvents", "eligibleEvents", "complianceRate",
+              "deviationEpisodes", "openDeviationEpisodes"
+            ],
+            properties: {
+              observedRiders: { $ref: "#/components/schemas/PeriodMetricComparison" },
+              totalEvents: { $ref: "#/components/schemas/PeriodMetricComparison" },
+              compliantEvents: { $ref: "#/components/schemas/PeriodMetricComparison" },
+              deviatedEvents: { $ref: "#/components/schemas/PeriodMetricComparison" },
+              outsideEvents: { $ref: "#/components/schemas/PeriodMetricComparison" },
+              unassignedEvents: { $ref: "#/components/schemas/PeriodMetricComparison" },
+              eligibleEvents: { $ref: "#/components/schemas/PeriodMetricComparison" },
+              complianceRate: { $ref: "#/components/schemas/PeriodMetricComparison" },
+              deviationEpisodes: { $ref: "#/components/schemas/PeriodMetricComparison" },
+              openDeviationEpisodes: { $ref: "#/components/schemas/PeriodMetricComparison" },
+            },
+          },
+        },
+      },
+
+      // ---------- S7-05 Operational Reporting & Asynchronous Export Models (v4.2.0) ----------
+      ReportType: {
+        type: "string",
+        enum: [
+          "PRESENCE_COMPLIANCE_REPORT",
+          "ZONE_PERFORMANCE_REPORT",
+          "RIDER_DUTY_REPORT",
+          "SALES_SETTLEMENT_REPORT",
+        ],
+        example: "PRESENCE_COMPLIANCE_REPORT",
+        description: "Tipe laporan operasional kanonikal. Catatan: SALES_SETTLEMENT_REPORT berstatus DEFERRED.",
+      },
+      ReportFormat: {
+        type: "string",
+        enum: ["CSV", "XLSX", "PDF"],
+        example: "PDF",
+        description: "Format serialisasi berkas laporan (CSV RFC 4180, XLSX Workbook, atau PDF Eksekutif A4).",
+      },
+      ReportJobStatus: {
+        type: "string",
+        enum: ["QUEUED", "PROCESSING", "COMPLETED", "FAILED"],
+        example: "QUEUED",
+        description: "Status state machine job pembuatan laporan asinkron.",
+      },
+      ReportAvailability: {
+        type: "string",
+        enum: ["READY", "DEFERRED"],
+        example: "READY",
+        description: "Kesiapan kapabilitas eksekusi laporan berdasarkan isolasi tenant multi-tenant.",
+      },
+      ReportCapabilitySpec: {
+        type: "object",
+        required: ["reportType", "availability", "description", "authoritativeSources", "supportedFormats"],
+        properties: {
+          reportType: { $ref: "#/components/schemas/ReportType" },
+          availability: { $ref: "#/components/schemas/ReportAvailability" },
+          description: { type: "string", example: "Rekapitulasi terperinci sinyal keberadaan rider, kepatuhan geofence, dan episode deviasi." },
+          authoritativeSources: {
+            type: "array",
+            items: { type: "string" },
+            example: ["rider_presence_events", "zones", "users"],
+          },
+          supportedFormats: {
+            type: "array",
+            items: { $ref: "#/components/schemas/ReportFormat" },
+            example: ["CSV", "XLSX", "PDF"],
+          },
+          deferredReason: { type: "string", nullable: true, example: "Tabel shift_settlements belum memiliki kolom tenant_id terisolasi RLS secara mandiri." },
+        },
+      },
+      ReportFilter: {
+        type: "object",
+        required: ["rangeStart", "rangeEnd", "timezone"],
+        properties: {
+          rangeStart: { type: "string", format: "date-time", example: "2026-09-01T00:00:00.000Z" },
+          rangeEnd: { type: "string", format: "date-time", example: "2026-09-08T00:00:00.000Z" },
+          timezone: { type: "string", example: "Asia/Jakarta" },
+          zoneId: { type: "string", format: "uuid", nullable: true, example: "33333333-3333-3333-3333-333333333333" },
+          riderId: { type: "string", format: "uuid", nullable: true, example: "22222222-2222-2222-2222-222222222222" },
+        },
+      },
+      CreateExportJobRequest: {
+        type: "object",
+        required: ["reportType", "format", "rangeStart", "rangeEnd"],
+        properties: {
+          reportType: { $ref: "#/components/schemas/ReportType" },
+          format: { $ref: "#/components/schemas/ReportFormat" },
+          rangeStart: { type: "string", format: "date-time", example: "2026-09-01T00:00:00.000Z" },
+          rangeEnd: { type: "string", format: "date-time", example: "2026-09-08T00:00:00.000Z" },
+          timezone: { type: "string", default: "Asia/Jakarta", example: "Asia/Jakarta" },
+          zoneId: { type: "string", format: "uuid", nullable: true, example: null },
+          riderId: { type: "string", format: "uuid", nullable: true, example: null },
+        },
+      },
+      ReportExportJob: {
+        type: "object",
+        required: [
+          "id", "tenantId", "reportType", "format", "status",
+          "rangeStart", "rangeEnd", "timezone", "progress",
+          "rowLimit", "truncated", "createdAt"
+        ],
+        properties: {
+          id: { type: "string", format: "uuid", example: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d" },
+          tenantId: { type: "string", example: "tenant-mantakopi-sda" },
+          reportType: { $ref: "#/components/schemas/ReportType" },
+          format: { $ref: "#/components/schemas/ReportFormat" },
+          status: { $ref: "#/components/schemas/ReportJobStatus" },
+          rangeStart: { type: "string", format: "date-time", example: "2026-09-01T00:00:00.000Z" },
+          rangeEnd: { type: "string", format: "date-time", example: "2026-09-08T00:00:00.000Z" },
+          timezone: { type: "string", example: "Asia/Jakarta" },
+          progress: { type: "integer", minimum: 0, maximum: 100, example: 0, description: "Progress persentase (0: QUEUED, 1..99: PROCESSING, 100: COMPLETED)" },
+          rowCount: { type: "integer", nullable: true, example: 1250, description: "Jumlah baris data faktual yang diproses" },
+          rowLimit: { type: "integer", example: 100000, description: "Batas baris maksimum yang diizinkan sistem (100000)" },
+          truncated: { type: "boolean", example: false, description: "Indikator eksplisit jika baris data melebihi rowLimit" },
+          artifactExpiresAt: { type: "string", format: "date-time", nullable: true, example: "2026-09-09T08:00:00.000Z" },
+          errorCode: { type: "string", nullable: true, example: null },
+          errorMessage: { type: "string", nullable: true, example: null },
+          zoneId: { type: "string", format: "uuid", nullable: true, example: null },
+          riderId: { type: "string", format: "uuid", nullable: true, example: null },
+          createdBy: { type: "string", format: "uuid", nullable: true, example: "11111111-1111-1111-1111-111111111111" },
+          createdAt: { type: "string", format: "date-time", example: "2026-09-08T08:00:00.000Z" },
+          startedAt: { type: "string", format: "date-time", nullable: true, example: null },
+          completedAt: { type: "string", format: "date-time", nullable: true, example: null },
+          failedAt: { type: "string", format: "date-time", nullable: true, example: null },
+        },
+      },
+      ReportExportJobStatusResponse: {
+        type: "object",
+        required: ["job", "downloadUrl", "isExpired"],
+        properties: {
+          job: { $ref: "#/components/schemas/ReportExportJob" },
+          downloadUrl: { type: "string", nullable: true, example: "/api/reports/export/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d/download" },
+          isExpired: { type: "boolean", example: false },
+        },
+      },
+      CreateExportJobResponse: {
+        type: "object",
+        required: ["job", "statusUrl"],
+        properties: {
+          job: { $ref: "#/components/schemas/ReportExportJob" },
+          statusUrl: { type: "string", example: "/api/reports/export/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d" },
+        },
+      },
+      ExportJobListResponse: {
+        type: "object",
+        required: ["jobs", "total", "limit", "offset"],
+        properties: {
+          jobs: {
+            type: "array",
+            items: { $ref: "#/components/schemas/ReportExportJob" },
+          },
+          total: { type: "integer", example: 42 },
+          limit: { type: "integer", example: 20 },
+          offset: { type: "integer", example: 0 },
+        },
+      },
+      ReportError: {
+        type: "object",
+        required: ["success", "code", "error"],
+        properties: {
+          success: { type: "boolean", example: false },
+          code: {
+            type: "string",
+            enum: [
+              "MAX_CONCURRENT_EXPORT_JOBS",
+              "REPORT_RANGE_EXCEEDED",
+              "REPORT_CAPABILITY_DEFERRED",
+              "INVALID_REPORT_TYPE",
+              "INVALID_REPORT_FORMAT",
+              "INVALID_DATE_RANGE",
+              "REPORT_JOB_NOT_FOUND",
+              "REPORT_NOT_READY",
+              "ARTIFACT_EXPIRED",
+              "ARTIFACT_UNAVAILABLE",
+              "ARTIFACT_FILE_MISSING",
+              "CREATE_EXPORT_JOB_FAILED",
+              "GET_JOB_STATUS_FAILED",
+              "LIST_EXPORT_JOBS_FAILED",
+              "DOWNLOAD_FAILED",
+            ],
+            example: "MAX_CONCURRENT_EXPORT_JOBS",
+          },
+          error: { type: "string", example: "Tenant active export job limit exceeded (max 2 concurrent jobs)." },
         },
       },
 
@@ -4202,8 +4628,139 @@ Setiap request yang terautentikasi akan mengikat session context ke tenant pengg
     },
 
     // =========================================================================
-    // 21. REPORTS
+    // 21. REPORTS & ASYNCHRONOUS EXPORT ENGINE (S7-05)
     // =========================================================================
+    "/api/reports/export": {
+      post: {
+        tags: ["Reports"],
+        summary: "Inisiasi job export laporan operasional asinkron (CSV, XLSX, PDF)",
+        description: "RBAC: SUPERADMIN, MANAGEMENT, SUPERVISOR. Menginisiasi pembuatan laporan operasional secara asinkron (HTTP 202 Accepted). Job dimasukkan ke antrean BullMQ dan tunduk pada Resource Governor (maksimal 2 job aktif per tenant, rentang maksimal 90 hari, batas baris 100.000). Tipe laporan SALES_SETTLEMENT_REPORT berstatus DEFERRED.",
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/CreateExportJobRequest" },
+            },
+          },
+        },
+        responses: {
+          202: {
+            description: "Job export berhasil di-queue untuk pembuatan asinkron",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean", example: true },
+                    message: { type: "string", example: "Report export job successfully queued for asynchronous generation." },
+                    data: { $ref: "#/components/schemas/CreateExportJobResponse" },
+                  },
+                },
+              },
+            },
+          },
+          400: { description: "Parameter request tidak valid / rentang waktu > 90 hari / format tidak didukung / capability DEFERRED", content: { "application/json": { schema: { $ref: "#/components/schemas/ReportError" } } } },
+          401: { description: "Token tidak terautentikasi", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiError" } } } },
+          403: { description: "Akses ditolak (RBAC role tidak mencukupi)", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiError" } } } },
+          429: { description: "Batas konkurensi tercapai (maksimal 2 active export jobs per tenant)", content: { "application/json": { schema: { $ref: "#/components/schemas/ReportError" } } } },
+        },
+      },
+      get: {
+        tags: ["Reports"],
+        summary: "Mendapatkan riwayat job export laporan untuk tenant terautentikasi",
+        description: "RBAC: SUPERADMIN, MANAGEMENT, SUPERVISOR. Riwayat job diisolasi secara implisit berdasarkan tenant context pada token JWT pengguna. Mendukung paginasi serta filter status dan tipe laporan.",
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: "limit", in: "query", schema: { type: "integer", default: 20, maximum: 100 }, description: "Jumlah maksimum riwayat job yang dikembalikan" },
+          { name: "offset", in: "query", schema: { type: "integer", default: 0 }, description: "Offset pagination" },
+          { name: "status", in: "query", schema: { $ref: "#/components/schemas/ReportJobStatus" }, description: "Filter berdasarkan status job" },
+          { name: "reportType", in: "query", schema: { $ref: "#/components/schemas/ReportType" }, description: "Filter berdasarkan tipe laporan" },
+        ],
+        responses: {
+          200: {
+            description: "Daftar riwayat job export berhasil diambil",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean", example: true },
+                    data: { $ref: "#/components/schemas/ExportJobListResponse" },
+                  },
+                },
+              },
+            },
+          },
+          401: { description: "Token tidak terautentikasi", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiError" } } } },
+          403: { description: "Akses ditolak", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiError" } } } },
+        },
+      },
+    },
+
+    "/api/reports/export/{id}": {
+      get: {
+        tags: ["Reports"],
+        summary: "Mendapatkan status, progress, dan URL download job export laporan",
+        description: "RBAC: SUPERADMIN, MANAGEMENT, SUPERVISOR. Mengembalikan state machine job (QUEUED, PROCESSING, COMPLETED, FAILED), progress (0..100), metadata truncation, dan downloadUrl yang tersedia jika status COMPLETED.",
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" }, description: "ID unik export job" },
+        ],
+        responses: {
+          200: {
+            description: "Status dan detail job berhasil diambil",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean", example: true },
+                    data: { $ref: "#/components/schemas/ReportExportJobStatusResponse" },
+                  },
+                },
+              },
+            },
+          },
+          401: { description: "Token tidak terautentikasi", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiError" } } } },
+          403: { description: "Akses ditolak", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiError" } } } },
+          404: { description: "Job export tidak ditemukan pada tenant ini", content: { "application/json": { schema: { $ref: "#/components/schemas/ReportError" } } } },
+        },
+      },
+    },
+
+    "/api/reports/export/{id}/download": {
+      get: {
+        tags: ["Reports"],
+        summary: "Mengunduh file artefak laporan (CSV, XLSX, PDF) yang telah selesai",
+        description: "RBAC: SUPERADMIN, MANAGEMENT, SUPERVISOR. Mengunduh artefak file yang diproteksi secara terenkapsulasi. Memverifikasi isolasi tenant, status COMPLETED, waktu kedaluwarsa artefak (TTL 24 jam), dan containment path filesystem.",
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" }, description: "ID unik export job" },
+        ],
+        responses: {
+          200: {
+            description: "File artefak laporan (stream binary)",
+            headers: {
+              "Content-Disposition": { schema: { type: "string" }, description: "attachment; filename=\"presence_compliance_report.pdf\"" },
+              "Content-Type": { schema: { type: "string" }, description: "MIME type dari file artefak" },
+              "Content-Length": { schema: { type: "integer" }, description: "Ukuran file dalam bytes" },
+            },
+            content: {
+              "text/csv": { schema: { type: "string", format: "binary" } },
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": { schema: { type: "string", format: "binary" } },
+              "application/pdf": { schema: { type: "string", format: "binary" } },
+            },
+          },
+          401: { description: "Token tidak terautentikasi", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiError" } } } },
+          403: { description: "Akses ditolak", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiError" } } } },
+          404: { description: "Job tidak ditemukan atau file artefak fisik hilang", content: { "application/json": { schema: { $ref: "#/components/schemas/ReportError" } } } },
+          409: { description: "Laporan belum siap (status masih QUEUED atau PROCESSING)", content: { "application/json": { schema: { $ref: "#/components/schemas/ReportError" } } } },
+          410: { description: "Artefak laporan telah kedaluwarsa (> 24 jam) atau telah dibersihkan", content: { "application/json": { schema: { $ref: "#/components/schemas/ReportError" } } } },
+        },
+      },
+    },
+
     "/api/reports/riders/performance": {
       get: {
         tags: ["Reports"],
@@ -4532,6 +5089,273 @@ Setiap request yang terautentikasi akan mengikat session context ke tenant pengg
               },
             },
           },
+        },
+      },
+    },
+
+    // ---------- S7-03 Historical Operational Analytics Endpoints (v4.1.0) ----------
+    "/api/analytics/historical/presence/summary": {
+      get: {
+        tags: ["Historical Operational Analytics"],
+        summary: "Ringkasan analitik kehadiran operasional historis dan rasio kepatuhan",
+        description: "RBAC: SUPERADMIN, MANAGEMENT, SUPERVISOR. Mengembalikan volume event, breakdown tipe event (ENTER, EXIT, ON_SITE, OUTSIDE_ZONE, DEVIATED), distribusi kepatuhan, dan rasio kepatuhan pada rentang waktu [rangeStart, rangeEnd).",
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: "rangeStart", in: "query", required: true, schema: { type: "string", format: "date-time" }, example: "2026-09-01T00:00:00.000Z" },
+          { name: "rangeEnd", in: "query", required: true, schema: { type: "string", format: "date-time" }, example: "2026-09-02T00:00:00.000Z" },
+          { name: "timezone", in: "query", schema: { type: "string", default: "Asia/Jakarta" }, example: "Asia/Jakarta" },
+          { name: "grain", in: "query", schema: { $ref: "#/components/schemas/AnalyticsGrain" }, example: "day" },
+          { name: "riderId", in: "query", schema: { type: "string", format: "uuid" } },
+          { name: "zoneId", in: "query", schema: { type: "string" } },
+        ],
+        responses: {
+          200: {
+            description: "Ringkasan kehadiran berhasil diambil",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    status: { type: "string", example: "success" },
+                    statusCode: { type: "integer", example: 200 },
+                    msg: { type: "string", example: "Historical presence summary retrieved successfully" },
+                    data: { $ref: "#/components/schemas/PresenceAnalyticsResult" },
+                    meta: {
+                      type: "object",
+                      properties: {
+                        timestamp: { type: "string", format: "date-time" },
+                        request_id: { type: "string", example: "req-1234567890" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          400: { description: "Parameter waktu atau filter tidak valid", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiError" } } } },
+          401: { description: "Token tidak terautentikasi", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiError" } } } },
+          403: { description: "Akses ditolak (role tidak mencukupi)", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiError" } } } },
+        },
+      },
+    },
+
+    "/api/analytics/historical/presence/timeline": {
+      get: {
+        tags: ["Historical Operational Analytics"],
+        summary: "Timeline deret waktu kehadiran dan kepatuhan operasional",
+        description: "RBAC: SUPERADMIN, MANAGEMENT, SUPERVISOR. Mengembalikan deret waktu bucket temporal (hour, day, week, month) beserta metrik kepatuhan per bucket, mempertahankan empty buckets.",
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: "rangeStart", in: "query", required: true, schema: { type: "string", format: "date-time" }, example: "2026-09-01T00:00:00.000Z" },
+          { name: "rangeEnd", in: "query", required: true, schema: { type: "string", format: "date-time" }, example: "2026-09-02T00:00:00.000Z" },
+          { name: "timezone", in: "query", schema: { type: "string", default: "Asia/Jakarta" }, example: "Asia/Jakarta" },
+          { name: "grain", in: "query", schema: { $ref: "#/components/schemas/AnalyticsGrain" }, example: "hour" },
+          { name: "riderId", in: "query", schema: { type: "string", format: "uuid" } },
+          { name: "zoneId", in: "query", schema: { type: "string" } },
+        ],
+        responses: {
+          200: {
+            description: "Timeline kehadiran berhasil diambil",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    status: { type: "string", example: "success" },
+                    statusCode: { type: "integer", example: 200 },
+                    msg: { type: "string", example: "Historical presence timeline retrieved successfully" },
+                    data: { $ref: "#/components/schemas/PresenceAnalyticsResult" },
+                    meta: {
+                      type: "object",
+                      properties: {
+                        timestamp: { type: "string", format: "date-time" },
+                        request_id: { type: "string", example: "req-1234567890" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          400: { description: "Parameter waktu tidak valid", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiError" } } } },
+          401: { description: "Token tidak terautentikasi", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiError" } } } },
+          403: { description: "Akses ditolak", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiError" } } } },
+        },
+      },
+    },
+
+    "/api/analytics/historical/deviations": {
+      get: {
+        tags: ["Historical Operational Analytics"],
+        summary: "Rekonstruksi episode deviasi deterministik",
+        description: "RBAC: SUPERADMIN, MANAGEMENT, SUPERVISOR. Mengembalikan ringkasan episode deviasi dan daftar episode terkonstruksi (termasuk episode terbuka open: true pada batas akhir rangeEnd).",
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: "rangeStart", in: "query", required: true, schema: { type: "string", format: "date-time" }, example: "2026-09-01T00:00:00.000Z" },
+          { name: "rangeEnd", in: "query", required: true, schema: { type: "string", format: "date-time" }, example: "2026-09-02T00:00:00.000Z" },
+          { name: "timezone", in: "query", schema: { type: "string", default: "Asia/Jakarta" }, example: "Asia/Jakarta" },
+          { name: "riderId", in: "query", schema: { type: "string", format: "uuid" } },
+          { name: "zoneId", in: "query", schema: { type: "string" } },
+          { name: "openOnly", in: "query", schema: { type: "boolean", default: false } },
+        ],
+        responses: {
+          200: {
+            description: "Daftar episode deviasi berhasil direkonstruksi",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    status: { type: "string", example: "success" },
+                    statusCode: { type: "integer", example: 200 },
+                    msg: { type: "string", example: "Historical deviation episodes retrieved successfully" },
+                    data: { $ref: "#/components/schemas/HistoricalDeviationSummary" },
+                    meta: {
+                      type: "object",
+                      properties: {
+                        timestamp: { type: "string", format: "date-time" },
+                        request_id: { type: "string", example: "req-1234567890" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          400: { description: "Parameter waktu tidak valid", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiError" } } } },
+          401: { description: "Token tidak terautentikasi", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiError" } } } },
+          403: { description: "Akses ditolak", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiError" } } } },
+        },
+      },
+    },
+
+    "/api/analytics/historical/zones": {
+      get: {
+        tags: ["Historical Operational Analytics"],
+        summary: "Analitik historis operasional per zona",
+        description: "RBAC: SUPERADMIN, MANAGEMENT, SUPERVISOR. Mengembalikan performa historis tiap zona berdasarkan atribusi aktual zone_id (volume event, kepatuhan, affected riders, dan deviation episodes).",
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: "rangeStart", in: "query", required: true, schema: { type: "string", format: "date-time" }, example: "2026-09-01T00:00:00.000Z" },
+          { name: "rangeEnd", in: "query", required: true, schema: { type: "string", format: "date-time" }, example: "2026-09-02T00:00:00.000Z" },
+          { name: "timezone", in: "query", schema: { type: "string", default: "Asia/Jakarta" }, example: "Asia/Jakarta" },
+          { name: "zoneId", in: "query", schema: { type: "string" } },
+        ],
+        responses: {
+          200: {
+            description: "Analitik zona berhasil diambil",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    status: { type: "string", example: "success" },
+                    statusCode: { type: "integer", example: 200 },
+                    msg: { type: "string", example: "Historical zone analytics retrieved successfully" },
+                    data: { $ref: "#/components/schemas/ZoneAnalyticsResult" },
+                    meta: {
+                      type: "object",
+                      properties: {
+                        timestamp: { type: "string", format: "date-time" },
+                        request_id: { type: "string", example: "req-1234567890" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          400: { description: "Parameter waktu tidak valid", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiError" } } } },
+          401: { description: "Token tidak terautentikasi", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiError" } } } },
+          403: { description: "Akses ditolak", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiError" } } } },
+        },
+      },
+    },
+
+    "/api/analytics/historical/riders": {
+      get: {
+        tags: ["Historical Operational Analytics"],
+        summary: "Analitik historis operasional per rider",
+        description: "RBAC: SUPERADMIN, MANAGEMENT, SUPERVISOR. Mengembalikan metrik historis per rider (total events, observed calendar days, kepatuhan, episode deviasi, dan jumlah zona terdampak).",
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: "rangeStart", in: "query", required: true, schema: { type: "string", format: "date-time" }, example: "2026-09-01T00:00:00.000Z" },
+          { name: "rangeEnd", in: "query", required: true, schema: { type: "string", format: "date-time" }, example: "2026-09-02T00:00:00.000Z" },
+          { name: "timezone", in: "query", schema: { type: "string", default: "Asia/Jakarta" }, example: "Asia/Jakarta" },
+          { name: "riderId", in: "query", schema: { type: "string", format: "uuid" } },
+        ],
+        responses: {
+          200: {
+            description: "Analitik rider berhasil diambil",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    status: { type: "string", example: "success" },
+                    statusCode: { type: "integer", example: 200 },
+                    msg: { type: "string", example: "Historical rider analytics retrieved successfully" },
+                    data: { $ref: "#/components/schemas/RiderAnalyticsResult" },
+                    meta: {
+                      type: "object",
+                      properties: {
+                        timestamp: { type: "string", format: "date-time" },
+                        request_id: { type: "string", example: "req-1234567890" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          400: { description: "Parameter waktu tidak valid", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiError" } } } },
+          401: { description: "Token tidak terautentikasi", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiError" } } } },
+          403: { description: "Akses ditolak", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiError" } } } },
+        },
+      },
+    },
+
+    "/api/analytics/historical/comparison": {
+      get: {
+        tags: ["Historical Operational Analytics"],
+        summary: "Perbandingan periode over periode operasional dengan delta semantik",
+        description: "RBAC: SUPERADMIN, MANAGEMENT, SUPERVISOR. Membandingkan metrik current period terhadap previous baseline period dengan evaluasi arah delta aman (UP, DOWN, UNCHANGED, UP_FROM_ZERO, DOWN_TO_ZERO, UNAVAILABLE).",
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: "currentRangeStart", in: "query", required: true, schema: { type: "string", format: "date-time" }, example: "2026-09-02T00:00:00.000Z" },
+          { name: "currentRangeEnd", in: "query", required: true, schema: { type: "string", format: "date-time" }, example: "2026-09-03T00:00:00.000Z" },
+          { name: "previousRangeStart", in: "query", required: true, schema: { type: "string", format: "date-time" }, example: "2026-09-01T00:00:00.000Z" },
+          { name: "previousRangeEnd", in: "query", required: true, schema: { type: "string", format: "date-time" }, example: "2026-09-02T00:00:00.000Z" },
+          { name: "timezone", in: "query", schema: { type: "string", default: "Asia/Jakarta" }, example: "Asia/Jakarta" },
+          { name: "grain", in: "query", schema: { $ref: "#/components/schemas/AnalyticsGrain" }, example: "day" },
+        ],
+        responses: {
+          200: {
+            description: "Perbandingan periode berhasil dikalkulasi",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    status: { type: "string", example: "success" },
+                    statusCode: { type: "integer", example: 200 },
+                    msg: { type: "string", example: "Historical period comparison retrieved successfully" },
+                    data: { $ref: "#/components/schemas/PeriodComparisonResult" },
+                    meta: {
+                      type: "object",
+                      properties: {
+                        timestamp: { type: "string", format: "date-time" },
+                        request_id: { type: "string", example: "req-1234567890" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          400: { description: "Parameter perbandingan tidak valid atau rentang overlap", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiError" } } } },
+          401: { description: "Token tidak terautentikasi", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiError" } } } },
+          403: { description: "Akses ditolak", content: { "application/json": { schema: { $ref: "#/components/schemas/ApiError" } } } },
         },
       },
     },

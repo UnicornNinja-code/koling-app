@@ -19,6 +19,7 @@
   import AppShell from './components/layout/AppShell.svelte';
   import SuperAdminDashboardPage from './pages/superadmin/SuperAdminDashboardPage.svelte';
   import OperationalPresencePage from './pages/presence/OperationalPresencePage.svelte';
+  import HistoricalAnalyticsPage from './pages/analytics/HistoricalAnalyticsPage.svelte';
   import SuperAdminMapPage from './pages/superadmin/SuperAdminMapPage.svelte';
   import SuperAdminZonesPage from './pages/superadmin/SuperAdminZonesPage.svelte';
   import SuperAdminPoisPage from './pages/superadmin/SuperAdminPoisPage.svelte';
@@ -145,6 +146,11 @@
 {:else if router.currentPath === '/presence'}
   <AppShell currentRoute="/presence" onNavigate={navigate}>
     <OperationalPresencePage onNavigate={navigate} />
+  </AppShell>
+
+{:else if router.currentPath === '/analytics/historical'}
+  <AppShell currentRoute="/analytics/historical" onNavigate={navigate}>
+    <HistoricalAnalyticsPage onNavigate={navigate} />
   </AppShell>
 
 {:else if router.currentPath === '/map'}

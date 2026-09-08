@@ -13,3 +13,6 @@ export const checkRole = (roles: string[]) => {
     next();
   };
 };
+
+export const roleMiddleware = checkRole;
+

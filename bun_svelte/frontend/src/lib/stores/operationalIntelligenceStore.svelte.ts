@@ -19,7 +19,7 @@ class OperationalIntelligenceStore {
    * 1. Presence Compliance Aggregations
    */
   presenceMetrics = $derived.by(() => {
-    const riders = presenceStore.riders;
+    const riders = Array.from(presenceStore.liveRiders.values());
     const total = riders.length;
 
     let compliant = 0;
@@ -106,7 +106,7 @@ class OperationalIntelligenceStore {
    * 3. Alert Lifecycle & Triage Velocity Aggregations
    */
   alertMetrics = $derived.by(() => {
-    const alerts = presenceStore.alerts;
+    const alerts = presenceStore.activeAlerts;
     const total = alerts.length;
 
     let open = 0;
@@ -204,7 +204,7 @@ class OperationalIntelligenceStore {
   async refreshAll(): Promise<void> {
     await Promise.allSettled([
       this.fetchFleets(),
-      presenceStore.fetchInitialRiders(),
+      presenceStore.resyncAuthoritativeSnapshot(),
     ]);
   }
 }

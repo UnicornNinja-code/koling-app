@@ -36,7 +36,7 @@
   };
 
   const handleRefresh = async () => {
-    await presenceStore.fetchInitialRiders();
+    await presenceStore.resyncAuthoritativeSnapshot();
   };
 </script>
 

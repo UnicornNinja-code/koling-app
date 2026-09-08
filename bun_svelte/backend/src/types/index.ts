@@ -7,3 +7,4 @@ export * from "./fleet.types.js";
 export * from "./rider.types.js";
 export * from "./sales.types.js";
 export * from "./misc.types.js";
+export * from "./analytics.types.js";
