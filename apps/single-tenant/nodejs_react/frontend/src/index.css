@@ -69,6 +69,41 @@
     --safe-area-right: env(safe-area-inset-right, 0px);
   }
 
+  :root.dark, [data-theme="dark"] {
+    /* Brand Accent Colors */
+    --color-primary: #EA580C;
+    --color-primary-dark: #C2410C;
+    --color-primary-hover: #FB923C;
+    --color-primary-soft: rgba(234, 88, 12, 0.15);
+
+    /* Canvas & Surface Colors (Dark Theme) */
+    --color-background: #0B0F17;
+    --color-surface: #131822;
+    --color-surface-hover: #1E293B;
+    --color-surface-soft: #0F172A;
+
+    /* Border & Separator Colors */
+    --color-border: #1E293B;
+    --color-border-hover: #334155;
+
+    /* Text & Content Hierarchy */
+    --color-foreground: #F8FAFC;
+    --color-muted-foreground: #94A3B8;
+    --color-subtle: #64748B;
+
+    /* Semantic Status */
+    --color-success-bg: rgba(16, 185, 129, 0.15);
+    --color-success-border: rgba(16, 185, 129, 0.3);
+    --color-warning-bg: rgba(245, 158, 11, 0.15);
+    --color-warning-border: rgba(245, 158, 11, 0.3);
+    --color-danger-bg: rgba(239, 68, 68, 0.15);
+    --color-danger-border: rgba(239, 68, 68, 0.3);
+    --color-info-bg: rgba(59, 130, 246, 0.15);
+    --color-info-border: rgba(59, 130, 246, 0.3);
+    --color-neutral-bg: #1E293B;
+    --color-neutral-border: #334155;
+  }
+
   * {
     box-sizing: border-box;
     margin: 0;
@@ -78,8 +113,8 @@
 
   html, body {
     font-family: var(--font-body);
-    background-color: #F8FAFC !important;
-    color: #0F172A !important;
+    background-color: var(--color-background);
+    color: var(--color-foreground);
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -87,11 +122,20 @@
     touch-action: manipulation;
   }
 
+  html.dark, html.dark body {
+    background-color: #0B0F17 !important;
+    color: #F8FAFC !important;
+  }
+
   h1, h2, h3, h4, h5, h6, .font-heading {
     font-family: var(--font-heading);
     font-weight: 700;
     letter-spacing: -0.02em;
-    color: #0F172A;
+    color: var(--color-foreground);
+  }
+
+  html.dark h1, html.dark h2, html.dark h3, html.dark h4, html.dark h5, html.dark h6, html.dark .font-heading {
+    color: #F8FAFC !important;
   }
 
   code, kbd, samp, pre, .font-mono {
@@ -105,14 +149,14 @@
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #F8FAFC;
+  background: var(--color-background);
 }
 ::-webkit-scrollbar-thumb {
-  background: #CBD5E1;
+  background: var(--color-border);
   border-radius: var(--radius-full);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #94A3B8;
+  background: var(--color-subtle);
 }
 
 /* Reduced Motion Respect */
