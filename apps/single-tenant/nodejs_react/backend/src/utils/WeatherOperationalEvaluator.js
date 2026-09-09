@@ -169,4 +169,155 @@ export class WeatherOperationalEvaluator {
       is_off_hours: false,
     };
   }
+
+  /**
+   * Helper to map WMO weather codes to human readable Indonesian labels & icon identifiers
+   */
+  static getWmoMeta(code = 0) {
+    if (code === 0) return { label: "Cerah", icon: "sun", severity: "LOW" };
+    if ([1, 2].includes(code)) return { label: "Cerah Berawan", icon: "cloud-sun", severity: "LOW" };
+    if (code === 3) return { label: "Berawan", icon: "cloud", severity: "LOW" };
+    if ([45, 48].includes(code)) return { label: "Berkabut", icon: "smog", severity: "MEDIUM" };
+    if ([51, 53, 55, 56, 57].includes(code)) return { label: "Gerimis", icon: "cloud-drizzle", severity: "MEDIUM" };
+    if ([61, 63, 65, 66, 67].includes(code)) return { label: "Hujan Ringan", icon: "cloud-rain", severity: "HIGH" };
+    if ([80, 81, 82].includes(code)) return { label: "Hujan Deras", icon: "cloud-showers-heavy", severity: "HIGH" };
+    if ([95, 96, 99].includes(code)) return { label: "Badai Petir", icon: "cloud-bolt", severity: "CRITICAL" };
+    return { label: "Berawan", icon: "cloud", severity: "LOW" };
+  }
+
+  /**
+   * Extract Hourly Weather Timeline Paired with Time Slots for Today or Tomorrow
+   * @param {object} params
+   * @param {object} params.hourlyData - Open-Meteo hourly object
+   * @param {string|Date} params.targetDate - "today", "tomorrow", or ISO date string (YYYY-MM-DD)
+   * @param {string} params.targetSlot - "pagi", "siang", "sore", "malam", or "all"
+   * @returns {object} { target_date, selected_slot, slot_summary, hourly_timeline, available_slots }
+   */
+  static extractHourlyTimeline({ hourlyData = {}, targetDate = "today", targetSlot = "all" }) {
+    if (!hourlyData || !Array.isArray(hourlyData.time)) {
+      return {
+        target_date: targetDate,
+        selected_slot: targetSlot,
+        slot_summary: {
+          label: "Data Tidak Tersedia",
+          avg_temperature_c: 0,
+          max_rain_probability: 0,
+          dominant_condition: "Unknown",
+          skor_c4_dss: 50,
+          risk_level: "UNKNOWN",
+        },
+        hourly_timeline: [],
+        available_slots: {},
+      };
+    }
+
+    // Resolve target date string YYYY-MM-DD
+    let targetDateStr = "";
+    const now = new Date();
+    if (targetDate === "today" || !targetDate) {
+      targetDateStr = now.toISOString().split("T")[0];
+    } else if (targetDate === "tomorrow") {
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      targetDateStr = tomorrow.toISOString().split("T")[0];
+    } else if (typeof targetDate === "string" && targetDate.includes("-")) {
+      targetDateStr = targetDate.split("T")[0];
+    } else {
+      targetDateStr = now.toISOString().split("T")[0];
+    }
+
+    const slotDefinitions = {
+      pagi: { label: "Pagi (06:00 - 10:00)", startHour: 6, endHour: 10 },
+      siang: { label: "Siang (11:00 - 14:00)", startHour: 11, endHour: 14 },
+      sore: { label: "Sore (15:00 - 17:00)", startHour: 15, endHour: 17 },
+      malam: { label: "Malam (18:00 - 21:00)", startHour: 18, endHour: 21 },
+    };
+
+    // Parse all hourly items for the target date
+    const allDateHours = [];
+    for (let i = 0; i < hourlyData.time.length; i++) {
+      const timeStr = hourlyData.time[i]; // e.g. "2026-09-10T08:00"
+      if (!timeStr.startsWith(targetDateStr)) continue;
+
+      const dateObj = new Date(timeStr);
+      const hour = dateObj.getHours();
+
+      // Determine slot
+      let slotKey = null;
+      if (hour >= 6 && hour <= 10) slotKey = "pagi";
+      else if (hour >= 11 && hour <= 14) slotKey = "siang";
+      else if (hour >= 15 && hour <= 17) slotKey = "sore";
+      else if (hour >= 18 && hour <= 21) slotKey = "malam";
+
+      const weatherCode = hourlyData.weather_code?.[i] ?? 0;
+      const wmoMeta = this.getWmoMeta(weatherCode);
+
+      allDateHours.push({
+        time: timeStr.includes("T") ? timeStr.split("T")[1].slice(0, 5) : `${String(hour).padStart(2, '0')}:00`,
+        full_time: timeStr,
+        hour,
+        slot: slotKey,
+        temperature_c: Math.round((hourlyData.apparent_temperature?.[i] ?? hourlyData.temperature_2m?.[i] ?? 28) * 10) / 10,
+        rain_probability_percent: hourlyData.precipitation_probability?.[i] ?? 0,
+        rain_volume_mm: hourlyData.rain?.[i] ?? hourlyData.precipitation?.[i] ?? 0,
+        weather_code: weatherCode,
+        weather_label: wmoMeta.label,
+        icon: wmoMeta.icon,
+        severity: wmoMeta.severity,
+        wind_speed_kmh: hourlyData.wind_speed_10m?.[i] ?? 0,
+        humidity_percent: hourlyData.relative_humidity_2m?.[i] ?? 0,
+        dew_point_c: hourlyData.dew_point_2m?.[i] ?? 0,
+      });
+    }
+
+    // Build summaries for all 4 slots
+    const availableSlots = {};
+    for (const [key, def] of Object.entries(slotDefinitions)) {
+      const slotItems = allDateHours.filter((h) => h.slot === key);
+      if (slotItems.length > 0) {
+        const maxRain = Math.max(...slotItems.map((s) => s.rain_probability_percent));
+        const avgRain = Math.round(slotItems.reduce((sum, s) => sum + s.rain_probability_percent, 0) / slotItems.length);
+        const avgTemp = Math.round((slotItems.reduce((sum, s) => sum + s.temperature_c, 0) / slotItems.length) * 10) / 10;
+        const dominantWeather = slotItems[Math.floor(slotItems.length / 2)]?.weather_label || "Cerah";
+
+        availableSlots[key] = {
+          slot_key: key,
+          label: def.label,
+          hours_count: slotItems.length,
+          avg_temperature_c: avgTemp,
+          max_rain_probability: maxRain,
+          avg_rain_probability: avgRain,
+          dominant_condition: dominantWeather,
+          skor_c4_dss: maxRain,
+          risk_level: maxRain > 60 ? "HIGH" : maxRain > 30 ? "MEDIUM" : "LOW",
+        };
+      }
+    }
+
+    // Filter timeline based on targetSlot
+    let selectedTimeline = allDateHours.filter((h) => h.hour >= 6 && h.hour <= 21); // default all company hours
+    if (targetSlot && targetSlot !== "all" && slotDefinitions[targetSlot]) {
+      selectedTimeline = allDateHours.filter((h) => h.slot === targetSlot);
+    }
+
+    // Slot summary for selected slot
+    const activeSummary = availableSlots[targetSlot] || {
+      slot_key: targetSlot,
+      label: targetSlot === "all" ? "Seluruh Jam Operasional (06:00 - 21:00)" : targetSlot,
+      avg_temperature_c: selectedTimeline.length > 0 ? Math.round((selectedTimeline.reduce((sum, s) => sum + s.temperature_c, 0) / selectedTimeline.length) * 10) / 10 : 28,
+      max_rain_probability: selectedTimeline.length > 0 ? Math.max(...selectedTimeline.map((s) => s.rain_probability_percent)) : 0,
+      dominant_condition: selectedTimeline[0]?.weather_label || "Cerah",
+      skor_c4_dss: selectedTimeline.length > 0 ? Math.max(...selectedTimeline.map((s) => s.rain_probability_percent)) : 0,
+      risk_level: "LOW",
+    };
+
+    return {
+      target_date: targetDateStr,
+      selected_slot: targetSlot,
+      slot_summary: activeSummary,
+      hourly_timeline: selectedTimeline,
+      available_slots: availableSlots,
+    };
+  }
 }
+

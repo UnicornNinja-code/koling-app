@@ -24,7 +24,7 @@ export const Input = forwardRef(function Input(
       {label && (
         <label
           htmlFor={inputId}
-          className="block text-xs font-semibold text-[#A1A1AA]"
+          className="block text-xs font-semibold text-slate-700"
         >
           {label}
           {required && <span className="text-[#EF4444] ml-0.5">*</span>}
@@ -33,7 +33,7 @@ export const Input = forwardRef(function Input(
 
       <div className="relative flex items-center">
         {LeftIcon && (
-          <div className="absolute left-3 text-[#71717A] pointer-events-none flex items-center justify-center">
+          <div className="absolute left-3 text-slate-400 pointer-events-none flex items-center justify-center">
             {typeof LeftIcon === "string" ? (
               <i className={`bx ${LeftIcon.startsWith("bx-") ? LeftIcon : `bx-${LeftIcon}`} text-sm`} />
             ) : (
@@ -49,12 +49,12 @@ export const Input = forwardRef(function Input(
           disabled={disabled}
           required={required}
           className={cn(
-            "w-full bg-[#18181B] text-[#FAFAFA] placeholder:text-[#71717A] border border-[#24242A] rounded-[6px]",
-            "px-2.5 py-1.5 min-h-[34px] text-xs transition-colors outline-none",
-            "focus:border-[#ea580c] focus:ring-1 focus:ring-[#ea580c]",
-            "disabled:bg-[#121215] disabled:text-[#52525B] disabled:cursor-not-allowed",
-            LeftIcon && "pl-8",
-            RightIcon && "pr-8",
+            "w-full bg-white text-slate-900 placeholder:text-slate-400 border border-slate-300 rounded-[6px]",
+            "px-3 py-1.5 min-h-[36px] text-xs md:text-sm transition-colors outline-none shadow-2xs",
+            "focus:border-[#EA580C] focus:ring-1 focus:ring-[#EA580C]",
+            "disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed",
+            LeftIcon && "pl-9",
+            RightIcon && "pr-9",
             error && "border-[#EF4444] focus:border-[#EF4444] focus:ring-[#EF4444]",
             className
           )}
@@ -62,7 +62,7 @@ export const Input = forwardRef(function Input(
         />
 
         {RightIcon && (
-          <div className="absolute right-3 text-[#71717A] pointer-events-none flex items-center justify-center">
+          <div className="absolute right-3 text-slate-400 pointer-events-none flex items-center justify-center">
             {typeof RightIcon === "string" ? (
               <i className={`bx ${RightIcon.startsWith("bx-") ? RightIcon : `bx-${RightIcon}`} text-sm`} />
             ) : (
@@ -73,15 +73,14 @@ export const Input = forwardRef(function Input(
       </div>
 
       {error && (
-        <p className="text-[11px] font-medium text-[#DC2626] flex items-center gap-1">
+        <p className="text-[11px] font-medium text-[#EF4444] flex items-center gap-1">
           <span>{error}</span>
         </p>
       )}
 
       {!error && helperText && (
-        <p className="text-[11px] text-[#737373] font-normal">{helperText}</p>
+        <p className="text-[11px] text-slate-500 font-normal">{helperText}</p>
       )}
     </div>
   );
 });
-

@@ -5,7 +5,7 @@ export function Skeleton({ className = "", ...props }) {
   return (
     <div
       className={cn(
-        "animate-pulse rounded-lg bg-slate-200/80 shrink-0",
+        "animate-pulse rounded-[4px] bg-slate-200/80 shrink-0",
         className
       )}
       {...props}
@@ -15,7 +15,7 @@ export function Skeleton({ className = "", ...props }) {
 
 export function SkeletonCard({ className = "" }) {
   return (
-    <div className={cn("p-5 bg-white rounded-xl border border-slate-200 space-y-3", className)}>
+    <div className={cn("p-5 bg-white rounded-[6px] border border-slate-200 space-y-3 shadow-xs", className)}>
       <Skeleton className="h-4 w-1/3" />
       <Skeleton className="h-8 w-2/3" />
       <Skeleton className="h-3 w-1/2" />
@@ -25,7 +25,7 @@ export function SkeletonCard({ className = "" }) {
 
 export function SkeletonRow({ cols = 4, className = "" }) {
   return (
-    <tr className={cn("border-b border-slate-100", className)}>
+    <tr className={cn("border-b border-slate-200", className)}>
       {Array.from({ length: cols }).map((_, i) => (
         <td key={i} className="p-3">
           <Skeleton className="h-4 w-full" />

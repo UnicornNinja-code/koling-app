@@ -35,7 +35,7 @@ const testPhases = [
   {
     phase: "FASE 4",
     name: "Operasional Harian Rider & Ticket-Booking Lock",
-    script: "src/scripts/test-rider-op.js",
+    script: "tests/integration/test-rider-op.js",
   },
   {
     phase: "FASE 5",
@@ -65,14 +65,15 @@ async function runMasterTestSuite() {
       if (isVerbose) console.log("\n");
       
       // Execute main script
-      execSync(`node ${item.script}`, {
+      const runnerBin = process.versions.bun ? "bun" : (process.execPath || "node");
+      execSync(`${runnerBin} ${item.script}`, {
         cwd: rootDir,
         stdio: isVerbose ? "inherit" : "pipe",
       });
 
       // Execute sub-script if present in phase
       if (item.subScript) {
-        execSync(`node ${item.subScript}`, {
+        execSync(`${runnerBin} ${item.subScript}`, {
           cwd: rootDir,
           stdio: isVerbose ? "inherit" : "pipe",
         });

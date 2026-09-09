@@ -4,6 +4,8 @@
  *   POIEltPipelineService & POI Domain Orchestrator (Clean Architecture OOP)
  */
 
+import fs from "fs";
+import path from "path";
 import { pool } from "../config/database.js";
 import { SystemSettingModel } from "../models/systemSettingModel.js";
 import { PoiCategoryModel } from "../models/poiCategoryModel.js";
@@ -88,12 +90,37 @@ export class POIEltPipelineService {
         );
         out center;
       `;
-      overpassData = await this.overpassClient.fetchOverpassData(fallbackQuery);
+      try {
+        overpassData = await this.overpassClient.fetchOverpassData(fallbackQuery);
+      } catch (err2) {
+        console.warn("⚠️ Error Overpass API standard query:", err2.message);
+      }
     }
 
-    await this.rawRepo.saveRawData(hubCity, overpassData);
-    console.log(`✅ Staging ELT Phase 1 (Extract & Load): ${overpassData.length} raw Overpass elements berhasil disimpan ke pois_raw (${hubCity}).`);
-    return { count: overpassData.length, city: hubCity };
+    if (!overpassData || overpassData.length === 0) {
+      console.warn("⚠️ Overpass API gagal/tidak mengembalikan data, mencoba fallback ke snapshot lokal 'poi_snapshot.geojson'...");
+      const localPath = path.resolve(process.cwd(), "public/geojson/poi_snapshot.geojson");
+      if (fs.existsSync(localPath)) {
+        const raw = fs.readFileSync(localPath, "utf8");
+        const parsed = JSON.parse(raw);
+        const feats = parsed.features || [];
+        overpassData = feats.map((f, idx) => ({
+          type: "node",
+          id: f.properties?.osm_id || idx + 1000000,
+          lat: f.geometry?.coordinates?.[1] || 0,
+          lon: f.geometry?.coordinates?.[0] || 0,
+          tags: {
+            name: f.properties?.name || "POI",
+            amenity: f.properties?.category || "cafe",
+            ...f.properties,
+          },
+        }));
+      }
+    }
+
+    await this.rawRepo.saveRawData(hubCity, overpassData || []);
+    console.log(`✅ Staging ELT Phase 1 (Extract & Load): ${(overpassData || []).length} raw Overpass elements berhasil disimpan ke pois_raw (${hubCity}).`);
+    return { count: (overpassData || []).length, city: hubCity };
   }
 
   /**
@@ -332,6 +359,7 @@ export const getZoneC3ScoreService = async (zoneId, timeInput) => {
 // C4 Weather Condition Exports
 import { poiWeatherService } from "./poi/POIWeatherService.js";
 export const getZoneC4ScoreService = (zoneId, timeInput) => poiWeatherService.calculateZoneC4Score(zoneId, timeInput);
+export const getZoneWeatherTimelineService = (params) => poiWeatherService.getZoneWeatherTimeline(params);
 export const getHubWeatherOverviewService = (cityName, timeInput) => poiWeatherService.getHubWeatherOverview(cityName, timeInput);
 export const syncAllZonesWeatherService = () => poiWeatherService.syncAllZonesWeather();
 

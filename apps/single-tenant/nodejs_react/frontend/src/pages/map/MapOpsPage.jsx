@@ -5,11 +5,10 @@ import { Sidebar } from "../../components/layout/Sidebar.jsx";
 import { Topbar } from "../../components/layout/Topbar.jsx";
 import { OperationalList } from "../../components/map/OperationalList.jsx";
 import { LeafletMapCanvas } from "../../components/map/LeafletMapCanvas.jsx";
-import { MapFloatingToolbar } from "../../components/map/MapFloatingToolbar.jsx";
-import { MapLayersPanel } from "../../components/map/MapLayersPanel.jsx";
 import { MapLegendPanel } from "../../components/map/MapLegendPanel.jsx";
 import { MapWeatherPanel } from "../../components/map/MapWeatherPanel.jsx";
 import { MapTimeSlotBar } from "../../components/map/MapTimeSlotBar.jsx";
+import { MapRightLayerSidebar } from "../../components/map/MapRightLayerSidebar.jsx";
 import { OperationalDetailPanel } from "../../components/map/OperationalDetailPanel.jsx";
 
 // Single-Tenant Services SSOT
@@ -26,7 +25,7 @@ import { Menu, X } from "lucide-react";
 
 /**
  * Enterprise Map Ops — Primary Operational Workspace
- * Full viewport GIS control room integrating live LBS telemetry, DSS recommendations, and geofence monitoring
+ * Full viewport GIS control room with Left Operational Rail + Right GIS Layering Sidebar
  */
 export function MapOpsPage() {
   const { user } = useAuth();
@@ -39,11 +38,12 @@ export function MapOpsPage() {
   const [selectedItemType, setSelectedItemType] = useState(null);
   const [activeFloatingPanel, setActiveFloatingPanel] = useState(null);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState("pagi");
+  const [selectedHour, setSelectedHour] = useState(null);
   const [selectedPoiCategory, setSelectedPoiCategory] = useState("ALL");
   const [isLiveConnected, setIsLiveConnected] = useState(false);
   const [isMobileListOpen, setIsMobileListOpen] = useState(false);
 
-  // Map Layer Toggles
+  // Map Layer Toggles (Including Sales Heatmap)
   const [layers, setLayers] = useState({
     zones: true,
     riders: true,
@@ -51,15 +51,12 @@ export function MapOpsPage() {
     dss: true,
     protocolRoads: true,
     weather: true,
-    pois: false, // Default: OFF per design spec
+    salesHeatmap: true, // Default ON for visual sales intelligence & forecasting
+    pois: false, // Default OFF
   });
 
   const handleToggleLayer = (layerId) => {
     setLayers((prev) => ({ ...prev, [layerId]: !prev[layerId] }));
-  };
-
-  const handleToggleFloatingPanel = (panelId) => {
-    setActiveFloatingPanel((prev) => (prev === panelId ? null : panelId));
   };
 
   // 1. Fetch Operational Zones SSOT
@@ -99,9 +96,9 @@ export function MapOpsPage() {
     queryFn: roadService.getProtocolRoads,
     staleTime: 300000,
   });
-  const protocolRoads = protocolRoadsRes?.data || protocolRoadsRes;
+  const protocolRoads = protocolRoadsRes?.roads || protocolRoadsRes?.data || protocolRoadsRes;
 
-  // 5. Fetch Operational Weather
+  // 5. Fetch Atmospheric Weather
   const { data: weatherRes, isLoading: isWeatherLoading } = useQuery({
     queryKey: ["weather", "hub", "Sidoarjo"],
     queryFn: () => weatherService.getHubWeatherInfo("Sidoarjo"),
@@ -109,7 +106,7 @@ export function MapOpsPage() {
   });
   const weatherData = weatherRes?.data || weatherRes;
 
-  // 6. Fetch DSS TOPSIS Zone Recommendations SSOT (GET /api/dss/recommendations)
+  // 6. Fetch DSS TOPSIS Zone Recommendations SSOT
   const { data: dssRecsRes } = useQuery({
     queryKey: ["dss", "recommendations"],
     queryFn: dssService.getTopsisRecommendations,
@@ -127,7 +124,7 @@ export function MapOpsPage() {
     };
   });
 
-  // 6. Fetch POIs (Loaded when POI layer enabled)
+  // 7. Fetch POIs (Loaded when POI layer enabled)
   const { data: poisRes } = useQuery({
     queryKey: ["pois", "operational-area"],
     queryFn: poiService.getOperationalAreaPois,
@@ -136,7 +133,7 @@ export function MapOpsPage() {
   });
   const pois = poisRes?.pois || poisRes?.data || [];
 
-  // 7. Fetch POI Categories for category filter
+  // 8. Fetch POI Categories for category filter
   const { data: poiCategoriesRes } = useQuery({
     queryKey: ["poi-categories", "crowd-scores"],
     queryFn: poiService.getCrowdScores,
@@ -163,82 +160,70 @@ export function MapOpsPage() {
   // Socket.IO Real-Time Stream Integration
   useEffect(() => {
     const token = localStorage.getItem("token");
-    const socket = socketManager.connect(token);
+    if (!token) return;
 
-    if (socket) {
-      setIsLiveConnected(true);
+    socketManager.connect(token);
+    setIsLiveConnected(true);
 
-      socketManager.on(SOCKET_EVENTS.SUPERVISOR_RIDER_MOVED, () => {
-        queryClient.invalidateQueries({ queryKey: ["lbs", "live-riders"] });
+    const handleLbsUpdate = (payload) => {
+      queryClient.setQueryData(["lbs", "live-riders"], (old = []) => {
+        const idx = old.findIndex((r) => r.id === payload.rider_id || r.rider_id === payload.rider_id);
+        if (idx !== -1) {
+          const updated = [...old];
+          updated[idx] = { ...updated[idx], ...payload };
+          return updated;
+        }
+        return [...old, payload];
       });
+    };
 
-      socketManager.on(SOCKET_EVENTS.RIDER_CHECKED_IN, () => {
-        queryClient.invalidateQueries({ queryKey: ["lbs", "live-riders"] });
-      });
-
-      socketManager.on(SOCKET_EVENTS.GEOFENCE_BREACH, () => {
-        queryClient.invalidateQueries({ queryKey: ["lbs", "live-riders"] });
-      });
-    }
+    socketManager.on(SOCKET_EVENTS.RIDER_LOCATION_UPDATED, handleLbsUpdate);
 
     return () => {
-      // Keep persistent connection
+      socketManager.off(SOCKET_EVENTS.RIDER_LOCATION_UPDATED, handleLbsUpdate);
     };
   }, [queryClient]);
 
-  // Synchronized Selection Handler
+  // Selection Handler
   const handleSelectItem = (item, type) => {
     setSelectedItem(item);
     setSelectedItemType(type);
 
-    // If item has coordinates, fly to position
-    if (mapRef.current) {
-      if (type === "rider") {
-        const lat = Number(item.latitude || item.lat);
-        const lng = Number(item.longitude || item.lng);
-        if (!isNaN(lat) && !isNaN(lng) && lat !== 0) {
-          mapRef.current.flyTo([lat, lng], 15, { animate: true, duration: 0.8 });
-        }
-      } else if (type === "zone") {
-        // If zone has center coordinates or polygon
-        const lat = Number(item.center_lat || -7.4478);
-        const lng = Number(item.center_lng || 112.7183);
-        mapRef.current.flyTo([lat, lng], 14, { animate: true, duration: 0.8 });
+    if (mapRef.current && item) {
+      const lat = Number(item.latitude || item.lat);
+      const lng = Number(item.longitude || item.lng);
+      if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+        mapRef.current.flyTo([lat, lng], 15, { animate: true, duration: 1 });
       }
     }
   };
 
   const handleResetMapView = () => {
     if (mapRef.current) {
-      mapRef.current.setView([-7.4478, 112.7183], 13);
+      mapRef.current.flyTo([-7.4478, 112.7183], 13, { animate: true, duration: 0.8 });
     }
   };
 
-  const handleZoomIn = () => {
-    if (mapRef.current) mapRef.current.zoomIn();
-  };
-
-  const handleZoomOut = () => {
-    if (mapRef.current) mapRef.current.zoomOut();
-  };
-
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#FAFAFA] font-sans antialiased select-none">
-      {/* 1. App Shell Dark Rail Sidebar (60px) */}
+    <div className="flex h-screen w-screen overflow-hidden bg-[#F8FAFC] text-[#0F172A] font-sans antialiased">
+      {/* 1. Main Left Expandable Navigation Sidebar */}
       <Sidebar />
 
-      {/* 2. Main Viewport Workspace (0px Gap) */}
-      <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
-        {/* Compact Header (56px) */}
-        <Topbar />
+      {/* 2. Main Workspace Layout */}
+      <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden relative">
+        {/* Topbar */}
+        <Topbar
+          title="Peta Operasional & Intelijen Spasial"
+          subtitle="Monitoring real-time armada, kepatuhan geofence, cuaca satelit & sales heatmap"
+        />
 
-        {/* Workspace Body: Split Operational List (340px) + Map Workspace */}
-        <div className="flex-1 flex relative overflow-hidden">
-          {/* Mobile List Toggle Button */}
+        {/* Viewport Split Workspace */}
+        <div className="flex-1 relative flex overflow-hidden">
+          {/* Mobile Drawer Trigger */}
           <button
             type="button"
             onClick={() => setIsMobileListOpen((prev) => !prev)}
-            className="md:hidden absolute top-3 left-3 z-40 bg-white border border-[#E5E5E5] rounded-[4px] p-2 shadow-sm text-[#111111]"
+            className="md:hidden absolute top-3 left-3 z-40 bg-white border border-[#E2E8F0] rounded-[6px] p-2 shadow-sm text-[#0F172A]"
           >
             {isMobileListOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
           </button>
@@ -246,8 +231,8 @@ export function MapOpsPage() {
           {/* Left-Hand Operational List (340px) */}
           <div
             className={`
-              ${isMobileListOpen ? "fixed inset-y-0 left-[60px] z-50 flex" : "hidden"}
-              md:flex md:relative md:z-20 h-full shrink-0 shadow-xs
+              ${isMobileListOpen ? "fixed inset-y-0 left-[64px] z-50 flex" : "hidden"}
+              md:flex md:relative md:z-20 h-full shrink-0 shadow-xs border-r border-[#E2E8F0] bg-white
             `}
           >
             <OperationalList
@@ -262,7 +247,7 @@ export function MapOpsPage() {
           </div>
 
           {/* Map GIS Canvas (Remaining Viewport) */}
-          <div className="flex-1 relative h-full w-full overflow-hidden bg-[#E5E5E5] isolate z-10">
+          <div className="flex-1 relative h-full w-full overflow-hidden bg-[#F1F5F9] isolate z-10">
             {/* Interactive Leaflet Map */}
             <LeafletMapCanvas
               zones={enhancedZones}
@@ -272,38 +257,39 @@ export function MapOpsPage() {
               protocolRoads={protocolRoads}
               layers={layers}
               selectedPoiCategory={selectedPoiCategory}
+              selectedTimeSlot={selectedTimeSlot}
+              selectedHour={selectedHour}
+              weatherData={weatherData}
               selectedItem={selectedItem}
               onSelectItem={handleSelectItem}
               mapRef={mapRef}
             />
 
-            {/* Top Temporal Crowd Slot Bar */}
+            {/* Top Temporal Crowd Slot & Hourly Slice Bar */}
             <MapTimeSlotBar
               selectedSlot={selectedTimeSlot}
               onSelectSlot={setSelectedTimeSlot}
+              selectedHour={selectedHour}
+              onSelectHour={setSelectedHour}
             />
 
-            {/* Top Right Floating Toolbar */}
-            <MapFloatingToolbar
-              activePanel={activeFloatingPanel}
-              onTogglePanel={handleToggleFloatingPanel}
-              onZoomIn={handleZoomIn}
-              onZoomOut={handleZoomOut}
+            {/* 3. Dedicated Right-Hand Docked Layering & GIS Intelligence Sidebar */}
+            <MapRightLayerSidebar
+              layers={layers}
+              onToggleLayer={handleToggleLayer}
+              poiCategories={poiCategories}
+              selectedPoiCategory={selectedPoiCategory}
+              onSelectPoiCategory={setSelectedPoiCategory}
+              onOpenLegend={() => setActiveFloatingPanel("legend")}
+              onOpenWeather={() => setActiveFloatingPanel("weather")}
               onResetView={handleResetMapView}
-              isLiveConnected={isLiveConnected}
+              counts={{
+                zones: enhancedZones.length,
+                riders: riders.length,
+                armadas: armadas.length,
+                pois: pois.length,
+              }}
             />
-
-            {/* Floating Layers Panel */}
-            {activeFloatingPanel === "layers" && (
-              <MapLayersPanel
-                layers={layers}
-                onToggleLayer={handleToggleLayer}
-                poiCategories={poiCategories}
-                selectedPoiCategory={selectedPoiCategory}
-                onSelectPoiCategory={setSelectedPoiCategory}
-                onClose={() => setActiveFloatingPanel(null)}
-              />
-            )}
 
             {/* Floating Legend Panel */}
             {activeFloatingPanel === "legend" && (
@@ -314,6 +300,9 @@ export function MapOpsPage() {
             {activeFloatingPanel === "weather" && (
               <MapWeatherPanel
                 weatherData={weatherData}
+                selectedZoneId={selectedItem?.id || zones[0]?.id}
+                selectedSlot={selectedTimeSlot}
+                onSelectSlot={setSelectedTimeSlot}
                 isLoading={isWeatherLoading || syncWeatherMutation.isPending}
                 onSync={() => syncWeatherMutation.mutate()}
                 onClose={() => setActiveFloatingPanel(null)}
@@ -342,3 +331,5 @@ export function MapOpsPage() {
     </div>
   );
 }
+
+export default MapOpsPage;

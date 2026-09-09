@@ -5,10 +5,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useAuth, getRoleLandingPath } from "../../context/AuthContext.jsx";
 import { authService } from "../../services/authService.js";
-import { Coffee, Lock, User, Shield, ArrowRight, KeyRound } from "lucide-react";
-import { Button } from "../../components/common/Button.jsx";
-import { Input } from "../../components/ui/Input.jsx";
-import { Alert } from "../../components/ui/Alert.jsx";
+import { Lock, User, Shield, ArrowRight, KeyRound } from "lucide-react";
+import { Button, Input, Alert, Card, MovaLogo } from "../../components/ui";
 
 const loginSchema = z.object({
   identifier: z.string().min(3, "Username atau Email minimal 3 karakter"),
@@ -83,23 +81,20 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] flex flex-col justify-center py-12 sm:px-6 lg:px-8 px-4 font-sans">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+    <div className="relative min-h-screen bg-[#F8FAFC] flex flex-col justify-center py-12 sm:px-6 lg:px-8 px-4 font-sans overflow-hidden select-none">
+      {/* Background Watermark */}
+      <div className="absolute -top-16 -right-16 text-[220px] font-black text-slate-200/40 select-none pointer-events-none tracking-tighter leading-none hidden md:block">
+        Mova.
+      </div>
+
+      <div className="sm:mx-auto sm:w-full sm:max-w-md z-10">
         {/* Brand Header */}
         <div className="text-center space-y-2 mb-6">
-          <div className="w-12 h-12 bg-[#2563EB] rounded-[10px] flex items-center justify-center text-white mx-auto shadow-md shadow-blue-200 shrink-0">
-            <Coffee className="w-6 h-6" />
-          </div>
-          <h1 className="text-2xl font-heading font-extrabold text-[#111111] tracking-tight">
-            MOVA
-          </h1>
-          <p className="text-xs text-[#737373] font-normal max-w-xs mx-auto">
-            Coffee Operational Zone Intelligence System
-          </p>
+          <MovaLogo size="xl" showSubtitle subtitle="Coffee Operational Zone Intelligence System" className="items-center" />
         </div>
 
         {/* Card Form Container */}
-        <div className="bg-white py-8 px-6 sm:px-8 rounded-[12px] border border-[#E5E5E5] shadow-2xs space-y-6">
+        <Card className="py-8 px-6 sm:px-8 bg-white border border-[#E2E8F0] shadow-sm rounded-[8px] space-y-5">
           {/* Session Expired Notification */}
           {isExpired && !errorMsg && (
             <Alert variant="warning" title="Sesi Berakhir">
@@ -126,12 +121,12 @@ export function LoginPage() {
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-semibold text-[#525252]">
+                <label className="block text-xs font-bold text-[#334155]">
                   Kata Sandi <span className="text-[#DC2626]">*</span>
                 </label>
                 <Link
                   to="/forgot-password"
-                  className="text-xs text-[#2563EB] hover:text-[#1D4ED8] font-semibold"
+                  className="text-xs text-[#2563EB] hover:text-[#1D4ED8] font-bold"
                 >
                   Lupa kata sandi?
                 </Link>
@@ -160,7 +155,7 @@ export function LoginPage() {
           </form>
 
           {/* Activation Prompt */}
-          <div className="p-3 bg-[#F5F5F5] rounded-[8px] border border-[#E5E5E5] text-center text-xs text-[#525252]">
+          <div className="p-3 bg-[#F8FAFC] rounded-[6px] border border-[#E2E8F0] text-center text-xs text-[#64748B]">
             Menerima undangan akun baru?{" "}
             <Link to="/activate" className="text-[#2563EB] hover:underline font-bold inline-flex items-center gap-1">
               <KeyRound className="w-3.5 h-3.5" /> Aktivasi Akun
@@ -168,17 +163,19 @@ export function LoginPage() {
           </div>
 
           {/* Enterprise Restricted Notice Footer */}
-          <div className="pt-4 border-t border-[#E5E5E5] text-center space-y-2">
-            <div className="flex items-center justify-center gap-1.5 text-xs text-[#737373] font-medium">
-              <Shield className="w-3.5 h-3.5 text-[#A3A3A3]" />
+          <div className="pt-4 border-t border-[#E2E8F0] text-center space-y-1.5">
+            <div className="flex items-center justify-center gap-1.5 text-xs text-[#64748B] font-medium">
+              <Shield className="w-3.5 h-3.5 text-[#94A3B8]" />
               <span>Akses Terbatas: Sistem Internal Perusahaan</span>
             </div>
-            <p className="text-[11px] text-[#A3A3A3] font-normal">
+            <p className="text-[11px] text-[#94A3B8]">
               Akun pengguna hanya diterbitkan oleh Tim Administrator MOVA.
             </p>
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   );
 }
+
+export default LoginPage;

@@ -36,8 +36,10 @@ const ReportsPage = lazy(() => import("./pages/reports/ReportsPage.jsx").then((m
 const SettingsPage = lazy(() => import("./pages/superadmin/SettingsPage.jsx").then((m) => ({ default: m.SettingsPage })));
 
 const MapOpsPage = lazy(() => import("./pages/map/MapOpsPage.jsx").then((m) => ({ default: m.MapOpsPage })));
-const RiderMapPage = lazy(() => import("./pages/map/MapOpsPage.jsx").then((m) => ({ default: m.MapOpsPage })));
 const RiderOperationalPage = lazy(() => import("./pages/rider/RiderOperationalPage.jsx").then((m) => ({ default: m.RiderOperationalPage })));
+const ShowcasePage = lazy(() => import("./pages/showcase/ShowcasePage.jsx").then((m) => ({ default: m.ShowcasePage })));
+
+import { ToastProvider } from "./components/ui/Toast.jsx";
 
 const NotFoundPage = lazy(() => import("./pages/errors/NotFoundPage.jsx").then((m) => ({ default: m.NotFoundPage })));
 const ForbiddenPage = lazy(() => import("./pages/errors/ForbiddenPage.jsx").then((m) => ({ default: m.ForbiddenPage })));
@@ -78,214 +80,201 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <Router>
         <AuthProvider>
-          <Suspense fallback={<PageFallback />}>
-            <Routes>
-              {/* Root Dynamic Redirect */}
-              <Route path="/" element={<RootRedirect />} />
+          <ToastProvider>
+            <Suspense fallback={<PageFallback />}>
+              <Routes>
+                {/* Root Dynamic Redirect */}
+                <Route path="/" element={<RootRedirect />} />
 
-              {/* Public Auth & Activation Routes */}
-              <Route
-                path="/login"
-                element={
-                  <PublicAuthRoute>
-                    <LoginPage />
-                  </PublicAuthRoute>
-                }
-              />
-              <Route
-                path="/activate"
-                element={
-                  <PublicAuthRoute>
-                    <AccountActivationPage />
-                  </PublicAuthRoute>
-                }
-              />
-              {/* Backward compatibility alias */}
-              <Route path="/register" element={<Navigate to="/activate" replace />} />
-              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-              <Route path="/reset-password" element={<ResetPasswordPage />} />
+                {/* Component Showcase Route (Accessible for design system review) */}
+                <Route path="/showcase" element={<ShowcasePage />} />
+                <Route path="/components-showcase" element={<ShowcasePage />} />
 
-              {/* Shared Profile Route */}
-              <Route
-                path="/profile"
-                element={
-                  <ProtectedRoute>
-                    <ProfilePage />
-                  </ProtectedRoute>
-                }
-              />
+                {/* Public Auth & Activation Routes */}
+                <Route
+                  path="/login"
+                  element={
+                    <PublicAuthRoute>
+                      <LoginPage />
+                    </PublicAuthRoute>
+                  }
+                />
+                <Route
+                  path="/activate"
+                  element={
+                    <PublicAuthRoute>
+                      <AccountActivationPage />
+                    </PublicAuthRoute>
+                  }
+                />
+                {/* Backward compatibility alias */}
+                <Route path="/register" element={<Navigate to="/activate" replace />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-              {/* Executive / Operational Dashboard */}
-              <Route
-                path="/superadmin/dashboard"
-                element={
-                  <ProtectedRoute>
-                    <RoleGuard allowedRoles={["SUPERADMIN", "MANAGEMENT", "SUPERVISOR"]}>
-                      <SuperAdminDashboardPage />
-                    </RoleGuard>
-                  </ProtectedRoute>
-                }
-              />
-              <Route path="/dashboard" element={<Navigate to="/superadmin/dashboard" replace />} />
+                {/* Shared Profile Route */}
+                <Route
+                  path="/profile"
+                  element={
+                    <ProtectedRoute>
+                      <ProfilePage />
+                    </ProtectedRoute>
+                  }
+                />
 
-              {/* User Management Route (SUPERADMIN & MANAGEMENT only) */}
-              <Route
-                path="/users"
-                element={
-                  <ProtectedRoute>
-                    <RoleGuard allowedRoles={["SUPERADMIN", "MANAGEMENT"]}>
-                      <UserManagementPage />
-                    </RoleGuard>
-                  </ProtectedRoute>
-                }
-              />
+                {/* Executive / Operational Dashboard */}
+                <Route
+                  path="/superadmin/dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <RoleGuard allowedRoles={["SUPERADMIN", "MANAGEMENT", "SUPERVISOR"]}>
+                        <SuperAdminDashboardPage />
+                      </RoleGuard>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route path="/dashboard" element={<Navigate to="/superadmin/dashboard" replace />} />
 
-              {/* Zone Management Route */}
-              <Route
-                path="/zones"
-                element={
-                  <ProtectedRoute>
-                    <RoleGuard allowedRoles={["SUPERADMIN", "SUPERVISOR"]}>
-                      <ZoneManagementPage />
-                    </RoleGuard>
-                  </ProtectedRoute>
-                }
-              />
+                {/* SuperAdmin Domain Management Routes */}
+                <Route
+                  path="/zones"
+                  element={
+                    <ProtectedRoute>
+                      <RoleGuard allowedRoles={["SUPERADMIN", "SUPERVISOR"]}>
+                        <ZoneManagementPage />
+                      </RoleGuard>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dss"
+                  element={
+                    <ProtectedRoute>
+                      <RoleGuard allowedRoles={["SUPERADMIN", "SUPERVISOR"]}>
+                        <DssManagementPage />
+                      </RoleGuard>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/fleet"
+                  element={
+                    <ProtectedRoute>
+                      <RoleGuard allowedRoles={["SUPERADMIN", "MANAGEMENT", "SUPERVISOR"]}>
+                        <FleetManagementPage />
+                      </RoleGuard>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/users"
+                  element={
+                    <ProtectedRoute>
+                      <RoleGuard allowedRoles={["SUPERADMIN", "MANAGEMENT"]}>
+                        <UserManagementPage />
+                      </RoleGuard>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/pois"
+                  element={
+                    <ProtectedRoute>
+                      <RoleGuard allowedRoles={["SUPERADMIN", "SUPERVISOR"]}>
+                        <PoiManagementPage />
+                      </RoleGuard>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/competitors"
+                  element={
+                    <ProtectedRoute>
+                      <RoleGuard allowedRoles={["SUPERADMIN", "SUPERVISOR"]}>
+                        <CompetitorManagementPage />
+                      </RoleGuard>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/distribution"
+                  element={
+                    <ProtectedRoute>
+                      <RoleGuard allowedRoles={["SUPERADMIN", "SUPERVISOR"]}>
+                        <DistributionPage />
+                      </RoleGuard>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/catalog"
+                  element={
+                    <ProtectedRoute>
+                      <RoleGuard allowedRoles={["SUPERADMIN", "MANAGEMENT", "SUPERVISOR"]}>
+                        <CatalogPage />
+                      </RoleGuard>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/reports"
+                  element={
+                    <ProtectedRoute>
+                      <RoleGuard allowedRoles={["SUPERADMIN", "SUPERVISOR"]}>
+                        <ReportsPage />
+                      </RoleGuard>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/settings"
+                  element={
+                    <ProtectedRoute>
+                      <RoleGuard allowedRoles={["SUPERADMIN"]}>
+                        <SettingsPage />
+                      </RoleGuard>
+                    </ProtectedRoute>
+                  }
+                />
 
-              {/* POI Intelligence & Moderation Route */}
-              <Route
-                path="/pois"
-                element={
-                  <ProtectedRoute>
-                    <RoleGuard allowedRoles={["SUPERADMIN", "SUPERVISOR"]}>
-                      <PoiManagementPage />
-                    </RoleGuard>
-                  </ProtectedRoute>
-                }
-              />
-
-              {/* Competitor Intelligence Route */}
-              <Route
-                path="/competitors"
-                element={
-                  <ProtectedRoute>
-                    <RoleGuard allowedRoles={["SUPERADMIN", "SUPERVISOR"]}>
-                      <CompetitorManagementPage />
-                    </RoleGuard>
-                  </ProtectedRoute>
-                }
-              />
-
-              {/* DSS Decision Support Route */}
-              <Route
-                path="/dss"
-                element={
-                  <ProtectedRoute>
-                    <RoleGuard allowedRoles={["SUPERADMIN", "SUPERVISOR"]}>
-                      <DssManagementPage />
-                    </RoleGuard>
-                  </ProtectedRoute>
-                }
-              />
-
-              {/* Fleet Management Route */}
-              <Route
-                path="/fleet"
-                element={
-                  <ProtectedRoute>
-                    <RoleGuard allowedRoles={["SUPERADMIN", "MANAGEMENT", "SUPERVISOR"]}>
-                      <FleetManagementPage />
-                    </RoleGuard>
-                  </ProtectedRoute>
-                }
-              />
-
-              {/* Distribution & Plotting Workspace Route */}
-              <Route
-                path="/distribution"
-                element={
-                  <ProtectedRoute>
-                    <RoleGuard allowedRoles={["SUPERADMIN", "SUPERVISOR"]}>
-                      <DistributionPage />
-                    </RoleGuard>
-                  </ProtectedRoute>
-                }
-              />
-              <Route path="/riders" element={<Navigate to="/distribution" replace />} />
-
-              {/* Product Catalog Route */}
-              <Route
-                path="/catalog"
-                element={
-                  <ProtectedRoute>
-                    <RoleGuard allowedRoles={["SUPERADMIN", "MANAGEMENT", "SUPERVISOR"]}>
-                      <CatalogPage />
-                    </RoleGuard>
-                  </ProtectedRoute>
-                }
-              />
-
-              {/* Reports & Analytics Route */}
-              <Route
-                path="/reports"
-                element={
-                  <ProtectedRoute>
-                    <RoleGuard allowedRoles={["SUPERADMIN", "MANAGEMENT", "SUPERVISOR"]}>
-                      <ReportsPage />
-                    </RoleGuard>
-                  </ProtectedRoute>
-                }
-              />
-
-              {/* System Audit & Settings Route */}
-              <Route
-                path="/settings"
-                element={
-                  <ProtectedRoute>
-                    <RoleGuard allowedRoles={["SUPERADMIN"]}>
-                      <SettingsPage />
-                    </RoleGuard>
-                  </ProtectedRoute>
-                }
-              />
-
-              {/* Protected Rider Routes */}
-              <Route
-                path="/rider/zone"
-                element={
-                  <ProtectedRoute>
-                    <RoleGuard allowedRoles={["RIDER"]}>
-                      <RiderOperationalPage />
-                    </RoleGuard>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/map-ops"
-                element={
-                  <ProtectedRoute>
-                    <RoleGuard allowedRoles={["SUPERADMIN", "MANAGEMENT", "SUPERVISOR", "RIDER"]}>
+                {/* Protected Rider Routes */}
+                <Route
+                  path="/rider/zone"
+                  element={
+                    <ProtectedRoute>
+                      <RoleGuard allowedRoles={["RIDER"]}>
+                        <RiderOperationalPage />
+                      </RoleGuard>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/map-ops"
+                  element={
+                    <ProtectedRoute>
+                      <RoleGuard allowedRoles={["SUPERADMIN", "MANAGEMENT", "SUPERVISOR", "RIDER"]}>
+                        <MapOpsPage />
+                      </RoleGuard>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route path="/map" element={<Navigate to="/map-ops" replace />} />
+                <Route
+                  path="/rider/map"
+                  element={
+                    <ProtectedRoute>
                       <MapOpsPage />
-                    </RoleGuard>
-                  </ProtectedRoute>
-                }
-              />
-              <Route path="/map" element={<Navigate to="/map-ops" replace />} />
-              <Route
-                path="/rider/map"
-                element={
-                  <ProtectedRoute>
-                    <MapOpsPage />
-                  </ProtectedRoute>
-                }
-              />
+                    </ProtectedRoute>
+                  }
+                />
 
-              {/* Special Status & Error Pages */}
-              <Route path="/inactive" element={<InactiveAccountPage />} />
-              <Route path="/forbidden" element={<ForbiddenPage />} />
-              <Route path="*" element={<NotFoundPage />} />
-            </Routes>
-          </Suspense>
+                {/* Special Status & Error Pages */}
+                <Route path="/inactive" element={<InactiveAccountPage />} />
+                <Route path="/forbidden" element={<ForbiddenPage />} />
+                <Route path="*" element={<NotFoundPage />} />
+              </Routes>
+            </Suspense>
+          </ToastProvider>
         </AuthProvider>
       </Router>
     </QueryClientProvider>

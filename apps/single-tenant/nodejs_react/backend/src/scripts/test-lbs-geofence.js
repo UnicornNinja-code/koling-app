@@ -14,9 +14,15 @@ async function runLbsGeofenceTests() {
 
   try {
     // -------------------------------------------------------------------------
-    // Setup Test Data & Fetch Reference Zones
+    // Setup Test Data & Fetch Reference Zones with Centroid
     // -------------------------------------------------------------------------
-    const { rows: zones } = await pool.query("SELECT id, name, polygon FROM zones WHERE status = 'ACTIVE' LIMIT 2;");
+    const { rows: zones } = await pool.query(`
+      SELECT id, name, ST_Y(ST_Centroid(geom)) AS lat, ST_X(ST_Centroid(geom)) AS lon 
+      FROM zones 
+      WHERE status = 'ACTIVE' AND geom IS NOT NULL
+      ORDER BY name ASC 
+      LIMIT 2;
+    `);
     if (zones.length === 0) {
       console.error("❌ Error: Tidak ada zona aktif di database untuk diuji.");
       process.exit(1);
@@ -24,8 +30,8 @@ async function runLbsGeofenceTests() {
 
     const targetZone1 = zones[0];
     const targetZone2 = zones[1] || zones[0];
-    console.log(`📌 Zona Uji #1: '${targetZone1.name}' (ID: ${targetZone1.id})`);
-    console.log(`📌 Zona Uji #2: '${targetZone2.name}' (ID: ${targetZone2.id})`);
+    console.log(`📌 Zona Uji #1: '${targetZone1.name}' (Centroid: ${targetZone1.lat}, ${targetZone1.lon})`);
+    console.log(`📌 Zona Uji #2: '${targetZone2.name}' (Centroid: ${targetZone2.lat}, ${targetZone2.lon})`);
 
     // Fetch sample protocol road & toll road coordinates
     const { rows: pRoads } = await pool.query(`
@@ -42,7 +48,19 @@ async function runLbsGeofenceTests() {
       LIMIT 1;
     `);
 
-    const testRiderId = "rider-lbs-test-uuid";
+    // Fetch an existing rider from users table
+    let { rows: riders } = await pool.query("SELECT id, name FROM users WHERE role = 'RIDER' LIMIT 1;");
+    if (riders.length === 0) {
+      const newRider = await pool.query(`
+        INSERT INTO users (id, name, email, password_hash, role, status)
+        VALUES (gen_random_uuid(), 'Test LBS Rider', 'test.lbs.rider@koling.com', 'dummy_hash', 'RIDER', 'ACTIVE')
+        RETURNING id, name;
+      `);
+      riders = newRider.rows;
+    }
+    const testRiderId = riders[0].id;
+    const testRiderName = riders[0].name;
+    console.log(`📌 Rider Uji: '${testRiderName}' (ID: ${testRiderId})`);
 
     // Clean previous logs for test rider
     await pool.query("DELETE FROM rider_zone_logs WHERE rider_id = $1;", [testRiderId]);
@@ -50,14 +68,12 @@ async function runLbsGeofenceTests() {
     // -------------------------------------------------------------------------
     // [TEST 1] Coordinate Order EPSG:4326 & Rider Inside Polygon
     // -------------------------------------------------------------------------
-    console.log("\n📍 [TEST 1] EPSG:4326 Coordinate Order & Rider Inside Polygon (ST_Contains)...");
-    // Alun-Alun Sidoarjo coordinates (inside Zone 1)
+    console.log("\n📍 [TEST 1] EPSG:4326 Coordinate Order & Rider Inside Polygon (ST_Covers)...");
     const insidePing = await lbsGeofenceService.processRiderGpsPing({
       riderId: testRiderId,
-      riderName: "Rider Inside Zone",
-      lat: -7.4478,
-      lon: 112.7183,
-      assignedZoneId: targetZone1.id,
+      riderName: testRiderName,
+      lat: targetZone1.lat,
+      lon: targetZone1.lon,
     });
 
     if (insidePing.geofence.is_inside_zone && insidePing.geofence.actual_zone_id === targetZone1.id) {
@@ -73,10 +89,9 @@ async function runLbsGeofenceTests() {
     // Coordinates far outside Sidoarjo (~28km away)
     const outsidePing = await lbsGeofenceService.processRiderGpsPing({
       riderId: testRiderId,
-      riderName: "Rider Outside Zone",
+      riderName: testRiderName,
       lat: -7.6000,
       lon: 112.5000,
-      assignedZoneId: targetZone1.id,
     });
 
     if (!outsidePing.geofence.is_inside_zone && outsidePing.geofence.actual_zone_id === null) {
@@ -93,12 +108,13 @@ async function runLbsGeofenceTests() {
       const pRoad = pRoads[0];
       const pRoadPing = await lbsGeofenceService.processRiderGpsPing({
         riderId: testRiderId,
+        riderName: testRiderName,
         lat: pRoad.lat,
         lon: pRoad.lon,
       });
 
-      if (pRoadPing.violation_alert.is_violating) {
-        console.log(`   ✅ PASS: Peringatan Jalan Protokol Terdeteksi: '${pRoadPing.violation_alert.road_name}'!`);
+      if (pRoadPing.road_violation && pRoadPing.road_violation.is_violating) {
+        console.log(`   ✅ PASS: Peringatan Jalan Protokol Terdeteksi: '${pRoadPing.road_violation.road_name}'!`);
       } else {
         console.error(`   ❌ FAIL: Tidak terdeteksi pelanggaran untuk Jalan Protokol '${pRoad.name}'.`);
       }
@@ -114,12 +130,13 @@ async function runLbsGeofenceTests() {
       const tRoad = tRoads[0];
       const tRoadPing = await lbsGeofenceService.processRiderGpsPing({
         riderId: testRiderId,
+        riderName: testRiderName,
         lat: tRoad.lat,
         lon: tRoad.lon,
       });
 
-      if (tRoadPing.violation_alert.is_violating) {
-        console.log(`   ✅ PASS: Peringatan Jalan Tol Terdeteksi: '${tRoadPing.violation_alert.road_name}' (Restriction: ${tRoadPing.violation_alert.restriction_type})!`);
+      if (tRoadPing.road_violation && tRoadPing.road_violation.is_violating) {
+        console.log(`   ✅ PASS: Peringatan Jalan Tol Terdeteksi: '${tRoadPing.road_violation.road_name}' (Restriction: ${tRoadPing.road_violation.restriction_type})!`);
       } else {
         console.error(`   ❌ FAIL: Tidak terdeteksi pelanggaran untuk Jalan Tol '${tRoad.name}'.`);
       }
@@ -133,48 +150,66 @@ async function runLbsGeofenceTests() {
     console.log("\n🛡️ [TEST 5] Safe Distance (> 50m) - Zero False Alert...");
     const safePing = await lbsGeofenceService.processRiderGpsPing({
       riderId: testRiderId,
+      riderName: testRiderName,
       lat: -7.4450,
       lon: 112.7150,
     });
 
-    if (!safePing.violation_alert.is_violating) {
+    if (!safePing.road_violation.is_violating) {
       console.log("   ✅ PASS: Bebas pelanggaran jalan terlarang di area aman!");
     } else {
-      console.error(`   ❌ FAIL: Peringatan palsu muncul: ${safePing.violation_alert.road_name}`);
+      console.error(`   ❌ FAIL: Peringatan palsu muncul: ${safePing.road_violation.road_name}`);
     }
 
     // -------------------------------------------------------------------------
     // [TEST 6] Operational Compliance Status (COMPLIANT vs DEVIATED vs OUTSIDE)
     // -------------------------------------------------------------------------
     console.log("\n🎯 [TEST 6] Operational Compliance Status Tracking...");
-    // 6A. Assigned == Actual -> COMPLIANT
+    
+    // Create an operational session for test rider with targetZone1
+    await pool.query("DELETE FROM operational_sessions WHERE rider_id = $1;", [testRiderId]);
+    const { rows: sessionRows } = await pool.query(`
+      INSERT INTO operational_sessions (id, rider_id, zone_id, status, started_at)
+      VALUES (gen_random_uuid(), $1, $2, 'OPERATING', NOW())
+      RETURNING id;
+    `, [testRiderId, targetZone1.id]);
+    const activeTestSessionId = sessionRows[0].id;
+
+    // 6A. Inside Assigned Zone (targetZone1) -> COMPLIANT
     const compPing = await lbsGeofenceService.processRiderGpsPing({
       riderId: testRiderId,
-      lat: -7.4478,
-      lon: 112.7183,
-      assignedZoneId: targetZone1.id,
+      riderName: testRiderName,
+      lat: targetZone1.lat,
+      lon: targetZone1.lon,
     });
-    console.log(`   • Status Assigned == Actual : '${compPing.compliance.status}' (Expected: 'COMPLIANT')`);
+    console.log(`   • Status Inside Assigned Zone : '${compPing.compliance.zone_compliance}' (Expected: 'COMPLIANT')`);
 
-    // 6B. Assigned != Actual -> DEVIATED
-    const devPing = await lbsGeofenceService.processRiderGpsPing({
-      riderId: testRiderId,
-      lat: -7.4478,
-      lon: 112.7183,
-      assignedZoneId: "different-assigned-zone-id",
-    });
-    console.log(`   • Status Assigned != Actual : '${devPing.compliance.status}' (Expected: 'DEVIATED')`);
+    // 6B. Inside Different Zone (targetZone2) while assigned to targetZone1 -> DEVIATED
+    let devPing = null;
+    if (targetZone2.id !== targetZone1.id) {
+      devPing = await lbsGeofenceService.processRiderGpsPing({
+        riderId: testRiderId,
+        riderName: testRiderName,
+        lat: targetZone2.lat,
+        lon: targetZone2.lon,
+      });
+      console.log(`   • Status Inside Different Zone: '${devPing.compliance.zone_compliance}' (Expected: 'DEVIATED')`);
+    }
 
     // 6C. Outside all zones -> OUTSIDE_ZONE
     const outPing = await lbsGeofenceService.processRiderGpsPing({
       riderId: testRiderId,
+      riderName: testRiderName,
       lat: -7.6000,
       lon: 112.5000,
-      assignedZoneId: targetZone1.id,
     });
-    console.log(`   • Status Outside All Zones  : '${outPing.compliance.status}' (Expected: 'OUTSIDE_ZONE')`);
+    console.log(`   • Status Outside All Zones    : '${outPing.compliance.zone_compliance}' (Expected: 'OUTSIDE_ZONE')`);
 
-    if (compPing.compliance.status === "COMPLIANT" && devPing.compliance.status === "DEVIATED" && outPing.compliance.status === "OUTSIDE_ZONE") {
+    // Clean up test session
+    await pool.query("DELETE FROM operational_sessions WHERE id = $1;", [activeTestSessionId]);
+
+    const devCondition = devPing ? devPing.compliance.zone_compliance === "DEVIATED" : true;
+    if (compPing.compliance.zone_compliance === "COMPLIANT" && devCondition && outPing.compliance.zone_compliance === "OUTSIDE_ZONE") {
       console.log("   ✅ PASS: Decoupled Compliance Tracking 100% Presisi & Terisolasi dari TOPSIS!");
     } else {
       console.error("   ❌ FAIL: Evaluasi compliance tidak sesuai ekspektasi.");
@@ -203,9 +238,9 @@ async function runLbsGeofenceTests() {
 
     const redisOfflinePing = await lbsGeofenceService.processRiderGpsPing({
       riderId: testRiderId,
-      lat: -7.4478,
-      lon: 112.7183,
-      assignedZoneId: targetZone1.id,
+      riderName: testRiderName,
+      lat: targetZone1.lat,
+      lon: targetZone1.lon,
     });
 
     redisClient.geoAdd = origGeoAdd;

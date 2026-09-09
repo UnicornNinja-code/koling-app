@@ -5,6 +5,8 @@
 
 import { topsisEngineService } from "../services/dss/TopsisEngineService.js";
 import { TimeSlotEvaluator } from "../utils/TimeSlotEvaluator.js";
+import { pool } from "../config/database.js";
+import { redisClient } from "../config/redis.js";
 
 async function testTopsisEngine() {
   const currentActualSlot = TimeSlotEvaluator.getSlot(new Date());
@@ -35,7 +37,9 @@ async function testTopsisEngine() {
   } catch (error) {
     console.error("💥 Error testing TOPSIS Engine:", error);
   } finally {
-    process.exit(0);
+    try { await pool.end(); } catch (e) {}
+    try { if (redisClient.isOpen) await redisClient.quit(); } catch (e) {}
+    setTimeout(() => process.exit(0), 100);
   }
 }
 

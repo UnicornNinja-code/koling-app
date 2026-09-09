@@ -1,11 +1,8 @@
-/*
- * weatherRoutes.js
- * Express routes for Weather Information Widget & Manual Weather Sync.
- */
-
 import express from "express";
 import {
   getZoneWeatherInfo,
+  getZoneWeatherTimeline,
+  getZoneC4Score,
   getHubWeatherInfo,
   syncWeather,
 } from "../controllers/weatherController.js";
@@ -15,6 +12,11 @@ import { checkRole } from "../middlewares/roleMiddleware.js";
 const router = express.Router();
 
 router.get("/zone/:zone_id", authenticateToken, getZoneWeatherInfo);
+router.get("/zones/:zone_id", authenticateToken, getZoneWeatherInfo);
+router.get("/zone/:zone_id/timeline", authenticateToken, getZoneWeatherTimeline);
+router.get("/zones/:zone_id/timeline", authenticateToken, getZoneWeatherTimeline);
+router.get("/zone/:zone_id/c4", authenticateToken, getZoneC4Score);
+router.get("/zones/:zone_id/c4", authenticateToken, getZoneC4Score);
 router.get("/hub/:city_name", authenticateToken, getHubWeatherInfo);
 router.post("/sync", authenticateToken, checkRole(["SUPERADMIN", "SUPERVISOR"]), syncWeather);
 

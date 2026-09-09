@@ -596,7 +596,7 @@ export class ZoneService {
       SELECT DISTINCT z.id, z.name, z.status, z.polygon, z.invalid_reason
       FROM zones z
       JOIN protocol_roads pr 
-        ON ST_Intersects(ST_SetSRID(ST_GeomFromGeoJSON(z.polygon::text), 4326), pr.geom)
+        ON ST_Intersects(COALESCE(z.geom, ST_SetSRID(ST_GeomFromGeoJSON(z.polygon::text), 4326)), pr.geom)
       WHERE z.status != 'INACTIVE'
         AND COALESCE(pr.restriction_type, 'PROHIBITED_ROAD') = ANY($1::varchar[]);
     `;

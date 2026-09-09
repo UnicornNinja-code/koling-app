@@ -120,6 +120,7 @@ app.use("/api/poi-categories", poiCategoryRoutes);
 app.use("/api/pois", poiRoutes);
 app.use("/api/roads", roadRoutes);
 app.use("/api/weathers", weatherRoutes);
+app.use("/api/weather", weatherRoutes);
 app.use("/api/competitors", competitorRoutes);
 app.use("/api/dss", dssRoutes);
 app.use("/api/distribution", distributionRoutes);

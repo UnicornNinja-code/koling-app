@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { getActiveBasemapProvider } from "../../lib/mapPreferences.js";
+import { createGoogleMapsPoiIcon, getPoiCategoryTheme } from "../../lib/poiTheme.js";
 
 // Fix default Leaflet icon assets
 delete L.Icon.Default.prototype._getIconUrl;
@@ -31,6 +32,9 @@ export function LeafletMapCanvas({
     pois: false,
   },
   selectedPoiCategory = "ALL",
+  selectedTimeSlot = "pagi",
+  selectedHour = null,
+  weatherData = null,
   selectedItem = null,
   onSelectItem,
   mapRef,
@@ -44,6 +48,8 @@ export function LeafletMapCanvas({
   const ridersLayerGroupRef = useRef(null);
   const roadsLayerGroupRef = useRef(null);
   const poisLayerGroupRef = useRef(null);
+  const weatherLayerGroupRef = useRef(null);
+  const salesHeatmapLayerGroupRef = useRef(null);
 
   // Initialize Map
   useEffect(() => {
@@ -93,6 +99,8 @@ export function LeafletMapCanvas({
     ridersLayerGroupRef.current = L.layerGroup().addTo(map);
     roadsLayerGroupRef.current = L.layerGroup().addTo(map);
     poisLayerGroupRef.current = L.layerGroup().addTo(map);
+    weatherLayerGroupRef.current = L.layerGroup().addTo(map);
+    salesHeatmapLayerGroupRef.current = L.layerGroup().addTo(map);
 
     mapInstanceRef.current = map;
     if (mapRef) mapRef.current = map;
@@ -290,36 +298,230 @@ export function LeafletMapCanvas({
               selectedPoiCategory.toLowerCase()
           );
 
-    // Render lightweight circle markers for POIs
-    filtered.slice(0, 300).forEach((poi) => {
+    // Render Google Maps style DivIcons for POIs
+    filtered.slice(0, 400).forEach((poi) => {
       const lat = Number(poi.latitude || poi.lat);
       const lng = Number(poi.longitude || poi.lng);
 
       if (isNaN(lat) || isNaN(lng)) return;
 
-      const marker = L.circleMarker([lat, lng], {
-        radius: 4,
-        fillColor: "#737373",
-        color: "#FFFFFF",
-        weight: 1,
-        opacity: 1,
-        fillOpacity: 0.7,
+      const isSelected = selectedItem?.id === poi.id;
+      const customIcon = createGoogleMapsPoiIcon(poi, isSelected);
+      const theme = getPoiCategoryTheme(poi.category || poi.category_name);
+
+      const marker = L.marker([lat, lng], {
+        icon: customIcon,
+        zIndexOffset: isSelected ? 1000 : 100,
       });
 
       marker.bindTooltip(
-        `<div class="font-sans text-[10px]">
-          <div class="font-semibold text-[#111111]">${poi.name}</div>
-          <div class="text-[#737373]">${poi.category || "POI"}</div>
+        `<div style="font-family: Inter, sans-serif; padding: 4px; min-width: 130px;">
+          <div style="font-weight: 800; color: #111111; font-size: 11px; line-height: 1.2;">${poi.name}</div>
+          <div style="display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 700; color: ${theme.color}; margin-top: 4px; background: ${theme.bgLight}; padding: 2px 7px; border-radius: 4px; border: 1px solid ${theme.borderColor || theme.color + '40'};">
+            <i class="bx ${theme.boxicon}" style="font-size: 12px; line-height: 1;"></i>
+            <span>${theme.label}</span>
+          </div>
+          ${theme.timePeak ? `<div style="font-size: 9px; color: #737373; margin-top: 3px; font-weight: 500;">Peak: ${theme.timePeak}</div>` : ''}
         </div>`,
-        { direction: "top" }
+        { direction: "top", offset: [0, -28], opacity: 0.98 }
       );
+
+      marker.on("click", () => {
+        if (onSelectItem) {
+          onSelectItem({ ...poi, itemType: "POI" });
+        }
+      });
 
       poisLayerGroupRef.current.addLayer(marker);
     });
-  }, [pois, layers.pois, selectedPoiCategory]);
+  }, [pois, layers.pois, selectedPoiCategory, selectedItem]);
+
+  // Update Atmospheric Weather Layer
+  useEffect(() => {
+    if (!mapInstanceRef.current || !weatherLayerGroupRef.current) return;
+    weatherLayerGroupRef.current.clearLayers();
+
+    if (!layers.weather || !zones || zones.length === 0) return;
+
+    zones.forEach((zone) => {
+      let centerLat = Number(zone.latitude || zone.lat);
+      let centerLng = Number(zone.longitude || zone.lng);
+
+      // If lat/lng not direct on zone, extract centroid from polygon
+      if (isNaN(centerLat) || isNaN(centerLng) || centerLat === 0 || centerLng === 0) {
+        let geojson = zone.polygon || zone.geojson || zone.geometry;
+        if (typeof geojson === "string") {
+          try {
+            geojson = JSON.parse(geojson);
+          } catch (e) {
+            return;
+          }
+        }
+        if (geojson) {
+          try {
+            const tempLayer = L.geoJSON(geojson);
+            const center = tempLayer.getBounds().getCenter();
+            centerLat = center.lat;
+            centerLng = center.lng;
+          } catch (e) {
+            return;
+          }
+        }
+      }
+
+      if (isNaN(centerLat) || isNaN(centerLng)) return;
+
+      const current = weatherData?.current || weatherData || {};
+      const temp = current?.temperature_c ?? 31.0;
+      const rainProb = current?.max_rain_probability_percent ?? current?.rain_probability ?? 10;
+      const isRainRisk = rainProb >= 30;
+      const isCaution = rainProb >= 15 && rainProb < 30;
+
+      const weatherIcon = isRainRisk ? "bx-cloud-rain" : isCaution ? "bx-cloud" : "bx-sun";
+      const badgeBorder = isRainRisk ? "#3B82F6" : isCaution ? "#F59E0B" : "#10B981";
+      const statusColor = isRainRisk ? "#2563EB" : isCaution ? "#D97706" : "#16A34A";
+
+      const weatherPillIcon = L.divIcon({
+        className: "mova-weather-zone-pill",
+        html: `
+          <div style="
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(4px);
+            border: 1.5px solid ${badgeBorder};
+            border-radius: 6px;
+            padding: 2px 7px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4.5px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+            font-family: Inter, sans-serif;
+            white-space: nowrap;
+            cursor: pointer;
+            transform: translate(-50%, -50%);
+          ">
+            <i class="bx ${weatherIcon}" style="color: ${statusColor}; font-size: 14px; line-height: 1;"></i>
+            <span style="font-size: 11px; font-weight: 800; color: #111111; font-family: 'JetBrains Mono', monospace;">${temp}°C</span>
+            <span style="font-size: 9px; font-weight: 700; color: ${statusColor}; background: ${statusColor}15; padding: 1px 4px; border-radius: 3px;">🌧️ ${rainProb}%</span>
+          </div>
+        `,
+        iconSize: [80, 24],
+        iconAnchor: [40, 12],
+      });
+
+      const marker = L.marker([centerLat, centerLng], {
+        icon: weatherPillIcon,
+        zIndexOffset: 80,
+      });
+
+      marker.bindTooltip(
+        `<div style="font-family: Inter, sans-serif; padding: 3px;">
+          <div style="font-weight: 800; color: #111111; font-size: 11px;">${zone.name}</div>
+          <div style="font-size: 10px; color: ${statusColor}; font-weight: 700; margin-top: 2px;">
+            Slot: ${selectedTimeSlot.toUpperCase()} ${selectedHour ? `(${selectedHour})` : ''} • Prob: ${rainProb}%
+          </div>
+        </div>`,
+        { direction: "top", offset: [0, -12] }
+      );
+
+      marker.on("click", () => {
+        if (onSelectItem) onSelectItem({ ...zone, itemType: "ZONE_WEATHER" });
+      });
+
+      weatherLayerGroupRef.current.addLayer(marker);
+    });
+  }, [zones, layers.weather, weatherData, selectedTimeSlot, selectedHour]);
+
+  // Update Sales Heatmap & Demand Velocity Layer (For AI & Sales Forecasting)
+  useEffect(() => {
+    if (!mapInstanceRef.current || !salesHeatmapLayerGroupRef.current) return;
+    salesHeatmapLayerGroupRef.current.clearLayers();
+
+    if (!layers.salesHeatmap || !zones || zones.length === 0) return;
+
+    zones.forEach((zone, idx) => {
+      let centerLat = Number(zone.latitude || zone.lat);
+      let centerLng = Number(zone.longitude || zone.lng);
+
+      if (isNaN(centerLat) || isNaN(centerLng) || centerLat === 0 || centerLng === 0) {
+        let geojson = zone.polygon || zone.geojson || zone.geometry;
+        if (typeof geojson === "string") {
+          try {
+            geojson = JSON.parse(geojson);
+          } catch (e) {
+            return;
+          }
+        }
+        if (geojson) {
+          try {
+            const tempLayer = L.geoJSON(geojson);
+            const center = tempLayer.getBounds().getCenter();
+            centerLat = center.lat;
+            centerLng = center.lng;
+          } catch (e) {
+            return;
+          }
+        }
+      }
+
+      if (isNaN(centerLat) || isNaN(centerLng)) return;
+
+      // Simulated dynamic sales density distribution for the zone
+      const rank = zone.topsis_rank || idx + 1;
+      const cupsEstimate = Math.max(12, Math.round(75 - rank * 8 + (idx % 3) * 5));
+      const revenueEstimate = cupsEstimate * 15000;
+      const isHotspot = cupsEstimate >= 40;
+      const isWarmspot = cupsEstimate >= 25 && cupsEstimate < 40;
+
+      const heatColor = isHotspot ? "#EA580C" : isWarmspot ? "#F59E0B" : "#10B981";
+      const radius = isHotspot ? 240 : isWarmspot ? 180 : 130;
+
+      // 1. Semi-transparent radial gradient pulse circle
+      const heatCircle = L.circle([centerLat, centerLng], {
+        radius: radius,
+        color: heatColor,
+        weight: 1.5,
+        opacity: 0.65,
+        fillColor: heatColor,
+        fillOpacity: 0.22,
+        dashArray: isHotspot ? "4, 4" : null,
+      });
+
+      // 2. High-density Core Dot
+      const coreDot = L.circleMarker([centerLat, centerLng], {
+        radius: isHotspot ? 8 : 6,
+        color: "#FFFFFF",
+        weight: 2,
+        fillColor: heatColor,
+        fillOpacity: 0.95,
+      });
+
+      const tooltipContent = `
+        <div style="font-family: Inter, sans-serif; padding: 4px; min-width: 140px;">
+          <div style="display: flex; items-center; gap: 4px; font-weight: 800; font-size: 11px; color: ${heatColor};">
+            <span>🔥 ${zone.name}</span>
+          </div>
+          <div style="margin-top: 3px; font-size: 10px; color: #111111; font-weight: 700;">
+            Estimasi Transaksi: <span style="font-family: 'JetBrains Mono', monospace;">${cupsEstimate} Cups/Hari</span>
+          </div>
+          <div style="font-size: 9px; color: #64748B;">
+            Proyeksi Omset: Rp ${revenueEstimate.toLocaleString("id-ID")}
+          </div>
+          <div style="margin-top: 3px; font-size: 8.5px; font-weight: 800; color: #2563EB; background: #EFF6FF; padding: 1px 4px; border-radius: 2px; display: inline-block;">
+            AI Forecast: ${isHotspot ? "High Velocity Peak" : "Moderate Steady"}
+          </div>
+        </div>
+      `;
+
+      heatCircle.bindTooltip(tooltipContent, { direction: "top", offset: [0, -10] });
+      coreDot.bindTooltip(tooltipContent, { direction: "top", offset: [0, -10] });
+
+      salesHeatmapLayerGroupRef.current.addLayer(heatCircle);
+      salesHeatmapLayerGroupRef.current.addLayer(coreDot);
+    });
+  }, [zones, layers.salesHeatmap]);
 
   return (
-    <div className="relative w-full h-full min-h-[400px] bg-[#121215] select-none isolate z-0 overflow-hidden">
+    <div className="relative w-full h-full min-h-[400px] bg-[#F8FAFC] select-none isolate z-0 overflow-hidden">
       <div ref={containerRef} className="w-full h-full z-0" />
     </div>
   );

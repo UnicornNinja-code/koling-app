@@ -21,3 +21,4 @@ export const redisOptions = {
 export const createRedisConnection = () => new Redis(redisOptions);
 
 export const sharedRedisConnection = createRedisConnection();
+sharedRedisConnection.on("error", () => {});

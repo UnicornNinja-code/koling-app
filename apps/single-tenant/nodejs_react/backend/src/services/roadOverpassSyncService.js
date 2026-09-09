@@ -3,6 +3,8 @@
  * Specialized Service for ingesting OSM Toll Road polylines via Overpass API
  */
 
+import fs from "fs";
+import path from "path";
 import { overpassApiClient } from "../utils/overpassClient.js";
 import { roadRepository } from "../repositories/roadRepository.js";
 
@@ -53,8 +55,30 @@ export class RoadOverpassSyncService {
     try {
       elements = await this.overpassClient.fetchOverpassData(query);
     } catch (err) {
-      console.error("💥 [RoadOverpassSyncService] Error calling Overpass API:", err.message);
-      throw new Error(`Gagal mengambil data Jalan Tol dari Overpass API: ${err.message}`);
+      console.warn("⚠️ [RoadOverpassSyncService] Overpass API gagal/timeout, mencoba fallback snapshot lokal 'jalan_tol.geojson'...");
+      const localPath = path.resolve(process.cwd(), "public/geojson/jalan_tol.geojson");
+      if (fs.existsSync(localPath)) {
+        const raw = fs.readFileSync(localPath, "utf8");
+        const parsed = JSON.parse(raw);
+        const feats = parsed.features || [];
+        elements = feats.map((f, idx) => ({
+          type: "way",
+          id: f.properties?.osm_id || idx + 200000,
+          tags: {
+            name: f.properties?.name || "Jalan Tol",
+            highway: f.properties?.highway || "motorway",
+            toll: "yes",
+            ...f.properties,
+          },
+          geometry: (f.geometry?.coordinates || []).map((coord) => ({
+            lon: coord[0],
+            lat: coord[1],
+          })),
+        }));
+      } else {
+        console.error("💥 [RoadOverpassSyncService] Error calling Overpass API and local snapshot not found:", err.message);
+        throw new Error(`Gagal mengambil data Jalan Tol dari Overpass API: ${err.message}`);
+      }
     }
 
     if (!Array.isArray(elements) || elements.length === 0) {

@@ -56,6 +56,8 @@ export const CircleX = createBoxIcon("bx-x-circle");
 export const Clock = createBoxIcon("bx-time-five");
 export const Cloud = createBoxIcon("bx-cloud");
 export const CloudDownload = createBoxIcon("bx-cloud-download");
+export const CloudDrizzle = createBoxIcon("bx-cloud-drizzle");
+export const CloudLightning = createBoxIcon("bx-cloud-lightning");
 export const CloudRain = createBoxIcon("bx-cloud-rain");
 export const CloudSun = createBoxIcon("bx-cloud-sun");
 export const Coffee = createBoxIcon("bx-coffee");
@@ -140,6 +142,13 @@ export const UserCog = createBoxIcon("bx-user-pin");
 export const UserPlus = createBoxIcon("bx-user-plus");
 export const Users = createBoxIcon("bx-group");
 export const UserX = createBoxIcon("bx-user-x");
+export const BellRing = createBoxIcon("bx-bell-plus");
+export const ExternalLink = createBoxIcon("bx-link-external");
+export const FolderSync = createBoxIcon("bx-sync");
+export const LayoutGrid = createBoxIcon("bx-grid-alt");
+export const MousePointerClick = createBoxIcon("bx-pointer");
+export const Table2 = createBoxIcon("bx-table");
+export const Truck = createBoxIcon("bx-car");
 export const Wind = createBoxIcon("bx-wind");
 export const X = createBoxIcon("bx-x");
 export const XCircle = createBoxIcon("bx-x-circle");
@@ -257,8 +266,13 @@ export default {
   User,
   UserCheck,
   UserCog,
-  UserPlus,
-  Users,
+  BellRing,
+  ExternalLink,
+  FolderSync,
+  LayoutGrid,
+  MousePointerClick,
+  Table2,
+  Truck,
   UserX,
   Wind,
   X,

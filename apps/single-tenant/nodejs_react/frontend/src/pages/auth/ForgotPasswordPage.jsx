@@ -4,10 +4,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { authService } from "../../services/authService.js";
-import { Coffee, Mail, ArrowLeft, Send } from "lucide-react";
-import { Button } from "../../components/common/Button.jsx";
-import { Input } from "../../components/ui/Input.jsx";
-import { Alert } from "../../components/ui/Alert.jsx";
+import { Mail, ArrowLeft, Send } from "lucide-react";
+import { Button, Input, Alert, Card, MovaLogo } from "../../components/ui";
 
 const forgotPasswordSchema = z.object({
   email: z.string().email("Masukkan alamat email yang valid"),
@@ -46,23 +44,20 @@ export function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] flex flex-col justify-center py-12 sm:px-6 lg:px-8 px-4">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+    <div className="relative min-h-screen bg-[#F8FAFC] flex flex-col justify-center py-12 sm:px-6 lg:px-8 px-4 font-sans select-none overflow-hidden">
+      {/* Background Watermark */}
+      <div className="absolute -top-16 -right-16 text-[220px] font-black text-slate-200/40 select-none pointer-events-none tracking-tighter leading-none hidden md:block">
+        Mova.
+      </div>
+
+      <div className="sm:mx-auto sm:w-full sm:max-w-md z-10">
         {/* Brand Header */}
         <div className="text-center space-y-2 mb-6">
-          <div className="w-12 h-12 bg-[#2563EB] rounded-[10px] flex items-center justify-center text-white mx-auto shadow-md shadow-blue-200 shrink-0">
-            <Coffee className="w-6 h-6" />
-          </div>
-          <h1 className="text-2xl font-heading font-extrabold text-[#111111] tracking-tight">
-            Lupa Kata Sandi
-          </h1>
-          <p className="text-xs text-[#737373] font-normal">
-            Masukkan email terdaftar untuk menerima instruksi pemulihan akun
-          </p>
+          <MovaLogo size="xl" showSubtitle subtitle="Pemulihan Akses Akun Personel" className="items-center" />
         </div>
 
         {/* Card Form Container */}
-        <div className="bg-white py-8 px-6 sm:px-8 rounded-[12px] border border-[#E5E5E5] shadow-2xs space-y-5">
+        <Card className="bg-white py-8 px-6 sm:px-8 rounded-[8px] border border-[#E2E8F0] shadow-sm space-y-5">
           {successMsg && (
             <Alert variant="success" title="Permintaan Terkirim">
               {successMsg}
@@ -100,16 +95,18 @@ export function ForgotPasswordPage() {
             </form>
           )}
 
-          <div className="pt-3 border-t border-[#E5E5E5] text-center">
+          <div className="pt-3 border-t border-[#E2E8F0] text-center">
             <Link
               to="/login"
-              className="inline-flex items-center gap-1.5 text-xs text-[#525252] hover:text-[#2563EB] font-bold"
+              className="inline-flex items-center gap-1.5 text-xs text-[#64748B] hover:text-[#2563EB] font-bold"
             >
               <ArrowLeft className="w-3.5 h-3.5" /> Kembali ke Halaman Masuk
             </Link>
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   );
 }
+
+export default ForgotPasswordPage;

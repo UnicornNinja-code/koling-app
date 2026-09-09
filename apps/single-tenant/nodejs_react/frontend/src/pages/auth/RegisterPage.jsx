@@ -4,10 +4,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { authService } from "../../services/authService.js";
-import { Coffee, User, Lock, CheckCircle2, ArrowLeft, ArrowRight, ShieldCheck, KeyRound } from "lucide-react";
-import { Button } from "../../components/common/Button.jsx";
-import { Input } from "../../components/ui/Input.jsx";
-import { Alert } from "../../components/ui/Alert.jsx";
+import { User, Lock, CheckCircle2, ArrowLeft, ArrowRight, ShieldCheck, KeyRound, Mail } from "lucide-react";
+import { Button, Input, Alert, Card, MovaLogo } from "../../components/ui";
 
 const tokenActivationSchema = z
   .object({
@@ -37,12 +35,11 @@ export function AccountActivationPage() {
   const [tokenValid, setTokenValid] = useState(false);
   const [tokenUserData, setTokenUserData] = useState(null);
 
-  const [step, setStep] = useState(tokenFromUrl ? 2 : 1); // 1: Request Link, 2: Set Password, 3: Success
+  const [step, setStep] = useState(tokenFromUrl ? 2 : 1);
   const [successMsg, setSuccessMsg] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // Form for password setup (when token is valid)
   const {
     register: registerPassword,
     handleSubmit: handleSubmitPassword,
@@ -51,7 +48,6 @@ export function AccountActivationPage() {
     resolver: zodResolver(tokenActivationSchema),
   });
 
-  // Form for requesting activation link (when no token is present)
   const {
     register: registerRequest,
     handleSubmit: handleSubmitRequest,
@@ -60,7 +56,6 @@ export function AccountActivationPage() {
     resolver: zodResolver(requestActivationSchema),
   });
 
-  // Verify token on mount if token is present
   useEffect(() => {
     async function verifyToken() {
       if (!tokenFromUrl) {
@@ -86,7 +81,6 @@ export function AccountActivationPage() {
     verifyToken();
   }, [tokenFromUrl]);
 
-  // Handle requesting activation link
   const onRequestActivation = async (data) => {
     setLoading(true);
     setErrorMsg(null);
@@ -108,7 +102,6 @@ export function AccountActivationPage() {
     }
   };
 
-  // Handle setting password with token
   const onSetPassword = async (data) => {
     setLoading(true);
     setErrorMsg(null);
@@ -133,37 +126,35 @@ export function AccountActivationPage() {
 
   if (verifyingToken) {
     return (
-      <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center p-4">
-        <div className="w-8 h-8 border-4 border-[#2563EB] border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4">
+        <div className="w-8 h-8 border-4 border-[#ea580c] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] flex flex-col justify-center py-10 sm:px-6 lg:px-8 px-4 font-sans">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+    <div className="relative min-h-screen bg-[#F8FAFC] flex flex-col justify-center py-10 sm:px-6 lg:px-8 px-4 font-sans select-none overflow-hidden">
+      {/* Background Watermark */}
+      <div className="absolute -top-16 -right-16 text-[220px] font-black text-slate-200/40 select-none pointer-events-none tracking-tighter leading-none hidden md:block">
+        Mova.
+      </div>
+
+      <div className="sm:mx-auto sm:w-full sm:max-w-md z-10">
         <div className="text-center space-y-2 mb-6">
-          <div className="w-12 h-12 bg-[#2563EB] rounded-[10px] flex items-center justify-center text-white mx-auto shadow-md shadow-blue-200 shrink-0">
-            <Coffee className="w-6 h-6" />
-          </div>
-          <h1 className="text-2xl font-heading font-extrabold text-[#111111] tracking-tight">
-            Aktivasi Akun Internal
-          </h1>
-          <p className="text-xs text-[#737373] font-normal">
-            Verifikasi identitas & setup kata sandi awal personel MOVA
-          </p>
+          <MovaLogo size="xl" showSubtitle subtitle="Aktivasi Akun & Verifikasi Personel" className="items-center" />
         </div>
 
-        <div className="bg-white py-8 px-6 sm:px-8 rounded-[12px] border border-[#E5E5E5] shadow-2xs space-y-5">
+        <Card className="bg-white py-8 px-6 sm:px-8 rounded-[8px] border border-[#E2E8F0] shadow-sm space-y-5">
           {errorMsg && <Alert variant="danger" title="Kendala Aktivasi">{errorMsg}</Alert>}
           {successMsg && step !== 3 && <Alert variant="success" title="Instruksi Terkirim">{successMsg}</Alert>}
-          {/* STEP 1: REQUEST ACTIVATION LINK (NO TOKEN PRESENT) */}
+
+          {/* STEP 1: REQUEST ACTIVATION LINK */}
           {step === 1 && !successMsg && (
             <form onSubmit={handleSubmitRequest(onRequestActivation)} className="space-y-4">
-              <div className="p-3 bg-blue-50/70 rounded-[8px] border border-blue-200 text-xs text-blue-900 flex items-start gap-2.5">
+              <div className="p-3 bg-blue-50/70 rounded-[6px] border border-blue-200 text-xs text-blue-900 flex items-start gap-2.5">
                 <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                 <p className="leading-relaxed">
-                  Akun Anda telah diterbitkan oleh Tim Manajemen MOVA. Masukkan email terdaftar untuk menerima tautan aktivasi akun.
+                  Akun Anda telah didaftarkan oleh Administrator MOVA. Masukkan email terdaftar untuk menerima tautan aktivasi.
                 </p>
               </div>
 
@@ -190,10 +181,10 @@ export function AccountActivationPage() {
             </form>
           )}
 
-          {/* STEP 2: SET PASSWORD (VALID TOKEN PRESENT) */}
+          {/* STEP 2: SET PASSWORD */}
           {step === 2 && (
             <form onSubmit={handleSubmitPassword(onSetPassword)} className="space-y-4">
-              <div className="p-3 bg-emerald-50/80 rounded-[8px] border border-emerald-200 text-xs text-emerald-900 flex items-start gap-2.5">
+              <div className="p-3 bg-emerald-50/80 rounded-[6px] border border-emerald-200 text-xs text-emerald-900 flex items-start gap-2.5">
                 <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                 <p className="leading-relaxed">
                   Tautan aktivasi terverifikasi. Silakan buat kata sandi baru untuk mengamankan akun Anda.
@@ -234,7 +225,7 @@ export function AccountActivationPage() {
             </form>
           )}
 
-          {/* STEP 3: ACTIVATION SUCCESS */}
+          {/* STEP 3: SUCCESS */}
           {step === 3 && (
             <div className="text-center py-4 space-y-4">
               <div className="w-16 h-16 bg-emerald-50 border-2 border-emerald-200 rounded-full flex items-center justify-center text-emerald-600 mx-auto shadow-xs">
@@ -242,10 +233,10 @@ export function AccountActivationPage() {
               </div>
 
               <div className="space-y-1">
-                <h3 className="font-heading font-extrabold text-lg text-[#111111]">
+                <h3 className="font-extrabold text-lg text-[#111111]">
                   Akun Berhasil Diaktifkan!
                 </h3>
-                <p className="text-xs text-[#737373] max-w-xs mx-auto">
+                <p className="text-xs text-[#64748B] max-w-xs mx-auto">
                   Kata sandi baru Anda telah aktif. Silakan masuk ke aplikasi MOVA.
                 </p>
               </div>
@@ -262,18 +253,19 @@ export function AccountActivationPage() {
             </div>
           )}
 
-          <div className="pt-3 border-t border-[#E5E5E5] text-center">
+          <div className="pt-3 border-t border-[#E2E8F0] text-center">
             <Link
               to="/login"
-              className="inline-flex items-center gap-1.5 text-xs text-[#525252] hover:text-[#2563EB] font-bold"
+              className="inline-flex items-center gap-1.5 text-xs text-[#64748B] hover:text-[#2563EB] font-bold"
             >
               <ArrowLeft className="w-3.5 h-3.5" /> Kembali ke Halaman Masuk
             </Link>
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   );
 }
 
 export const RegisterPage = AccountActivationPage;
+export default AccountActivationPage;

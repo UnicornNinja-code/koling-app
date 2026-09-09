@@ -69,17 +69,20 @@ CREATE TABLE IF NOT EXISTS rider_telemetry_logs (
 CREATE INDEX IF NOT EXISTS idx_rider_telemetry_logs_rider ON rider_telemetry_logs(rider_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_rider_telemetry_logs_session ON rider_telemetry_logs(session_id, created_at DESC);
 
--- 4. Alter rider_zone_logs (Discrete State Transition Events)
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'rider_zone_logs' AND column_name = 'session_id') THEN
-        ALTER TABLE rider_zone_logs ADD COLUMN session_id UUID REFERENCES operational_sessions(id) ON DELETE SET NULL;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'rider_zone_logs' AND column_name = 'zone_compliance') THEN
-        ALTER TABLE rider_zone_logs ADD COLUMN zone_compliance VARCHAR(50);
-    END IF;
-END $$;
+-- 4. Create table rider_zone_logs (Discrete State Transition Events)
+CREATE TABLE IF NOT EXISTS rider_zone_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id UUID REFERENCES operational_sessions(id) ON DELETE SET NULL,
+    rider_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    zone_id UUID REFERENCES zones(id) ON DELETE SET NULL,
+    event_type VARCHAR(50) NOT NULL,
+    zone_compliance VARCHAR(50) DEFAULT 'OUTSIDE_ZONE',
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
 
+CREATE INDEX IF NOT EXISTS idx_rider_zone_logs_rider ON rider_zone_logs(rider_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_rider_zone_logs_session ON rider_zone_logs(session_id);
 
 -- 5. Alter sales_logs (Field Sales Anchored to Operational Session)

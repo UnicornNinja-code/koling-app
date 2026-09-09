@@ -81,3 +81,7 @@ armadaHoldWorker.on("completed", (job, result) => {
 armadaHoldWorker.on("failed", (job, err) => {
   console.error(`💥 [ARMADA WORKER FAILED] Delayed Job '${job?.id}' gagal:`, err.message);
 });
+
+armadaHoldWorker.on("error", (err) => {
+  // Catch worker connection errors gracefully
+});

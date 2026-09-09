@@ -9,13 +9,16 @@ import RedisStore from "rate-limit-redis";
 import { redisClient } from "../config/redis.js";
 
 /**
- * Helper to build RedisStore instance
+ * Helper to build RedisStore instance or fallback to MemoryStore
  */
-const createRedisStore = (prefix) => {
-  return new RedisStore({
-    sendCommand: (...args) => redisClient.sendCommand(args),
-    prefix: `RL:${prefix}:`,
-  });
+const getStore = (prefix) => {
+  if (redisClient && (redisClient.isOpen || redisClient.isReady)) {
+    return new RedisStore({
+      sendCommand: (...args) => redisClient.sendCommand(args),
+      prefix: `RL:${prefix}:`,
+    });
+  }
+  return undefined;
 };
 
 /**
@@ -42,12 +45,12 @@ const apiLimiter = rateLimit({
   max: process.env.NODE_ENV === "production" ? 1000 : 10000,
   standardHeaders: true,
   legacyHeaders: false,
-  store: createRedisStore("GLOBAL_API"),
+  store: getStore("GLOBAL_API"),
   handler: build429Response(
     "Trafik Terlalu Tinggi",
     "Batas penggunaan API tercapai. Harap tunggu beberapa saat sebelum mencoba lagi."
   ),
-  skip: (req) => process.env.NODE_ENV === "test" || req.headers["x-test-suite"] === "true",
+  skip: (req) => process.env.NODE_ENV !== "production" || req.headers["x-test-suite"] === "true",
 });
 
 /**
@@ -55,17 +58,17 @@ const apiLimiter = rateLimit({
  */
 const loginLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute window
-  max: 5,
+  max: process.env.NODE_ENV === "production" ? 5 : 500,
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true,
-  skip: () => process.env.NODE_ENV === "test",
+  skip: (req) => process.env.NODE_ENV !== "production" || req.headers["x-test-suite"] === "true",
   keyGenerator: (req, res) => {
     const clientIp = ipKeyGenerator(req, res);
     const identifier = req.body?.identifier || req.body?.email || "anonymous";
     return `${clientIp}:${identifier}`;
   },
-  store: createRedisStore("AUTH_LOGIN"),
+  store: getStore("AUTH_LOGIN"),
   handler: build429Response(
     "Batas Login Terlampaui",
     "Batas percobaan login gagal terlampaui. Harap tunggu 1 menit sebelum mencoba kembali."
@@ -77,11 +80,11 @@ const loginLimiter = rateLimit({
  */
 const forgotPasswordLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  max: 3,
+  max: process.env.NODE_ENV === "production" ? 3 : 500,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: () => process.env.NODE_ENV === "test",
-  store: createRedisStore("AUTH_FORGOT"),
+  skip: (req) => process.env.NODE_ENV !== "production" || req.headers["x-test-suite"] === "true",
+  store: getStore("AUTH_FORGOT"),
   handler: build429Response(
     "Batas Reset Password",
     "Batas pengajuan reset password tercapai. Harap coba lagi dalam 1 jam."
@@ -93,11 +96,11 @@ const forgotPasswordLimiter = rateLimit({
  */
 const registerLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  max: 5,
+  max: process.env.NODE_ENV === "production" ? 5 : 500,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: () => process.env.NODE_ENV === "test",
-  store: createRedisStore("AUTH_REGISTER"),
+  skip: (req) => process.env.NODE_ENV !== "production" || req.headers["x-test-suite"] === "true",
+  store: getStore("AUTH_REGISTER"),
   handler: build429Response(
     "Batas Pendaftaran Akun",
     "Batas pendaftaran akun baru terlampaui. Harap tunggu 1 jam."
@@ -109,11 +112,11 @@ const registerLimiter = rateLimit({
  */
 const overpassSyncLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 2,
+  max: process.env.NODE_ENV === "production" ? 2 : 500,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: () => process.env.NODE_ENV === "test",
-  store: createRedisStore("OVERPASS_ROAD"),
+  skip: (req) => process.env.NODE_ENV !== "production" || req.headers["x-test-suite"] === "true",
+  store: getStore("OVERPASS_ROAD"),
   handler: build429Response(
     "Batas Sinkronisasi Jalan",
     "Batas sinkronisasi jalan Overpass tercapai. Maksimal 2 request per menit."
@@ -125,11 +128,11 @@ const overpassSyncLimiter = rateLimit({
  */
 const citySyncLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
-  max: 1,
+  max: process.env.NODE_ENV === "production" ? 1 : 500,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: () => process.env.NODE_ENV === "test",
-  store: createRedisStore("OVERPASS_CITY"),
+  skip: (req) => process.env.NODE_ENV !== "production" || req.headers["x-test-suite"] === "true",
+  store: getStore("OVERPASS_CITY"),
   handler: build429Response(
     "Batas Sinkronisasi POI Kota",
     "Batas sinkronisasi POI skala kota tercapai. Maksimal 1 kali request per 10 menit."

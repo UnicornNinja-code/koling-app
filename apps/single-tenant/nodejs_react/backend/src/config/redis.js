@@ -6,7 +6,10 @@ const redisClient = createClient({
     host: env.REDIS.HOST || "127.0.0.1",
     port: Number(env.REDIS.PORT || 6379),
     reconnectStrategy: (retries) => {
-      return Math.min(retries * 50, 2000);
+      if (retries > 3) {
+        return false;
+      }
+      return Math.min(retries * 50, 500);
     },
   },
   password: env.REDIS.PASSWORD || undefined,

@@ -5,6 +5,7 @@ import { pool } from "../config/database.js";
 import { zoneService } from "../services/zoneService.js";
 import { roadService } from "../services/roadService.js";
 import { roadOverpassSyncService } from "../services/roadOverpassSyncService.js";
+import { operationalRuleService } from "../services/operationalRuleService.js";
 import { ZoneModel } from "../models/zoneModel.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -26,6 +27,23 @@ async function runTollRoadIntegrationTests() {
       console.error(`   ❌ FAIL: ${message}`);
       failed++;
     }
+  }
+
+  // Ensure operational rules are ON
+  await operationalRuleService.updateOperationalRules({
+    protocol_road_prohibited: true,
+    toll_road_prohibited: true,
+  });
+
+  // Clean test zones if existing
+  const cleanupNames = [
+    "Zona Uji Coba Di Atas Jalan Tol",
+    "Zona Uji Coba Di Jalan Protokol",
+    "Zona Valid Uji Coba Restriksi Tol",
+  ];
+  for (const name of cleanupNames) {
+    const ex = await ZoneModel.findByName(name);
+    if (ex) await ZoneModel.delete(ex.id);
   }
 
   let createdTestZoneId = null;
@@ -126,18 +144,14 @@ async function runTollRoadIntegrationTests() {
 
     // TEST 7 — Existing Protocol Road Validation Regression Check
     console.log("\n📌 [TEST 7] Existing Protocol Road Validation Regression Check...");
-    const prohibitedProtocolPolygon = {
-      type: "Polygon",
-      coordinates: [
-        [
-          [112.601, -7.390],
-          [112.605, -7.390],
-          [112.605, -7.393],
-          [112.601, -7.393],
-          [112.601, -7.390],
-        ],
-      ],
-    };
+    const { rows: sampleProtocolGeom } = await pool.query(`
+      SELECT ST_AsGeoJSON(ST_Buffer(geom::geography, 20)::geometry) AS buffer_geojson, name
+      FROM protocol_roads
+      WHERE restriction_type = 'PROHIBITED_ROAD'
+      LIMIT 1;
+    `);
+    assert(sampleProtocolGeom.length > 0, "Segmen contoh geometri Jalan Protokol tersedia di database");
+    const prohibitedProtocolPolygon = JSON.parse(sampleProtocolGeom[0].buffer_geojson);
 
     let protocolRejectSuccess = false;
     try {

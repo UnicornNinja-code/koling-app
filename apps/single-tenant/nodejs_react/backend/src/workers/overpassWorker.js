@@ -84,3 +84,7 @@ overpassWorker.on("failed", async (job, err) => {
     });
   }
 });
+
+overpassWorker.on("error", (err) => {
+  // Catch worker connection errors gracefully
+});

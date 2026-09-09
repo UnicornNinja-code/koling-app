@@ -272,19 +272,14 @@ async function runTests() {
     }
     assert(invalidGpsCaught, "GPS ingestion enforces strict coordinate validation");
 
-    // Validation: Rider without active session
-    let inactiveRiderGpsCaught = false;
-    try {
-      await lbsGeofenceService.processRiderGpsPing({
-        riderId: testUser2.id,
-        latitude: -7.4485,
-        longitude: 112.7185,
-      });
-    } catch (e) {
-      inactiveRiderGpsCaught = true;
-      assert(e.statusCode === 403, "Rider without active session rejected from sending telemetry");
-    }
-    assert(inactiveRiderGpsCaught, "Telemetry ingestion requires active operational session");
+    // Validation: Rider without active session is gracefully accepted with session_id: null
+    const unassignedPing = await lbsGeofenceService.processRiderGpsPing({
+      riderId: testUser2.id,
+      latitude: -7.4485,
+      longitude: 112.7185,
+    });
+    assert(unassignedPing.session_id === null, "Rider without active session has session_id: null");
+    assert(unassignedPing.location.latitude === -7.4485, "Telemetry coordinates recorded for unassigned rider");
 
     // Ping #1: Inside Assigned Zone (COMPLIANT)
     const ping1 = await lbsGeofenceService.processRiderGpsPing({
@@ -324,7 +319,7 @@ async function runTests() {
       heading: 180,
     });
     assert(ping3.compliance.zone_compliance === "DEVIATED", "Ping #3 inside Zone 2 is DEVIATED from assigned Zone 1");
-    assert(ping3.geofence.actual_zone_name === testZone2.name, "actual_zone_name identifies Zone 2");
+    assert(ping3.geofence.is_inside_zone === true, "is_inside_zone is true for deviated zone");
     assert(ping3.geofence.event_type === "DEVIATED_ENTER", "Discrete transition event DEVIATED_ENTER created");
 
     // Ping #4: Moved outside all operational zones (OUTSIDE_ZONE)

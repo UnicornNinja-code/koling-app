@@ -5,7 +5,7 @@ export function Card({ className, children, ...props }) {
   return (
     <div
       className={cn(
-        "bg-white rounded-[6px] border border-[#E5E5E5] transition-all overflow-hidden",
+        "bg-white rounded-[6px] border border-slate-200 transition-all overflow-hidden text-slate-900 shadow-xs",
         className
       )}
       {...props}
@@ -18,7 +18,7 @@ export function Card({ className, children, ...props }) {
 export function CardHeader({ className, children, ...props }) {
   return (
     <div
-      className={cn("px-3.5 py-3 md:px-4 md:py-3.5 flex flex-col space-y-0.5 border-b border-[#E5E5E5]", className)}
+      className={cn("px-4 py-3.5 flex flex-col space-y-0.5 border-b border-slate-200 bg-white", className)}
       {...props}
     >
       {children}
@@ -30,7 +30,7 @@ export function CardTitle({ className, children, ...props }) {
   return (
     <h3
       className={cn(
-        "font-heading font-bold text-sm md:text-base text-[#111111] leading-tight tracking-tight",
+        "font-heading font-bold text-sm md:text-base text-slate-900 leading-tight tracking-tight",
         className
       )}
       {...props}
@@ -43,7 +43,7 @@ export function CardTitle({ className, children, ...props }) {
 export function CardDescription({ className, children, ...props }) {
   return (
     <p
-      className={cn("text-xs text-[#737373] font-normal leading-relaxed", className)}
+      className={cn("text-xs text-slate-500 font-normal leading-relaxed", className)}
       {...props}
     >
       {children}
@@ -63,7 +63,7 @@ export function CardFooter({ className, children, ...props }) {
   return (
     <div
       className={cn(
-        "p-3.5 md:p-4 bg-[#F5F5F5] border-t border-[#E5E5E5] flex items-center justify-between gap-3 text-xs",
+        "px-4 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3 text-xs text-slate-600",
         className
       )}
       {...props}
@@ -72,4 +72,3 @@ export function CardFooter({ className, children, ...props }) {
     </div>
   );
 }
-

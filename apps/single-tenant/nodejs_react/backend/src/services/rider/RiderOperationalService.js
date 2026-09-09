@@ -271,9 +271,16 @@ export class RiderOperationalService {
 
     const session = sessionRes.session;
 
-    // 2. Validate session state: must NOT be COMPLETED or CHECKED_OUT
-    if (["COMPLETED", "CHECKED_OUT"].includes(session.session_status)) {
+    // 2. Validate session state: must NOT be COMPLETED or CHECKED_OUT, and must be CHECKED_IN / OPERATING
+    if (["COMPLETED", "CHECKED_OUT"].includes(session.session_status) || ["COMPLETED", "CANCELLED"].includes(session.assignment_status)) {
       const error = new Error("Sesi operasional Anda telah ditutup. Tidak dapat mencatat transaksi penjualan baru.");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const isCheckedIn = session.assignment_status === "CHECKED_IN" || ["CHECKED_IN", "OPERATING"].includes(session.session_status);
+    if (!isCheckedIn) {
+      const error = new Error("Anda harus melakukan check-in spasial di zona terlebih dahulu sebelum mencatat penjualan.");
       error.statusCode = 400;
       throw error;
     }
@@ -331,7 +338,8 @@ export class RiderOperationalService {
 
     // 6. Insert into sales_logs with session and compliance linkage
     const salesLog = await this.repo.insertSalesLog({
-      sessionId: session.session_id || session.id,
+      sessionId: session.session_id || null,
+      assignmentId: session.assignment_id || session.id || null,
       riderId,
       zoneId: session.zone_id,
       actualZoneId,

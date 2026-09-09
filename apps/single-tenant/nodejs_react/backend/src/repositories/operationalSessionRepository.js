@@ -541,6 +541,7 @@ export class OperationalSessionRepository {
    */
   async insertFieldSale({
     sessionId,
+    assignmentId = null,
     riderId,
     assignedZoneId,
     actualZoneId = null,
@@ -552,16 +553,31 @@ export class OperationalSessionRepository {
     lat = -7.4478,
     lon = 112.7183,
   }) {
+    let finalAssignmentId = assignmentId;
+    if (!finalAssignmentId && sessionId) {
+      const { rows: sessRows } = await this.pool.query("SELECT assignment_id FROM operational_sessions WHERE id = $1;", [sessionId]);
+      if (sessRows.length > 0 && sessRows[0].assignment_id) {
+        finalAssignmentId = sessRows[0].assignment_id;
+      }
+    }
+    if (!finalAssignmentId && riderId) {
+      const { rows: zaRows } = await this.pool.query("SELECT id FROM zone_assignments WHERE rider_id = $1 AND assignment_date = CURRENT_DATE LIMIT 1;", [riderId]);
+      if (zaRows.length > 0) {
+        finalAssignmentId = zaRows[0].id;
+      }
+    }
+
     const query = `
       INSERT INTO sales_logs (
-        session_id, rider_id, zone_id, actual_zone_id, compliance_at_sale,
+        session_id, assignment_id, rider_id, zone_id, actual_zone_id, compliance_at_sale,
         product_id, qty, unit_price, total_price, latitude, longitude
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING *;
     `;
     const { rows } = await this.pool.query(query, [
       sessionId,
+      finalAssignmentId,
       riderId,
       assignedZoneId,
       actualZoneId,

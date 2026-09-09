@@ -22,19 +22,14 @@ async function runOperationalRulesTestRunner() {
     }
   }
 
-  // Sample geometries for testing
-  const protocolRoadPolygon = {
-    type: "Polygon",
-    coordinates: [
-      [
-        [112.601, -7.390],
-        [112.605, -7.390],
-        [112.605, -7.393],
-        [112.601, -7.393],
-        [112.601, -7.390],
-      ],
-    ],
-  };
+  // Get actual protocol road segment geometry to buffer for testing
+  const { rows: protocolGeomRows } = await pool.query(`
+    SELECT ST_AsGeoJSON(ST_Buffer(geom::geography, 15)::geometry) AS buffer_geojson
+    FROM protocol_roads
+    WHERE restriction_type = 'PROHIBITED_ROAD'
+    LIMIT 1;
+  `);
+  const protocolRoadPolygon = JSON.parse(protocolGeomRows[0].buffer_geojson);
 
   // Get actual toll road segment geometry to buffer for testing
   const { rows: tollGeomRows } = await pool.query(`
@@ -52,6 +47,9 @@ async function runOperationalRulesTestRunner() {
     "Zona Test Toll Only",
     "Zona Test Both Restrictions",
     "Zona Test Multi Reason Safety",
+    "Zona Di Jalan Protokol Fail Test",
+    "Zona Uji Coba Di Jalan Protokol",
+    "Zona Uji Coba Di Atas Jalan Tol",
   ];
 
   for (const name of testZoneNames) {
@@ -216,7 +214,7 @@ async function runOperationalRulesTestRunner() {
 
     const multiZone = await zoneService.createZone({
       name: "Zona Test Multi Reason Safety",
-      polygon: tollRoadPolygon,
+      polygon: protocolRoadPolygon,
     });
 
     // Turn ON both rules -> multiZone becomes RESTRICTED

@@ -35,17 +35,17 @@ export function Drawer({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:justify-end bg-slate-900/40 backdrop-blur-xs transition-opacity"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:justify-end bg-slate-900/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose?.();
       }}
     >
       <div
         className={cn(
-          "bg-white w-full flex flex-col shadow-2xl transition-transform duration-300",
+          "bg-white text-slate-900 w-full flex flex-col shadow-2xl border-slate-200 transition-transform duration-200",
           position === "bottom"
-            ? "rounded-t-2xl max-h-[85vh] border-t border-slate-200 safe-bottom-padding"
-            : "sm:h-full sm:max-w-md sm:border-l border-slate-200 h-[85vh] rounded-t-2xl sm:rounded-none",
+            ? "rounded-t-[8px] max-h-[85vh] border-t safe-bottom-padding animate-in slide-in-from-bottom-5"
+            : "sm:h-full sm:max-w-md sm:border-l h-[85vh] rounded-t-[8px] sm:rounded-none animate-in slide-in-from-right-5",
           className
         )}
       >
@@ -55,7 +55,7 @@ export function Drawer({
         </div>
 
         {/* Drawer Header */}
-        <div className="p-4 md:p-5 border-b border-slate-100 flex items-center justify-between gap-3 shrink-0">
+        <div className="p-4 md:p-5 border-b border-slate-200 flex items-center justify-between gap-3 shrink-0 bg-white">
           <div>
             {title && (
               <h3 className="font-heading font-extrabold text-sm md:text-base text-slate-900 leading-tight">
@@ -71,14 +71,14 @@ export function Drawer({
             type="button"
             onClick={onClose}
             aria-label="Tutup panel"
-            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-[4px] transition-colors cursor-pointer shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Drawer Content */}
-        <div className="p-4 md:p-6 overflow-y-auto flex-1 text-xs md:text-sm">
+        <div className="p-4 md:p-6 overflow-y-auto flex-1 text-xs md:text-sm text-slate-700">
           {children}
         </div>
       </div>

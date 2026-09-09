@@ -35,14 +35,14 @@ export function Modal({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose?.();
       }}
     >
       <div
         className={cn(
-          "bg-[#121215] w-full rounded-t-2xl sm:rounded-2xl border border-[#24242A] shadow-2xl text-white",
+          "bg-white w-full rounded-t-[8px] sm:rounded-[8px] border border-slate-200 shadow-2xl text-slate-900",
           "max-h-[90vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-200",
           maxWidth,
           className
@@ -50,15 +50,15 @@ export function Modal({
       >
         {/* Modal Header */}
         {(title || onClose) && (
-          <div className="p-4 md:p-5 border-b border-[#24242A] flex items-start justify-between gap-3 bg-[#121215] shrink-0">
+          <div className="p-4 md:p-5 border-b border-slate-200 flex items-start justify-between gap-3 bg-white shrink-0">
             <div>
               {title && (
-                <h3 className="font-heading font-extrabold text-base text-white leading-snug">
+                <h3 className="font-heading font-extrabold text-base text-slate-900 leading-snug">
                   {title}
                 </h3>
               )}
               {description && (
-                <p className="text-xs text-[#A1A1AA] mt-0.5">{description}</p>
+                <p className="text-xs text-slate-500 mt-0.5">{description}</p>
               )}
             </div>
 
@@ -67,7 +67,7 @@ export function Modal({
                 type="button"
                 onClick={onClose}
                 aria-label="Tutup dialog"
-                className="p-1.5 text-[#71717A] hover:text-white hover:bg-[#18181B] rounded-lg transition-colors cursor-pointer shrink-0"
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-[4px] transition-colors cursor-pointer shrink-0"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -84,5 +84,4 @@ export function Modal({
   );
 }
 
-// Alias export for Dialog
 export const Dialog = Modal;

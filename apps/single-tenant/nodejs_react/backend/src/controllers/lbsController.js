@@ -14,11 +14,14 @@ import { operationalSessionRepository } from "../repositories/operationalSession
 export const pingRiderLocation = async (req, res) => {
   try {
     const { rider_id, rider_name, latitude, longitude, lat, lon, speed, heading, recorded_at } = req.body;
-    const riderId = rider_id || req.user?.id || req.user?.userId;
+    // Strict IDOR guard: A RIDER role can only ingest telemetry for their own authenticated ID
+    const isRider = req.user?.role === "RIDER";
+    const riderId = isRider ? req.user.id : (rider_id || req.user?.id || req.user?.userId);
+    const riderName = isRider ? (req.user?.name || "Rider Operasional") : (rider_name || req.user?.name || "Rider Operasional");
 
     const result = await lbsGeofenceService.processRiderGpsPing({
       riderId,
-      riderName: rider_name || req.user?.name || "Rider Operasional",
+      riderName,
       latitude,
       longitude,
       lat,

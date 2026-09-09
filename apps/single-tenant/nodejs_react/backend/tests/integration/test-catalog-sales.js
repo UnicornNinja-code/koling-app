@@ -148,7 +148,7 @@ async function runCatalogSalesTests() {
       body: JSON.stringify({ price: 16000, description: "Updated description" }),
     });
     const updateData = await updateRes.json();
-    assertTest("Management Can Update Product", updateRes.status === 200 && updateData.data?.price === 16000);
+    assertTest("Management Can Update Product", updateRes.status === 200 && parseFloat(updateData.data?.price) === 16000);
 
     // 2. Testing Discontinued Status & Visibility
     console.log("\n[3] Testing Status Toggling & Catalog Visibility...");
@@ -239,6 +239,9 @@ async function runCatalogSalesTests() {
       }),
     });
     const validSaleData = await validSaleRes.json();
+    if (validSaleRes.status !== 200) {
+      console.error("validSaleRes Error:", validSaleRes.status, validSaleData);
+    }
     assertTest("Valid Sale Recorded Successfully", validSaleRes.status === 200 && !!validSaleData.sales_log?.id);
 
     // Verify snapshot in DB

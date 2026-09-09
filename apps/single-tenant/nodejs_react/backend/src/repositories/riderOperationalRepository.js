@@ -334,6 +334,7 @@ export class RiderOperationalRepository {
 
     return {
       session: updatedSession,
+      assignment: { id: assignmentId, status: "CHECKED_IN" },
       assignment_id: assignmentId,
       zone_name: zone.name,
       check_in_lat: parseFloat(lat),
@@ -347,7 +348,8 @@ export class RiderOperationalRepository {
    * Insert product sales log with monetary snapshot and operational session binding
    */
   async insertSalesLog({
-    sessionId,
+    sessionId = null,
+    assignmentId = null,
     riderId,
     zoneId,
     actualZoneId = null,
@@ -361,6 +363,7 @@ export class RiderOperationalRepository {
   }) {
     return await this.sessionRepo.insertFieldSale({
       sessionId,
+      assignmentId,
       riderId,
       assignedZoneId: zoneId,
       actualZoneId,

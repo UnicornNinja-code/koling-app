@@ -3,7 +3,7 @@ import { cn } from "../../lib/utils.js";
 
 /**
  * MOVA Panel Primitive — Enterprise Operations Control Room SSOT
- * Compact, 6-8px rectangular radius, 1px border (#E5E5E5), white background, zero default shadow.
+ * Dense, 6-8px rectangular radius, 1px border (#E2E8F0), Clean White Background (#FFFFFF).
  */
 export function Panel({
   title,
@@ -19,9 +19,9 @@ export function Panel({
   ...props
 }) {
   const variantStyles = {
-    default: "bg-white border border-[#E5E5E5]",
-    subtle: "bg-[#FAFAFA] border border-[#E5E5E5]",
-    floating: "bg-white border border-[#E5E5E5] shadow-sm",
+    default: "bg-white border border-slate-200 text-slate-900 shadow-xs",
+    subtle: "bg-slate-50 border border-slate-200 text-slate-900",
+    floating: "bg-white border border-slate-200 shadow-md text-slate-900",
   };
 
   const hasHeader = header || title || description || actions;
@@ -38,19 +38,19 @@ export function Panel({
       {hasHeader && (
         <div
           className={cn(
-            "px-3.5 py-3 md:px-4 md:py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E5E5E5]",
+            "px-4 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 bg-white",
             headerClassName
           )}
         >
           {header || (
             <div className="space-y-0.5">
               {title && (
-                <h3 className="font-heading font-semibold text-xs md:text-sm text-[#111111] leading-tight">
+                <h3 className="font-heading font-bold text-sm md:text-base text-slate-900 leading-tight">
                   {title}
                 </h3>
               )}
               {description && (
-                <p className="text-[11px] text-[#737373] leading-normal">
+                <p className="text-xs text-slate-500 leading-normal">
                   {description}
                 </p>
               )}
@@ -60,10 +60,10 @@ export function Panel({
         </div>
       )}
 
-      <div className={cn("p-3.5 md:p-4", bodyClassName)}>{children}</div>
+      <div className={cn("p-4 md:p-5", bodyClassName)}>{children}</div>
 
       {footer && (
-        <div className="px-3.5 py-2.5 md:px-4 bg-[#FAFAFA] border-t border-[#E5E5E5] text-[11px] text-[#737373]">
+        <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 text-xs text-slate-500">
           {footer}
         </div>
       )}

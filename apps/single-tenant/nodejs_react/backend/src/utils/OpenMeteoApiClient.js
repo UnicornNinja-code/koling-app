@@ -24,9 +24,10 @@ export class OpenMeteoApiClient {
   /**
    * Batch fetch hourly weather forecast for array of locations [{ zone_id, latitude, longitude }]
    * @param {Array<{zone_id: string, latitude: number, longitude: number}>} locations 
+   * @param {number} forecastDays - Number of forecast days (default 3: today, tomorrow, day after)
    * @returns {Promise<Array<{zone_id: string, latitude: number, longitude: number, hourly: object}>>}
    */
-  async fetchBatchWeather(locations) {
+  async fetchBatchWeather(locations, forecastDays = 3) {
     if (!Array.isArray(locations) || locations.length === 0) {
       return [];
     }
@@ -45,10 +46,10 @@ export class OpenMeteoApiClient {
       "apparent_temperature",
     ].join(",");
 
-    const url = `${this.baseUrl}?latitude=${lats}&longitude=${lons}&hourly=${hourlyParams}&timezone=Asia%2FJakarta`;
+    const url = `${this.baseUrl}?latitude=${lats}&longitude=${lons}&hourly=${hourlyParams}&forecast_days=${forecastDays}&timezone=Asia%2FJakarta`;
 
     try {
-      const response = await fetch(url, { signal: AbortSignal.timeout(3000) });
+      const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
       if (!response.ok) {
         throw new Error(`Open-Meteo API HTTP error! status: ${response.status}`);
       }

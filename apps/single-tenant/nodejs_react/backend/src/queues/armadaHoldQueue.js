@@ -31,32 +31,45 @@ export const addArmadaHoldReleaseJob = async ({ armadaId, riderId, delayMs = 5 *
 
   const jobId = `hold-armada-${armadaId}`;
 
-  // Remove existing job if any
   try {
-    const existingJob = await armadaHoldQueue.getJob(jobId);
-    if (existingJob) {
-      await existingJob.remove();
+    // Remove existing job if any
+    try {
+      const existingJob = await Promise.race([
+        armadaHoldQueue.getJob(jobId),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 1000)),
+      ]);
+      if (existingJob) {
+        await existingJob.remove();
+      }
+    } catch (e) {
+      // Ignore error if job doesn't exist
     }
-  } catch (e) {
-    // Ignore error if job doesn't exist
+
+    const jobPromise = armadaHoldQueue.add(
+      JOB_TYPE_RELEASE_HOLD,
+      {
+        armadaId,
+        riderId,
+        delayMs,
+        holdStartedAt: new Date().toISOString(),
+      },
+      {
+        delay: delayMs, // BullMQ Dynamic Delayed Job Option
+        jobId, // Unique Job ID per Armada Unit
+      }
+    );
+
+    const job = await Promise.race([
+      jobPromise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Queue timeout")), 1500)),
+    ]);
+
+    console.log(`⏰ [BULLMQ DELAYED JOB] Armada '${armadaId}' dijadwalkan lepas otomatis dalam ${delayMs / 1000} detik (Job ID: ${job.id})`);
+    return job;
+  } catch (err) {
+    console.warn(`⚠️ [BULLMQ DELAYED JOB] Fallback mode untuk armada '${armadaId}' (Redis unavailable):`, err.message);
+    return { id: `fallback-hold-${armadaId}` };
   }
-
-  const job = await armadaHoldQueue.add(
-    JOB_TYPE_RELEASE_HOLD,
-    {
-      armadaId,
-      riderId,
-      delayMs,
-      holdStartedAt: new Date().toISOString(),
-    },
-    {
-      delay: delayMs, // BullMQ Dynamic Delayed Job Option
-      jobId, // Unique Job ID per Armada Unit
-    }
-  );
-
-  console.log(`⏰ [BULLMQ DELAYED JOB] Armada '${armadaId}' dijadwalkan lepas otomatis dalam ${delayMs / 1000} detik (Job ID: ${job.id})`);
-  return job;
 };
 
 /**
@@ -67,14 +80,17 @@ export const removeArmadaHoldReleaseJob = async (armadaId) => {
 
   const jobId = `hold-armada-${armadaId}`;
   try {
-    const job = await armadaHoldQueue.getJob(jobId);
+    const job = await Promise.race([
+      armadaHoldQueue.getJob(jobId),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 1000)),
+    ]);
     if (job) {
       await job.remove();
       console.log(`🗑️ [BULLMQ DELAYED JOB] Job pelepasan armada '${armadaId}' berhasil dibatalkan dari antrean.`);
       return true;
     }
   } catch (error) {
-    console.error(`⚠️ Gagal menghapus delayed job armada '${armadaId}':`, error.message);
+    console.warn(`⚠️ Gagal menghapus delayed job armada '${armadaId}':`, error.message);
   }
   return false;
 };

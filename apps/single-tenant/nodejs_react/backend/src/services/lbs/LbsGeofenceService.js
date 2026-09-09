@@ -84,18 +84,13 @@ export class LbsGeofenceService {
       }
     }
 
-    // 2. Resolve Active Operational Session from PostgreSQL
+    // 2. Resolve Active Operational Session from PostgreSQL (if any)
     const activeSession = await this.sessionRepo.findActiveSessionByRiderId(riderId);
-    if (!activeSession) {
-      const error = new Error("Rider tidak memiliki sesi operasional aktif (harus memiliki penugasan dan klaim armada aktif).");
-      error.statusCode = 403;
-      throw error;
-    }
 
-    const sessionId = activeSession.session_id || activeSession.id;
-    const assignedZoneId = activeSession.zone_id;
-    const assignedZoneName = activeSession.zone_name;
-    const resolvedRiderName = activeSession.rider_name || riderName;
+    const sessionId = activeSession ? (activeSession.session_id || activeSession.id) : null;
+    const assignedZoneId = activeSession ? activeSession.zone_id : null;
+    const assignedZoneName = activeSession ? activeSession.zone_name : null;
+    const resolvedRiderName = activeSession ? (activeSession.rider_name || riderName) : riderName;
 
     // 3. Evaluate Zone Spatial Coverage via PostGIS ST_Covers (Prioritizing assigned zone)
     const geofenceQuery = `

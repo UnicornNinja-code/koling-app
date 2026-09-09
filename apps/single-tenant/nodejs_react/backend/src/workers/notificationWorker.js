@@ -71,3 +71,7 @@ notificationWorker.on("completed", async (job, result) => {
 notificationWorker.on("failed", async (job, err) => {
   console.error(`💥 [NOTIF WORKER FAILED] Notifikasi ID '${job?.id}' Gagal: ${err.message}`);
 });
+
+notificationWorker.on("error", (err) => {
+  // Catch worker connection errors gracefully
+});

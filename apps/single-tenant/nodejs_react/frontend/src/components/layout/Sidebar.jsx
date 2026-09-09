@@ -11,13 +11,13 @@ import {
   Settings,
   LogOut,
   Navigation,
-  Coffee,
   UserCheck,
   ShoppingBag,
   BarChart3,
-  MessageSquare,
   Activity,
 } from "lucide-react";
+
+import { MovaLogo } from "../common/MovaLogo.jsx";
 
 export function Sidebar() {
   const { user, logout } = useAuth();
@@ -42,7 +42,7 @@ export function Sidebar() {
         { label: "Rider Distribution", path: "/distribution", icon: Users },
         { label: "Fleet Management", path: "/fleet", icon: Bike },
         { label: "DSS Management", path: "/dss", icon: BrainCircuit },
-        { label: "Live Spatial Map", path: "/rider/map", icon: Navigation },
+        { label: "Live Spatial Map", path: "/map-ops", icon: Navigation },
         { label: "Reports & Analytics", path: "/reports", icon: BarChart3 },
       ];
     }
@@ -53,7 +53,7 @@ export function Sidebar() {
         { label: "Fleet Management", path: "/fleet", icon: Bike },
         { label: "Product Catalog", path: "/catalog", icon: ShoppingBag },
         { label: "User Management", path: "/users", icon: Users },
-        { label: "Live Spatial Map", path: "/rider/map", icon: Navigation },
+        { label: "Live Spatial Map", path: "/map-ops", icon: Navigation },
         { label: "Reports & Analytics", path: "/reports", icon: BarChart3 },
       ];
     }
@@ -78,22 +78,26 @@ export function Sidebar() {
   const navItems = getNavItems();
 
   return (
-    <aside className="hidden md:flex w-[60px] bg-[#121215] border-r border-[#24242A] flex-col justify-between items-center py-3.5 h-screen sticky top-0 shrink-0 z-40 select-none">
+    <aside className="hidden md:flex flex-col justify-between items-start py-3.5 h-screen sticky top-0 shrink-0 z-50 select-none bg-white border-r border-[#E2E8F0] transition-all duration-300 ease-in-out group/sidebar w-[64px] hover:w-[236px] overflow-x-hidden shadow-sm">
       {/* Top Logo / App Brand */}
-      <div className="flex flex-col items-center gap-5 w-full">
+      <div className="flex flex-col items-start gap-4 w-full px-2.5">
         <NavLink
           to="/superadmin/dashboard"
           title="MOVA — Coffee Operational Zone Intelligence System"
-          className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#ea580c] to-[#f97316] flex items-center justify-center text-white shadow-md hover:brightness-110 transition-all"
+          className="flex items-center gap-3 w-full p-1 rounded-[8px] hover:bg-[#F8FAFC] transition-all overflow-hidden"
         >
-          <Coffee className="w-5 h-5 text-white" />
+          <div className="w-10 h-10 shrink-0 rounded-[8px] bg-[#FFF7ED] border border-[#FED7AA] flex items-center justify-center text-[#ea580c] shadow-2xs group-hover/sidebar:border-[#ea580c] transition-colors">
+            <MovaLogo size="sm" variant="mark-only" theme="light" />
+          </div>
+          <div className="overflow-hidden transition-all duration-300 opacity-0 w-0 group-hover/sidebar:opacity-100 group-hover/sidebar:w-auto whitespace-nowrap">
+            <MovaLogo size="md" variant="full" theme="light" showSubtitle subtitle="Zone Intelligence" />
+          </div>
         </NavLink>
 
-        {/* Primary Icon Navigation Rail */}
-        <nav className="flex flex-col items-center gap-1.5 w-full px-1.5">
+        {/* Primary Icon + Text Navigation Rail */}
+        <nav className="flex flex-col gap-1 w-full mt-1">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = location.pathname === item.path;
 
             return (
               <NavLink
@@ -101,17 +105,19 @@ export function Sidebar() {
                 to={item.path}
                 title={item.label}
                 className={({ isActive: linkActive }) =>
-                  `group relative w-9 h-9 rounded-lg flex items-center justify-center transition-all ${
+                  `flex items-center w-full px-2.5 py-2 rounded-[6px] transition-all duration-150 ${
                     linkActive
-                      ? "bg-[#ea580c] text-white shadow-md font-semibold"
-                      : "text-[#A1A1AA] hover:text-white hover:bg-[#1F1F24]"
+                      ? "bg-[#ea580c] text-white shadow-xs font-bold"
+                      : "text-[#64748B] hover:text-[#0F172A] hover:bg-[#F1F5F9]"
                   }`
                 }
               >
-                <Icon className="w-4 h-4" />
+                <div className="w-6 h-6 shrink-0 flex items-center justify-center">
+                  <Icon className="w-4 h-4" />
+                </div>
                 
-                {/* Floating Tooltip */}
-                <span className="absolute left-[48px] px-2.5 py-1 bg-[#18181B] text-white text-[11px] font-medium rounded-md whitespace-nowrap shadow-xl border border-[#2E2E38] opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
+                {/* Expandable Label */}
+                <span className="ml-3 text-xs font-semibold whitespace-nowrap overflow-hidden transition-all duration-300 opacity-0 w-0 group-hover/sidebar:opacity-100 group-hover/sidebar:w-auto">
                   {item.label}
                 </span>
               </NavLink>
@@ -121,28 +127,42 @@ export function Sidebar() {
       </div>
 
       {/* Bottom User Avatar & Logout */}
-      <div className="flex flex-col items-center gap-2.5 w-full px-1.5">
-        <button
-          onClick={logout}
-          title="Logout Akun"
-          className="w-9 h-9 rounded-lg flex items-center justify-center text-[#A1A1AA] hover:text-rose-400 hover:bg-[#1F1F24] transition-all cursor-pointer"
-        >
-          <LogOut className="w-4 h-4" />
-        </button>
+      <div className="flex flex-col gap-2 w-full px-2.5 pt-2 border-t border-[#E2E8F0]">
+        <div className="flex items-center justify-between w-full p-1 rounded-[6px] hover:bg-[#F8FAFC] transition-colors">
+          <NavLink
+            to="/profile"
+            title={`Profil: ${user?.name || user?.username || "User"} (${role})`}
+            className="flex items-center gap-2.5 overflow-hidden flex-1"
+          >
+            <div className="w-8 h-8 shrink-0 rounded-full bg-orange-100 text-[#ea580c] border border-orange-200 hover:border-[#ea580c] flex items-center justify-center text-xs font-bold transition-colors overflow-hidden">
+              {user?.avatar ? (
+                <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                <span>{user?.name?.[0] || user?.username?.[0] || "U"}</span>
+              )}
+            </div>
 
-        <NavLink
-          to="/profile"
-          title={`Profil: ${user?.name || user?.username || "User"} (${role})`}
-          className="w-8 h-8 rounded-full bg-[#18181B] border border-[#2E2E38] hover:border-[#f97316] flex items-center justify-center text-xs font-bold text-white transition-all overflow-hidden"
-        >
-          {user?.avatar ? (
-            <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" />
-          ) : (
-            <span>{user?.name?.[0] || user?.username?.[0] || "U"}</span>
-          )}
-        </NavLink>
+            <div className="overflow-hidden transition-all duration-300 opacity-0 w-0 group-hover/sidebar:opacity-100 group-hover/sidebar:w-auto whitespace-nowrap">
+              <div className="text-xs font-bold text-[#0F172A] truncate max-w-[110px]">
+                {user?.name || user?.username || "User"}
+              </div>
+              <div className="text-[10px] text-[#ea580c] font-extrabold uppercase">
+                {role}
+              </div>
+            </div>
+          </NavLink>
+
+          <button
+            onClick={logout}
+            title="Logout Akun"
+            className="w-7 h-7 shrink-0 rounded-[4px] flex items-center justify-center text-[#64748B] hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
     </aside>
   );
 }
 
+export default Sidebar;

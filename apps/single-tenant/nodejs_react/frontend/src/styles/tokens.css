@@ -1,68 +1,68 @@
 /**
- * MOVA Design System Tokens — Enterprise Fleet / Operations Control Room SSOT
- * Visual Rework v2: Dense, Compact, Rectangular (4-8px), Structured, Neutral-first
+ * MOVA Design System Tokens — Clean Light Enterprise Fleet / Operations Control Room SSOT
+ * Visual Rework: High-Contrast, Clean Light Surfaces, Dense Rectangular (4-8px), Inter Typography, Signature Orange Accent
  */
 
 :root {
   /* ==========================================================================
-     1. Color System (Obsidian Kinetic Dark Canvas & Surfaces — Multi-Tenant Theme)
+     1. Color System (Clean Enterprise Light Canvas & Pure White Surfaces)
      ========================================================================== */
-  --color-bg: #09090B;
-  --color-surface: #121215;
-  --color-surface-subtle: #18181B;
-  --color-surface-secondary: #18181B;
-  --color-surface-hover: #24242A;
+  --color-bg: #F8FAFC;
+  --color-surface: #FFFFFF;
+  --color-surface-subtle: #F1F5F9;
+  --color-surface-secondary: #F8FAFC;
+  --color-surface-hover: #F1F5F9;
 
-  --color-border: #24242A;
-  --color-border-subtle: #1E1E24;
-  --color-border-strong: #3F3F46;
+  --color-border: #E2E8F0;
+  --color-border-subtle: #F1F5F9;
+  --color-border-strong: #CBD5E1;
 
-  --color-text: #FAFAFA;
-  --color-text-primary: #FAFAFA;
-  --color-text-secondary: #A1A1AA;
-  --color-text-muted: #71717A;
-  --color-text-disabled: #52525B;
+  --color-text: #0F172A;
+  --color-text-primary: #0F172A;
+  --color-text-secondary: #475569;
+  --color-text-muted: #64748B;
+  --color-text-disabled: #94A3B8;
 
-  /* Aliases for compatibility */
-  --color-neutral-950: #09090B;
-  --color-neutral-900: #121215;
-  --color-neutral-800: #18181B;
-  --color-neutral-700: #27272A;
-  --color-neutral-600: #3F3F46;
-  --color-neutral-500: #71717A;
-  --color-neutral-400: #A1A1AA;
-  --color-neutral-300: #D4D4D8;
-  --color-neutral-200: #24242A;
-  --color-neutral-100: #18181B;
-  --color-neutral-50: #09090B;
-  --color-white: #121215;
+  /* Aliases for semantic compatibility */
+  --color-neutral-950: #0F172A;
+  --color-neutral-900: #0F172A;
+  --color-neutral-800: #1E293B;
+  --color-neutral-700: #334155;
+  --color-neutral-600: #475569;
+  --color-neutral-500: #64748B;
+  --color-neutral-400: #94A3B8;
+  --color-neutral-300: #CBD5E1;
+  --color-neutral-200: #E2E8F0;
+  --color-neutral-100: #F1F5F9;
+  --color-neutral-50: #F8FAFC;
+  --color-white: #FFFFFF;
 
-  --mova-bg-page: #09090B;
-  --mova-bg-panel: #121215;
-  --mova-bg-secondary: #18181B;
-  --mova-border: #24242A;
-  --mova-text-primary: #FAFAFA;
-  --mova-text-secondary: #A1A1AA;
-  --mova-text-muted: #71717A;
+  --mova-bg-page: #F8FAFC;
+  --mova-bg-panel: #FFFFFF;
+  --mova-bg-secondary: #F1F5F9;
+  --mova-border: #E2E8F0;
+  --mova-text-primary: #0F172A;
+  --mova-text-secondary: #475569;
+  --mova-text-muted: #64748B;
 
   /* ==========================================================================
      2. Primary Brand Accent (MOVA Multi-Tenant Signature Orange)
      ========================================================================== */
-  --color-primary: #ea580c;
-  --color-primary-hover: #f97316;
-  --color-primary-soft: rgba(234, 88, 12, 0.15);
+  --color-primary: #EA580C;
+  --color-primary-hover: #C2410C;
+  --color-primary-soft: #FFF7ED;
   --color-primary-subtle: rgba(234, 88, 12, 0.08);
 
-  --color-primary-700: #c2410c;
-  --color-primary-600: #ea580c;
-  --color-primary-500: #f97316;
-  --color-primary-100: rgba(234, 88, 12, 0.18);
-  --color-primary-50: rgba(234, 88, 12, 0.10);
+  --color-primary-700: #C2410C;
+  --color-primary-600: #EA580C;
+  --color-primary-500: #F97316;
+  --color-primary-100: #FFEDD5;
+  --color-primary-50: #FFF7ED;
 
-  --mova-primary-600: #ea580c;
-  --mova-primary-500: #f97316;
-  --mova-primary-100: rgba(234, 88, 12, 0.18);
-  --mova-primary-50: rgba(234, 88, 12, 0.10);
+  --mova-primary-600: #EA580C;
+  --mova-primary-500: #F97316;
+  --mova-primary-100: #FFEDD5;
+  --mova-primary-50: #FFF7ED;
 
   /* ==========================================================================
      3. Semantic Operational Status Colors
@@ -70,62 +70,62 @@
   /* Success */
   --color-success: #10B981;
   --color-success-hover: #059669;
-  --color-success-soft: rgba(16, 185, 129, 0.15);
+  --color-success-soft: #ECFDF5;
   --color-success-600: #10B981;
-  --color-success-100: rgba(16, 185, 129, 0.15);
+  --color-success-100: #D1FAE5;
   --mova-success-600: #10B981;
-  --mova-success-100: rgba(16, 185, 129, 0.15);
-  --mova-success-border: rgba(16, 185, 129, 0.3);
+  --mova-success-100: #D1FAE5;
+  --mova-success-border: #A7F3D0;
 
   /* Warning */
   --color-warning: #F59E0B;
   --color-warning-hover: #D97706;
-  --color-warning-soft: rgba(245, 158, 11, 0.15);
+  --color-warning-soft: #FFFBEB;
   --color-warning-600: #F59E0B;
-  --color-warning-100: rgba(245, 158, 11, 0.15);
+  --color-warning-100: #FEF3C7;
   --mova-warning-600: #F59E0B;
-  --mova-warning-100: rgba(245, 158, 11, 0.15);
-  --mova-warning-border: rgba(245, 158, 11, 0.3);
+  --mova-warning-100: #FEF3C7;
+  --mova-warning-border: #FDE68A;
 
   /* Danger */
   --color-danger: #EF4444;
   --color-danger-hover: #DC2626;
-  --color-danger-soft: rgba(239, 68, 68, 0.15);
+  --color-danger-soft: #FEF2F2;
   --color-danger-600: #EF4444;
-  --color-danger-100: rgba(239, 68, 68, 0.15);
+  --color-danger-100: #FEE2E2;
   --mova-danger-600: #EF4444;
-  --mova-danger-100: rgba(239, 68, 68, 0.15);
-  --mova-danger-border: rgba(239, 68, 68, 0.3);
+  --mova-danger-100: #FEE2E2;
+  --mova-danger-border: #FECACA;
 
   /* Info */
   --color-info: #3B82F6;
   --color-info-hover: #2563EB;
-  --color-info-soft: rgba(59, 130, 246, 0.15);
+  --color-info-soft: #EFF6FF;
   --color-info-600: #3B82F6;
-  --color-info-100: rgba(59, 130, 246, 0.15);
+  --color-info-100: #DBEAFE;
   --mova-info-600: #3B82F6;
-  --mova-info-100: rgba(59, 130, 246, 0.15);
-  --mova-info-border: rgba(59, 130, 246, 0.3);
+  --mova-info-100: #DBEAFE;
+  --mova-info-border: #BFDBFE;
 
   /* ==========================================================================
-     4. Sidebar Dark Rail Foundation (56-64px)
+     4. Sidebar Rail Foundation (Clean Light Rail)
      ========================================================================== */
-  --mova-sidebar-bg: #121215;
-  --mova-sidebar-active: #18181B;
-  --mova-sidebar-border: #24242A;
-  --mova-sidebar-text: #A1A1AA;
-  --mova-sidebar-text-active: #FAFAFA;
+  --mova-sidebar-bg: #FFFFFF;
+  --mova-sidebar-active: #F1F5F9;
+  --mova-sidebar-border: #E2E8F0;
+  --mova-sidebar-text: #475569;
+  --mova-sidebar-text-active: #0F172A;
 
   /* ==========================================================================
-     5. Typography — Outfit (Multi-Tenant Standard)
+     5. Typography — Inter (Enterprise High-Legibility Font SSOT)
      ========================================================================== */
-  --font-sans: 'Outfit', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --mova-font-family: var(--font-sans);
   --mova-font-mono: var(--font-mono);
 
   /* ==========================================================================
-     6. Geometry — Enterprise Rectangular Radii (2px - 8px, Pill for Badge)
+     6. Geometry — Enterprise Rectangular Radii (Strict 4px - 8px, Pill for Badge)
      ========================================================================== */
   --radius-xs: 2px;
   --radius-sm: 4px;
@@ -134,9 +134,9 @@
   --radius-xl: 10px;
   --radius-full: 9999px;
 
-  --mova-radius-panel: 6px; /* Rework v2: Replaces legacy --mova-radius-panel: 12px */
+  --mova-radius-panel: 6px;
   --mova-radius-panel-lg: 8px;
-  --mova-radius-control: 4px; /* Rework v2: Replaces legacy --mova-radius-control: 8px */
+  --mova-radius-control: 6px;
   --mova-radius-control-lg: 6px;
   --mova-radius-map-control: 6px;
   --mova-radius-pill: 9999px;
@@ -155,11 +155,12 @@
   --space-12: 48px;
 
   /* ==========================================================================
-     8. Shadow System (Minimal / Elevation-Only, Default Panel Shadow: None)
+     8. Shadow System (Clean, Subtle Elevation)
      ========================================================================== */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
-  --mova-shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --mova-shadow-floating: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px -1px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.08);
+  --mova-shadow-subtle: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --mova-shadow-floating: 0 4px 12px rgba(0, 0, 0, 0.10);
 }

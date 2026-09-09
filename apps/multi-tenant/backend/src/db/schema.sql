@@ -663,4 +663,4 @@ CREATE TABLE IF NOT EXISTS report_export_jobs (
 
 CREATE INDEX IF NOT EXISTS idx_report_jobs_tenant_created ON report_export_jobs(tenant_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_report_jobs_tenant_status ON report_export_jobs(tenant_id, status);
-CREATE INDEX IF NOT EXISTS idx_report_jobs_expires ON report_export_jobs(artifact_expires_at) WHERE artifact_expires_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_report_jobs_expires ON report_export_jobs(artifact_expires_at) WHERE artifact_expires_at IS NOT NULL;

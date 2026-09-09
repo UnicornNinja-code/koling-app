@@ -5,6 +5,7 @@
 
 import {
   getZoneC4ScoreService,
+  getZoneWeatherTimelineService,
   getHubWeatherOverviewService,
   syncAllZonesWeatherService,
 } from "../services/poiService.js";
@@ -41,6 +42,22 @@ export const getZoneWeatherInfo = async (req, res) => {
       time_slot: result.active_time_slot,
       operational_hours: result.operational_hours_window,
     });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Internal server error" });
+  }
+};
+
+export const getZoneWeatherTimeline = async (req, res) => {
+  try {
+    const { zone_id } = req.params;
+    const { date, slot } = req.query; // ?date=today|tomorrow|YYYY-MM-DD & slot=pagi|siang|sore|malam|all
+    const result = await getZoneWeatherTimelineService({
+      zoneId: zone_id,
+      targetDate: date || "today",
+      targetSlot: slot || "all",
+    });
+    return res.status(200).json(result);
   } catch (error) {
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({ msg: error.message || "Internal server error" });

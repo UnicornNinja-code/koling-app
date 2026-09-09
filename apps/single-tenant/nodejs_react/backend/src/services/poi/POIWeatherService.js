@@ -48,14 +48,34 @@ export class POIWeatherService {
       const now = new Date();
 
       for (const item of batchData) {
-        // Evaluate C4 score and save directly to PostgreSQL with 30-minute freshness
+        if (!item.zone_id) continue;
+
+        // 1. Store in in-memory Map cache
+        this.memoryCache.set(item.zone_id, {
+          hourly: item.hourly,
+          fetchedAt: now,
+        });
+
+        // 2. Store in Redis cache if available
+        const cacheKey = `weather:zone:${item.zone_id}`;
+        try {
+          if (redisClient && (redisClient.isOpen || redisClient.isReady)) {
+            await redisClient.set(cacheKey, JSON.stringify(item.hourly), {
+              EX: 1800, // 30 mins
+            });
+          }
+        } catch (redisErr) {
+          // Redis error should not fail execution
+        }
+
+        // 3. Evaluate C4 score and save directly to PostgreSQL with 30-minute freshness
         const evaluated = this.evaluator.evaluateC4Score(item.hourly, now);
         evaluated.hourly = item.hourly;
 
         await this.repo.saveCachedWeather(item.zone_id, evaluated, 30);
       }
 
-      console.log(`✅ Weather Batch Sync Berhasil: Data cuaca ${batchData.length} zona diperbarui di PostgreSQL via 1 Open-Meteo HTTP Request.`);
+      console.log(`✅ Weather Batch Sync Berhasil: Data cuaca ${batchData.length} zona diperbarui di Redis & PostgreSQL via 1 Open-Meteo HTTP Request.`);
       return batchData;
     } catch (err) {
       console.warn("⚠️ Warning: Open-Meteo API Sync gagal, menggunakan data cache DB jika tersedia:", err.message);
@@ -64,17 +84,43 @@ export class POIWeatherService {
   }
 
   /**
-   * Fetch hourly weather forecast for a specific zone with DB-level freshness (expires_at)
+   * Fetch hourly weather forecast for a specific zone with multi-tier caching (Redis -> Memory -> DB)
    */
   async getHourlyForecastForZone(zoneId) {
-    // 1. Check PostgreSQL Database Cache (30-minute TTL)
+    const cacheKey = `weather:zone:${zoneId}`;
+
+    // 1. Check Redis Cache
+    try {
+      if (redisClient && (redisClient.isOpen || redisClient.isReady)) {
+        const redisVal = await redisClient.get(cacheKey);
+        if (redisVal) {
+          return JSON.parse(redisVal);
+        }
+      }
+    } catch (err) {
+      // Ignore Redis error
+    }
+
+    // 2. Check In-Memory Map Cache (TTL: 30 minutes)
+    const mem = this.memoryCache.get(zoneId);
+    const ttlMs = 30 * 60 * 1000;
+    if (mem && Date.now() - new Date(mem.fetchedAt).getTime() < ttlMs) {
+      return mem.hourly;
+    }
+
+    // 3. Check PostgreSQL Database Cache (30-minute TTL)
     const dbCached = await this.repo.getCachedWeather(zoneId, 30);
     if (dbCached && dbCached.hourly_cache) {
       return dbCached.hourly_cache;
     }
 
-    // 2. If expired or not present, fetch fresh batch weather data from Open-Meteo
+    // 4. If expired or not present, fetch fresh batch weather data from Open-Meteo
     await this.syncAllZonesWeather(true);
+
+    const updatedMem = this.memoryCache.get(zoneId);
+    if (updatedMem) {
+      return updatedMem.hourly;
+    }
 
     const freshDb = await this.repo.getCachedWeather(zoneId, 30);
     if (freshDb && freshDb.hourly_cache) {
@@ -213,6 +259,33 @@ export class POIWeatherService {
       zones_weather_list: zonesWeatherList,
     };
   }
+
+  /**
+   * Fetch Hourly Weather Timeline for a Zone (paired with time slots for Today / Tomorrow)
+   */
+  async getZoneWeatherTimeline({ zoneId, targetDate = "today", targetSlot = "all" }) {
+    const zone = await ZoneModel.findById(zoneId);
+    if (!zone) {
+      const error = new Error(`Zona dengan ID '${zoneId}' tidak ditemukan.`);
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const hourlyData = await this.getHourlyForecastForZone(zoneId);
+    const timeline = this.evaluator.extractHourlyTimeline({
+      hourlyData,
+      targetDate,
+      targetSlot,
+    });
+
+    return {
+      status: "success",
+      zone_id: zone.id,
+      zone_name: zone.name,
+      ...timeline,
+    };
+  }
 }
 
 export const poiWeatherService = POIWeatherService.getInstance();
+
