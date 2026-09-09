@@ -6,6 +6,7 @@ import { ZoneModel } from "../models/zoneModel.js";
 import { zoneRepository } from "../repositories/zoneRepository.js";
 import { SystemSettingModel } from "../models/systemSettingModel.js";
 import { operationalRuleService } from "./operationalRuleService.js";
+import { spatialRestrictionService } from "./spatial/SpatialRestrictionService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -245,6 +246,70 @@ export class ZoneService {
     }
 
     return geoJsonStr;
+  }
+
+  /**
+   * Interactive Pre-Validation of Zone Polygon without modifying the database (Dry-run)
+   */
+  async preValidateZonePolygon({ polygon, name, excludeId = null }) {
+    const errors = [];
+    const warnings = [];
+    let metrics = {
+      area_km2: 0,
+      max_distance_from_hub_km: 0,
+    };
+
+    try {
+      const geoJsonStr = this.validateAndFormatPolygon(polygon);
+
+      // 1. Check Prohibited Roads (Toll / Protocol) via PostGIS
+      const prohibitedRoads = await this.checkProhibitedRoadIntersection(geoJsonStr);
+      if (prohibitedRoads && prohibitedRoads.length > 0) {
+        const tollRoads = prohibitedRoads.filter((r) => r.restriction_type === "PROHIBITED_TOLL_ROAD");
+        const protocolRoads = prohibitedRoads.filter((r) => r.restriction_type !== "PROHIBITED_TOLL_ROAD");
+
+        if (tollRoads.length > 0) {
+          errors.push(
+            `Zona memotong Jalan Tol (${tollRoads.map((r) => r.name).join(", ")}). Kopi keliling dilarang beroperasi di area tol.`
+          );
+        }
+        if (protocolRoads.length > 0) {
+          warnings.push(`Zona bersinggungan dengan Jalan Protokol (${protocolRoads.map((r) => r.name).join(", ")}).`);
+        }
+      }
+
+      // 2. Check Overlap against other active zones in PostGIS
+      const overlapZone = await ZoneModel.checkPolygonOverlap(geoJsonStr, excludeId);
+      if (overlapZone) {
+        errors.push(`Zona bertumpang tindih (overlap) dengan zona aktif lain ('${overlapZone.name}').`);
+      }
+
+      // 3. Check Duplicate Name if provided
+      if (name && name.trim()) {
+        const existing = await ZoneModel.findByName(name, excludeId);
+        if (existing) {
+          errors.push(`Nama zona '${name.trim()}' sudah digunakan.`);
+        }
+      }
+
+      // 4. Calculate Area Size
+      const queryArea = `
+        SELECT ST_Area(ST_SetSRID(ST_GeomFromGeoJSON($1), 4326)::geography) / 1000000.0 AS area_km2;
+      `;
+      const { rows: areaRows } = await pool.query(queryArea, [geoJsonStr]);
+      if (areaRows && areaRows.length > 0) {
+        metrics.area_km2 = parseFloat(parseFloat(areaRows[0].area_km2 || "0").toFixed(3));
+      }
+    } catch (err) {
+      errors.push(err.message || "Format geometri poligon tidak valid.");
+    }
+
+    return {
+      is_valid: errors.length === 0,
+      errors,
+      warnings,
+      metrics,
+    };
   }
 
   /**
@@ -586,6 +651,13 @@ export class ZoneService {
       newly_restricted: newlyRestricted,
       restored_active: restoredActive,
     };
+  }
+
+  /**
+   * Dry-Run Spatial Validation for Zone Polygon via SpatialRestrictionService (SSOT)
+   */
+  async preValidateZonePolygon(polygon, excludeZoneId = null) {
+    return await spatialRestrictionService.validateZonePolygon(polygon, excludeZoneId);
   }
 }
 

@@ -78,7 +78,7 @@ async function runPhase7aEndToEndSystemValidation() {
     // -------------------------------------------------------------------------
     console.log("\n🌤️ [STEP 02] POI & Weather Data Ingestion (C1-C6)...");
     const weatherData = await poiWeatherService.getHourlyForecastForZone(createdZoneId);
-    console.log(`   ✅ PASS: Perkiraan cuaca C4 Open-Meteo ter-cache (${Object.keys(weatherData).length > 0 ? "Data Available" : "Default Fallback"})!`);
+    console.log(`   ✅ PASS: Perkiraan cuaca C4 Open-Meteo ter-cache (${weatherData && Object.keys(weatherData).length > 0 ? "Data Available" : "Default Fallback"})!`);
 
     // -------------------------------------------------------------------------
     // STEP 03: Raw Criteria Matrix Evaluation (C1-C6)
@@ -171,12 +171,29 @@ async function runPhase7aEndToEndSystemValidation() {
       console.error("   ❌ FAIL: Status armada atau pembatalan job tidak sesuai.");
     }
 
+    // Check in to zone to transition session to OPERATING
+    const insideLat = -7.445;
+    const insideLon = 112.715;
+    await riderOperationalService.checkInToZone({
+      riderId: createdRiderId,
+      lat: insideLat,
+      lon: insideLon,
+    });
+    console.log(`   ✅ PASS: Rider berhasil Check-in di Zona E2E (Status: OPERATING)!`);
+
     // -------------------------------------------------------------------------
     // STEP 08: Live Rider GPS Telemetry & Redis GEO Indexing
     // -------------------------------------------------------------------------
     console.log("\n⚡ [STEP 08] Live Rider GPS Telemetry & Redis GEO Indexing...");
-    const insideLat = -7.445;
-    const insideLon = 112.715;
+
+    await redisGeoService.updateRiderLocation({
+      riderId: createdRiderId,
+      riderName: `Rider E2E ${testPrefix}`,
+      lat: insideLat,
+      lon: insideLon,
+      speed: 10,
+      heading: 180,
+    });
 
     await lbsGeofenceService.processRiderGpsPing({
       riderId: createdRiderId,
@@ -208,10 +225,11 @@ async function runPhase7aEndToEndSystemValidation() {
       assignedZoneId: createdZoneId,
     });
 
-    if (insideGeofencePing.geofence.is_inside_zone && insideGeofencePing.compliance.status === "COMPLIANT") {
+    const isCompliant = insideGeofencePing.compliance?.zone_compliance === "COMPLIANT" || insideGeofencePing.compliance?.status === "COMPLIANT";
+    if (insideGeofencePing.geofence.is_inside_zone && isCompliant) {
       console.log(`   ✅ PASS: Geofence ST_Contains (INSIDE '${insideGeofencePing.geofence.actual_zone_name}') & Compliance Status 'COMPLIANT'!`);
     } else {
-      console.error(`   ❌ FAIL: Geofence status: ${insideGeofencePing.geofence.actual_zone_name}, Compliance: ${insideGeofencePing.compliance.status}`);
+      console.error(`   ❌ FAIL: Geofence status: ${insideGeofencePing.geofence.actual_zone_name}, Compliance: ${insideGeofencePing.compliance?.zone_compliance}`);
     }
 
     // -------------------------------------------------------------------------

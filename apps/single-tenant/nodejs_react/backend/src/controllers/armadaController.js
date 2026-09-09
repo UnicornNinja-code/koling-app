@@ -1,10 +1,11 @@
 /*
  *   Copyright (c) 2026 
  *   All rights reserved.
- *   armadaController.js (HTTP Controller for Armada Management)
+ *   armadaController.js (HTTP Controller for Armada Management & 5-Min Hold Claim Engine)
  */
 
 import { armadaService } from "../services/armadaService.js";
+import { riderOperationalService } from "../services/rider/RiderOperationalService.js";
 
 export const getAllArmadas = async (req, res) => {
   try {
@@ -72,6 +73,63 @@ export const deleteArmada = async (req, res) => {
       msg: "Unit armada berhasil dihapus",
       armada: deleted,
     });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Internal server error" });
+  }
+};
+
+/**
+ * 5-Minute Temporary Hold on Armada (Row-Level Lock)
+ */
+export const holdArmada = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const riderId = req.user?.id || req.body?.rider_id;
+
+    const result = await riderOperationalService.inspectAndHoldArmada({
+      riderId,
+      armadaId: id,
+    });
+    return res.status(200).json(result);
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Internal server error" });
+  }
+};
+
+/**
+ * Confirm Final Claim on Armada (Status IN_USE)
+ */
+export const claimArmada = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const riderId = req.user?.id || req.body?.rider_id;
+
+    const result = await riderOperationalService.confirmArmadaClaim({
+      riderId,
+      armadaId: id,
+    });
+    return res.status(200).json(result);
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Internal server error" });
+  }
+};
+
+/**
+ * Release Armada Hold / Cancel Reservation
+ */
+export const releaseArmada = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const riderId = req.user?.id || req.body?.rider_id;
+
+    const result = await riderOperationalService.cancelArmadaHold({
+      riderId,
+      armadaId: id,
+    });
+    return res.status(200).json(result);
   } catch (error) {
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({ msg: error.message || "Internal server error" });

@@ -245,41 +245,41 @@ export function RiderOperationalPage() {
       />
 
       {/* Compact Top Operational Stepper Indicator */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs mb-6">
-        <div className="flex items-center justify-between text-xs font-bold text-slate-600">
-          <div className={`flex items-center gap-1.5 ${currentState !== "UNASSIGNED" ? "text-emerald-600 font-extrabold" : "text-[#FF5052]"}`}>
+      <div className="bg-white p-4 rounded-[12px] border border-neutral-200 shadow-none mb-6">
+        <div className="flex items-center justify-between text-xs font-semibold text-neutral-600">
+          <div className={`flex items-center gap-1.5 ${currentState !== "UNASSIGNED" ? "text-success-600 font-bold" : "text-primary-600 font-bold"}`}>
             <CalendarCheck className="w-4 h-4" /> 1. Duty
           </div>
-          <span className="text-slate-300">───</span>
-          <div className={`flex items-center gap-1.5 ${["HELD", "CLAIMED", "CHECKED_IN"].includes(currentState) ? "text-emerald-600 font-extrabold" : currentState === "DUTY_CONFIRMED" ? "text-[#FF5052]" : "text-slate-400"}`}>
+          <span className="text-neutral-300">───</span>
+          <div className={`flex items-center gap-1.5 ${["HELD", "CLAIMED", "CHECKED_IN"].includes(currentState) ? "text-success-600 font-bold" : currentState === "DUTY_CONFIRMED" ? "text-primary-600 font-bold" : "text-neutral-400"}`}>
             <Bike className="w-4 h-4" /> 2. Armada
           </div>
-          <span className="text-slate-300">───</span>
-          <div className={`flex items-center gap-1.5 ${currentState === "CHECKED_IN" ? "text-emerald-600 font-extrabold" : "text-slate-400"}`}>
+          <span className="text-neutral-300">───</span>
+          <div className={`flex items-center gap-1.5 ${currentState === "CHECKED_IN" ? "text-success-600 font-bold" : "text-neutral-400"}`}>
             <MapPin className="w-4 h-4" /> 3. Check-in
           </div>
-          <span className="text-slate-300">───</span>
-          <div className={`flex items-center gap-1.5 ${currentState === "CHECKED_IN" ? "text-[#FF5052] font-extrabold" : "text-slate-400"}`}>
+          <span className="text-neutral-300">───</span>
+          <div className={`flex items-center gap-1.5 ${currentState === "CHECKED_IN" ? "text-primary-600 font-bold" : "text-neutral-400"}`}>
             <ShoppingBag className="w-4 h-4" /> 4. Shift Aktif
           </div>
         </div>
       </div>
 
       {loadingSession ? (
-        <div className="p-8 bg-white rounded-2xl border border-slate-200 text-center text-xs text-slate-500">
+        <div className="p-8 bg-white rounded-[12px] border border-neutral-200 text-center text-xs text-neutral-500">
           Memuat status operasional shift...
         </div>
       ) : (
         <div className="space-y-6">
           {/* STATE 1: UNASSIGNED */}
           {currentState === "UNASSIGNED" && (
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs text-center space-y-4">
-              <div className="w-12 h-12 rounded-2xl bg-[#FF5052]/10 text-[#FF5052] flex items-center justify-center mx-auto">
+            <div className="bg-white p-6 rounded-[12px] border border-neutral-200 shadow-none text-center space-y-4">
+              <div className="w-12 h-12 rounded-[12px] bg-primary-50 text-primary-600 flex items-center justify-center mx-auto">
                 <CalendarCheck className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-base font-heading font-extrabold text-slate-900">Konfirmasi Kesediaan Bertugas</h3>
-                <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto leading-relaxed">
+                <h3 className="text-base font-heading font-bold text-neutral-900">Konfirmasi Kesediaan Bertugas</h3>
+                <p className="text-xs text-neutral-500 mt-1 max-w-md mx-auto leading-relaxed">
                   Konfirmasikan bahwa Anda siap bertugas hari ini untuk masuk ke dalam antrean alokasi zona operasional FIFO.
                 </p>
               </div>
@@ -287,7 +287,7 @@ export function RiderOperationalPage() {
                 onClick={() => confirmDutyMutation.mutate()}
                 disabled={confirmDutyMutation.isPending}
                 variant="primary"
-                className="px-6 py-3 font-bold shadow-xs mx-auto"
+                className="px-6 py-3 font-semibold mx-auto"
               >
                 {confirmDutyMutation.isPending ? "Memproses..." : "Konfirmasi Kesediaan Bertugas Hari Ini"}
               </Button>
@@ -296,13 +296,13 @@ export function RiderOperationalPage() {
 
           {/* STATE 2: DUTY_CONFIRMED (Select & Hold Armada) */}
           {currentState === "DUTY_CONFIRMED" && (
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-5">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="bg-white p-6 rounded-[12px] border border-neutral-200 shadow-none space-y-5">
+              <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
                 <div>
-                  <h3 className="text-sm font-heading font-extrabold text-slate-900 flex items-center gap-2">
-                    <Bike className="w-4 h-4 text-[#FF5052]" /> Katalog Armada Hub (Pilih & Kunci 5 Mnt)
+                  <h3 className="text-sm font-heading font-bold text-neutral-900 flex items-center gap-2">
+                    <Bike className="w-4 h-4 text-primary-600" /> Katalog Armada Hub (Pilih & Kunci 5 Mnt)
                   </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Pilih unit gerobak/motor di Hub untuk diinspeksi. Sistem mengunci unit selama 5 menit.</p>
+                  <p className="text-xs text-neutral-500 mt-0.5">Pilih unit gerobak/motor di Hub untuk diinspeksi. Sistem mengunci unit selama 5 menit.</p>
                 </div>
                 <StatusBadge variant="info">Penugasan Siap</StatusBadge>
               </div>
@@ -311,16 +311,16 @@ export function RiderOperationalPage() {
                 {hubArmadas.map((armada) => (
                   <div
                     key={armada.id}
-                    className={`p-4 rounded-xl border transition-all space-y-3 ${
+                    className={`p-4 rounded-[12px] border transition-all space-y-3 ${
                       armada.status === "ACTIVE"
-                        ? "bg-white border-slate-200 hover:border-[#FF5052]/40"
-                        : "bg-slate-50 border-slate-200 opacity-60"
+                        ? "bg-white border-neutral-200 hover:border-primary-300"
+                        : "bg-neutral-50 border-neutral-200 opacity-60"
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Bike className="w-5 h-5 text-[#FF5052]" />
-                        <span className="text-xs font-bold text-slate-900">{armada.code || armada.name}</span>
+                        <Bike className="w-5 h-5 text-primary-600" />
+                        <span className="text-xs font-semibold text-neutral-900">{armada.code || armada.name}</span>
                       </div>
                       <StatusBadge variant={armada.status === "ACTIVE" ? "success" : "warning"}>
                         {armada.status}
@@ -332,7 +332,7 @@ export function RiderOperationalPage() {
                       disabled={armada.status !== "ACTIVE" || holdArmadaMutation.isPending}
                       variant="primary"
                       size="sm"
-                      className="w-full text-xs font-bold py-2"
+                      className="w-full text-xs font-semibold py-2"
                     >
                       Kunci Armada (Hold 5 Mnt)
                     </Button>
@@ -344,21 +344,21 @@ export function RiderOperationalPage() {
 
           {/* STATE 3: HELD (5-Minute Countdown & Confirm Claim) */}
           {currentState === "HELD" && (
-            <div className="bg-amber-50/60 p-6 rounded-2xl border border-amber-200 shadow-xs space-y-4">
+            <div className="bg-warning-50/60 p-6 rounded-[12px] border border-warning-200 shadow-none space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-extrabold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
-                  <Clock className="w-4 h-4 text-amber-600 animate-pulse" /> SISA WAKTU REKRUITMEN / INSPEKSI (HOLD 5 MNT)
+                <span className="text-xs font-bold text-warning-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-warning-600 animate-pulse" /> SISA WAKTU REKRUITMEN / INSPEKSI (HOLD 5 MNT)
                 </span>
-                <span className="text-xl font-heading font-extrabold font-mono text-amber-900 bg-amber-100 px-3 py-1 rounded-xl border border-amber-300">
+                <span className="text-xl font-heading font-bold font-mono text-warning-900 bg-warning-100 px-3 py-1 rounded-[8px] border border-warning-300">
                   {formatTimer(holdTimeRemaining)}
                 </span>
               </div>
 
               <div>
-                <h4 className="text-base font-heading font-extrabold text-slate-900">
-                  Unit Armada Terkunci: <span className="text-[#FF5052]">{activeSession?.armada_code || "Unit Hub"}</span>
+                <h4 className="text-base font-heading font-bold text-neutral-900">
+                  Unit Armada Terkunci: <span className="text-primary-600">{activeSession?.armada_code || "Unit Hub"}</span>
                 </h4>
-                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                <p className="text-xs text-neutral-600 mt-1 leading-relaxed">
                   Lakukan inspeksi fisik unit di Hub. Tekan tombol di bawah jika fisik kendaraan baik untuk mengubah status menjadi permanent claim (IN_USE).
                 </p>
               </div>
@@ -368,7 +368,7 @@ export function RiderOperationalPage() {
                   onClick={() => claimArmadaMutation.mutate(activeSession?.held_armada_id || activeSession?.armada_id)}
                   disabled={claimArmadaMutation.isPending}
                   variant="primary"
-                  className="flex-1 py-3 font-bold shadow-xs bg-emerald-600 hover:bg-emerald-700"
+                  className="px-5 py-2.5 font-semibold text-xs"
                 >
                   {claimArmadaMutation.isPending ? "Memproses Klaim..." : "Konfirmasi Klaim Armada (Status IN_USE)"}
                 </Button>
@@ -446,10 +446,10 @@ export function RiderOperationalPage() {
                 <form onSubmit={handleSubmit(onSubmitSales)} className="space-y-4 text-xs font-semibold">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-slate-700 mb-1">Pilih Produk Kopi / Minuman</label>
+                      <label className="block text-neutral-700 mb-1">Pilih Produk Kopi / Minuman</label>
                       <select
                         {...register("product_id", { required: true })}
-                        className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:border-[#FF5052] focus:outline-none bg-white"
+                        className="w-full px-3.5 py-2.5 border border-neutral-200 rounded-[8px] focus:border-primary-500 focus:ring-1 focus:ring-primary-500 focus:outline-none bg-white text-xs"
                         required
                       >
                         <option value="">-- Pilih Produk --</option>
@@ -462,13 +462,13 @@ export function RiderOperationalPage() {
                     </div>
 
                     <div>
-                      <label className="block text-slate-700 mb-1">Jumlah Terjual (Qty)</label>
+                      <label className="block text-neutral-700 mb-1">Jumlah Terjual (Qty)</label>
                       <input
                         type="number"
                         min="1"
                         max="999"
                         {...register("quantity", { required: true, valueAsNumber: true })}
-                        className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:border-[#FF5052] focus:outline-none"
+                        className="w-full px-3.5 py-2.5 border border-neutral-200 rounded-[8px] focus:border-primary-500 focus:ring-1 focus:ring-primary-500 focus:outline-none text-xs"
                         placeholder="Contoh: 2"
                         required
                       />

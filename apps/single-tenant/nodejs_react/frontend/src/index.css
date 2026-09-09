@@ -1,65 +1,66 @@
 @import "tailwindcss";
+@import "./styles/tokens.css";
 @import "leaflet/dist/leaflet.css";
 
 @layer base {
   :root {
-    /* Brand Accent Colors (Opaline Palette - Cinnabar Red) */
-    --color-primary: #FF634A;
-    --color-primary-dark: #B82814;
-    --color-primary-hover: #E54E36;
-    --color-primary-soft: #FFF2EF;
+    /* Brand Accent Colors (MOVA Signature Multi-Tenant Orange SSOT) */
+    --color-primary: #ea580c;
+    --color-primary-dark: #c2410c;
+    --color-primary-hover: #f97316;
+    --color-primary-soft: rgba(234, 88, 12, 0.15);
 
-    /* Canvas & Surface Colors (Opaline Palette - #F4F4F6 & #E7E7E7) */
-    --color-background: #F4F4F6;
-    --color-surface: #FFFFFF;
-    --color-surface-hover: #E7E7E7;
-    --color-surface-soft: #E7E7E7;
+    /* Canvas & Surface Colors (Obsidian Kinetic: #09090B & #121215) */
+    --color-background: #09090B;
+    --color-surface: #121215;
+    --color-surface-hover: #18181B;
+    --color-surface-soft: #18181B;
 
-    /* Border & Separator Colors (Opaline Palette - #D2D2D4) */
-    --color-border: #D2D2D4;
-    --color-border-hover: #B8B8BA;
+    /* Border & Separator Colors (#24242A) */
+    --color-border: #24242A;
+    --color-border-hover: #3F3F46;
 
-    /* Text & Content Hierarchy */
-    --color-foreground: #18181B;
-    --color-muted-foreground: #52525B;
-    --color-subtle: #8E8E93;
+    /* Text & Content Hierarchy (#FAFAFA, #A1A1AA, #71717A) */
+    --color-foreground: #FAFAFA;
+    --color-muted-foreground: #A1A1AA;
+    --color-subtle: #71717A;
 
-    /* Semantic Status - Success (Emerald) */
+    /* Semantic Status - Success */
     --color-success: #10B981;
-    --color-success-bg: #ECFDF5;
-    --color-success-border: #A7F3D0;
+    --color-success-bg: rgba(16, 185, 129, 0.15);
+    --color-success-border: rgba(16, 185, 129, 0.3);
 
-    /* Semantic Status - Warning (Amber) */
+    /* Semantic Status - Warning */
     --color-warning: #F59E0B;
-    --color-warning-bg: #FFFBEB;
-    --color-warning-border: #FDE68A;
+    --color-warning-bg: rgba(245, 158, 11, 0.15);
+    --color-warning-border: rgba(245, 158, 11, 0.3);
 
-    /* Semantic Status - Danger / Breach (Crimson / Cinnabar) */
+    /* Semantic Status - Danger */
     --color-danger: #EF4444;
-    --color-danger-bg: #FEF2F2;
-    --color-danger-border: #FECACA;
+    --color-danger-bg: rgba(239, 68, 68, 0.15);
+    --color-danger-border: rgba(239, 68, 68, 0.3);
 
-    /* Semantic Status - Info (Blue) */
+    /* Semantic Status - Info */
     --color-info: #3B82F6;
-    --color-info-bg: #EFF6FF;
-    --color-info-border: #BFDBFE;
+    --color-info-bg: rgba(59, 130, 246, 0.15);
+    --color-info-border: rgba(59, 130, 246, 0.3);
 
-    /* Semantic Status - Neutral (Opaline Tonal) */
-    --color-neutral: #52525B;
-    --color-neutral-bg: #E7E7E7;
-    --color-neutral-border: #D2D2D4;
+    /* Semantic Status - Neutral */
+    --color-neutral: #A1A1AA;
+    --color-neutral-bg: #18181B;
+    --color-neutral-border: #24242A;
 
-    /* Typography Families - Inter font */
-    --font-heading: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    /* Typography Families - Outfit font */
+    --font-heading: 'Outfit', 'Outfit Fallback', system-ui, -apple-system, sans-serif;
+    --font-body: 'Outfit', 'Outfit Fallback', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
 
     /* Spacing & Geometry */
-    --radius-sm: 0.25rem;  /* 4px for inputs, small controls */
-    --radius-md: 0.5rem;   /* 8px for buttons, standard cards */
-    --radius-lg: 0.75rem;  /* 12px for larger containers, modals */
-    --radius-xl: 1rem;     /* 16px for highlighted cards */
-    --radius-full: 9999px; /* pills and badges */
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --radius-xl: 12px;
+    --radius-full: 9999px;
 
     /* Mobile Safe Area Insets */
     --safe-area-top: env(safe-area-inset-top, 0px);
@@ -77,8 +78,8 @@
 
   html, body {
     font-family: var(--font-body);
-    background-color: var(--color-background);
-    color: var(--color-foreground);
+    background-color: #09090B !important;
+    color: #FAFAFA !important;
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -89,7 +90,8 @@
   h1, h2, h3, h4, h5, h6, .font-heading {
     font-family: var(--font-heading);
     font-weight: 700;
-    letter-spacing: -0.025em;
+    letter-spacing: -0.02em;
+    color: #FAFAFA;
   }
 
   code, kbd, samp, pre, .font-mono {
@@ -103,14 +105,111 @@
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #F4F4F6;
+  background: #09090B;
 }
 ::-webkit-scrollbar-thumb {
-  background: #D2D2D4;
-  border-radius: 9999px;
+  background: #27272A;
+  border-radius: var(--radius-full);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #B8B8BA;
+  background: #3F3F46;
+}
+
+/* ==========================================================================
+   MOVA Multi-Tenant Obsidian Kinetic Theme Mappings
+   ========================================================================== */
+body .bg-white {
+  background-color: #121215 !important;
+}
+
+body .bg-neutral-50,
+body .bg-slate-50 {
+  background-color: #18181B !important;
+}
+
+body .bg-neutral-100,
+body .bg-slate-100 {
+  background-color: #1F1F24 !important;
+}
+
+body .bg-neutral-200,
+body .bg-slate-200 {
+  background-color: #272730 !important;
+}
+
+body .border-neutral-100,
+body .border-neutral-200,
+body .border-neutral-300,
+body .border-slate-100,
+body .border-slate-200,
+body .border-slate-300,
+body .border-\[\#E5E5E5\],
+body .border-\[\#E5E7EB\] {
+  border-color: #24242A !important;
+}
+
+body .text-neutral-900,
+body .text-slate-900,
+body .text-\[\#111111\] {
+  color: #FAFAFA !important;
+}
+
+body .text-neutral-800,
+body .text-slate-800,
+body .text-neutral-700,
+body .text-slate-700 {
+  color: #E4E4E7 !important;
+}
+
+body .text-neutral-600,
+body .text-slate-600,
+body .text-neutral-500,
+body .text-slate-500,
+body .text-\[\#525252\] {
+  color: #A1A1AA !important;
+}
+
+body .text-neutral-400,
+body .text-slate-400,
+body .text-\[\#737373\],
+body .text-\[\#A3A3A3\] {
+  color: #71717A !important;
+}
+
+/* Multi-Tenant Signature Orange Accents */
+body .bg-primary-600,
+body .bg-blue-600,
+body .bg-\[\#2563EB\] {
+  background-color: #ea580c !important;
+}
+
+body .hover\:bg-primary-700:hover,
+body .hover\:bg-blue-700:hover,
+body .hover\:bg-\[\#1D4ED8\]:hover {
+  background-color: #f97316 !important;
+}
+
+body .text-primary-600,
+body .text-blue-600,
+body .text-\[\#2563EB\] {
+  color: #f97316 !important;
+}
+
+body .border-primary-600,
+body .border-blue-600,
+body .border-\[\#2563EB\] {
+  border-color: #ea580c !important;
+}
+
+body .bg-primary-50,
+body .bg-blue-50,
+body .bg-\[\#EFF6FF\] {
+  background-color: rgba(234, 88, 12, 0.12) !important;
+}
+
+body .text-primary-700,
+body .text-blue-700 {
+  color: #fb923c !important;
 }
 
 /* Reduced Motion Respect */
@@ -140,3 +239,4 @@
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
+

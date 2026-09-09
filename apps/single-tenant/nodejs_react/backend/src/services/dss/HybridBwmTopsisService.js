@@ -11,6 +11,7 @@ import { bwmRepository } from "../../repositories/bwmRepository.js";
 import { topsisRepository } from "../../repositories/topsisRepository.js";
 import { pool } from "../../config/database.js";
 import { TimeSlotEvaluator } from "../../utils/TimeSlotEvaluator.js";
+import { RecommendationContractFormatter } from "./RecommendationContractFormatter.js";
 
 export class HybridBwmTopsisService {
   static instance = null;
@@ -163,32 +164,85 @@ export class HybridBwmTopsisService {
     // --- STEP 5: EXECUTE PURE TOPSIS MATRIX EVALUATION ---
     const topsisRes = topsisEngineService.calculateTopsisForMatrix(rawMatrix, criteriaSpecs);
 
-    // --- STEP 6: CONSTRUCT END-TO-END TRACEABLE RESPONSE OBJECT ---
+    // --- STEP 6: CONSTRUCT END-TO-END TRACEABLE RESPONSE OBJECT (B-08 Contract) ---
+    const matrixAvg = { C1: 0, C2: 0, C3: 0, C4: 0, C5: 0, C6: 0 };
+    const m = rawEvaluations.length;
+    if (m > 0) {
+      for (const ev of rawEvaluations) {
+        const raw = RecommendationContractFormatter.extractRawScores(ev.criteria);
+        for (const code of Object.keys(matrixAvg)) {
+          matrixAvg[code] += (raw[code] || 0) / m;
+        }
+      }
+    }
+
+    const allZoneQualities = [];
+    const allZoneWarnings = [];
+
     const traceableRankings = topsisRes.rankings.map((rk) => {
       const rawObj = rawEvaluations.find((ev) => ev.zone_id === rk.id);
+      const criteriaObj = rawObj ? rawObj.criteria : {};
       const normRow = topsisRes.normalized_matrix.find((n) => n.id === rk.id);
       const weightRow = topsisRes.weighted_matrix.find((w) => w.id === rk.id);
+
+      const rawScores = RecommendationContractFormatter.extractRawScores(criteriaObj);
+      const provenance = RecommendationContractFormatter.extractProvenance(criteriaObj);
+      const zoneWarnings = RecommendationContractFormatter.extractWarnings(criteriaObj);
+      const zoneQualities = Object.values(provenance).map((p) => p.quality);
+      const zoneQuality = RecommendationContractFormatter.aggregateQuality(zoneQualities);
+
+      allZoneQualities.push(zoneQuality);
+      zoneWarnings.forEach((w) => {
+        if (!allZoneWarnings.includes(w)) allZoneWarnings.push(w);
+      });
+
+      const reasoning = RecommendationContractFormatter.generateReasoning(
+        rawScores,
+        matrixAvg,
+        rk.rank,
+        rk.preference_score,
+        rk.name || rawObj?.zone_name || "Zona"
+      );
 
       return {
         rank: rk.rank,
         zone_id: rk.id,
-        zone_name: rk.name,
+        zone_name: rk.name || rawObj?.zone_name || "Zona",
         preference_score: rk.preference_score,
+        preference_score_pct: `${(rk.preference_score * 100).toFixed(2)}%`,
         preference_score_full: rk.preference_score_full,
         d_pos: rk.d_pos,
         d_neg: rk.d_neg,
+        model: {
+          evaluation_version: RecommendationContractFormatter.EVALUATION_VERSION,
+          model_version: RecommendationContractFormatter.MODEL_VERSION,
+          weight_source: bwmMetadata.weight_source,
+        },
+        data_quality: zoneQuality,
+        warnings: zoneWarnings,
+        raw_scores: rawScores,
+        provenance,
+        reasoning,
         traceability: {
-          raw_criteria: rawObj ? rawObj.criteria : {},
+          raw_criteria: criteriaObj,
           normalized_r: normRow ? normRow.r : {},
           weighted_v: weightRow ? weightRow.y : {},
         },
       };
     });
 
+    const overallQuality = RecommendationContractFormatter.aggregateQuality(allZoneQualities);
+
     const evaluationResult = {
-      evaluation_version: "DSS-HYBRID-BWM-TOPSIS-v1.1",
+      status: "success",
+      evaluation_version: RecommendationContractFormatter.EVALUATION_VERSION,
+      model_version: RecommendationContractFormatter.MODEL_VERSION,
       evaluated_at: evaluatedAt.toISOString(),
       time_slot: activeSlot,
+      weight_source: bwmMetadata.weight_source,
+      data_status: "COMPLETE",
+      data_quality: overallQuality,
+      warnings: allZoneWarnings,
       total_evaluated_zones: rawEvaluations.length,
       excluded_zones: excludedZones,
       bwm_config: bwmMetadata,

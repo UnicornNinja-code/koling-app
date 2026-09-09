@@ -1,11 +1,7 @@
-/*
- * POITimeCrowdService.js
- * Singleton Service for C3 Criteria (Time-based Crowd Score) Management & Zone Evaluation.
- */
-
 import { PoiCategoryModel } from "../../models/poiCategoryModel.js";
 import { poiRepository } from "../../repositories/poiRepository.js";
 import { TimeSlotEvaluator } from "../../utils/TimeSlotEvaluator.js";
+import { auditLogger } from "../../utils/AuditLogger.js";
 
 export class POITimeCrowdService {
   static instance = null;
@@ -41,9 +37,23 @@ export class POITimeCrowdService {
   }
 
   /**
-   * Update time-based crowd scores for a single category by ID
+   * Fetch standardized C3 Master Data crowd scores configuration
    */
-  async updateCategoryTimeScores(categoryId, { score_pagi, score_siang, score_sore, score_malam }) {
+  async getCrowdScoresStandard() {
+    const categories = await PoiCategoryModel.getCrowdScores();
+    return {
+      status: "success",
+      evaluation_version: "DSS-CRITERIA-v1.0",
+      methodology: "EXPERT_BASELINE_LIKERT_1_5",
+      time_slots: ["pagi", "siang", "sore", "malam"],
+      categories,
+    };
+  }
+
+  /**
+   * Update time-based crowd scores for a single category by ID with audit logging
+   */
+  async updateCategoryTimeScores(categoryId, payload, authUser = null) {
     const category = await PoiCategoryModel.findById(categoryId);
     if (!category) {
       const error = new Error(`Kategori POI dengan ID '${categoryId}' tidak ditemukan.`);
@@ -51,10 +61,22 @@ export class POITimeCrowdService {
       throw error;
     }
 
-    const validatedPagi = this.validateLikertScore(score_pagi, "score_pagi");
-    const validatedSiang = this.validateLikertScore(score_siang, "score_siang");
-    const validatedSore = this.validateLikertScore(score_sore, "score_sore");
-    const validatedMalam = this.validateLikertScore(score_malam, "score_malam");
+    const pagi = payload.pagi !== undefined ? payload.pagi : payload.score_pagi;
+    const siang = payload.siang !== undefined ? payload.siang : payload.score_siang;
+    const sore = payload.sore !== undefined ? payload.sore : payload.score_sore;
+    const malam = payload.malam !== undefined ? payload.malam : payload.score_malam;
+
+    const validatedPagi = this.validateLikertScore(pagi, "score_pagi");
+    const validatedSiang = this.validateLikertScore(siang, "score_siang");
+    const validatedSore = this.validateLikertScore(sore, "score_sore");
+    const validatedMalam = this.validateLikertScore(malam, "score_malam");
+
+    const previousScores = {
+      pagi: category.score_pagi,
+      siang: category.score_siang,
+      sore: category.score_sore,
+      malam: category.score_malam,
+    };
 
     const updatedCategory = await PoiCategoryModel.updateTimeScores(categoryId, {
       score_pagi: validatedPagi,
@@ -63,13 +85,35 @@ export class POITimeCrowdService {
       score_malam: validatedMalam,
     });
 
+    const newScores = {
+      pagi: updatedCategory.score_pagi,
+      siang: updatedCategory.score_siang,
+      sore: updatedCategory.score_sore,
+      malam: updatedCategory.score_malam,
+    };
+
+    // Non-blocking Audit Logging
+    await auditLogger.logAction({
+      userId: authUser?.id || authUser?.userId || null,
+      userRole: authUser?.role || "SUPERADMIN",
+      action: "UPDATE_POI_CATEGORY_CROWD_SCORES",
+      entityType: "POI_CATEGORY",
+      entityId: categoryId,
+      details: {
+        category_id: categoryId,
+        category_name: category.name,
+        previous_scores: previousScores,
+        new_scores: newScores,
+      },
+    });
+
     return updatedCategory;
   }
 
   /**
-   * Bulk update time-based crowd scores for multiple categories
+   * Bulk update time-based crowd scores for multiple categories with audit logging
    */
-  async bulkUpdateCategoryTimeScores(items) {
+  async bulkUpdateCategoryTimeScores(items, authUser = null) {
     if (!Array.isArray(items) || items.length === 0) {
       const error = new Error("Data bulk update harus berupa array berisi objek kategori POI.");
       error.statusCode = 400;
@@ -77,23 +121,52 @@ export class POITimeCrowdService {
     }
 
     const validatedItems = items.map((item, index) => {
-      if (!item.id && !item.name) {
-        const error = new Error(`Item pada index ${index} harus menyertakan 'id' atau 'name'.`);
+      const targetId = item.id || item.category_id;
+      if (!targetId && !item.name) {
+        const error = new Error(`Item pada index ${index} harus menyertakan 'category_id', 'id', atau 'name'.`);
         error.statusCode = 400;
         throw error;
       }
 
+      const pagi = item.pagi !== undefined ? item.pagi : item.score_pagi;
+      const siang = item.siang !== undefined ? item.siang : item.score_siang;
+      const sore = item.sore !== undefined ? item.sore : item.score_sore;
+      const malam = item.malam !== undefined ? item.malam : item.score_malam;
+
       return {
-        id: item.id,
+        id: targetId,
         name: item.name,
-        score_pagi: this.validateLikertScore(item.score_pagi, `score_pagi (item ${index})`),
-        score_siang: this.validateLikertScore(item.score_siang, `score_siang (item ${index})`),
-        score_sore: this.validateLikertScore(item.score_sore, `score_sore (item ${index})`),
-        score_malam: this.validateLikertScore(item.score_malam, `score_malam (item ${index})`),
+        score_pagi: this.validateLikertScore(pagi, `score_pagi (item ${index})`),
+        score_siang: this.validateLikertScore(siang, `score_siang (item ${index})`),
+        score_sore: this.validateLikertScore(sore, `score_sore (item ${index})`),
+        score_malam: this.validateLikertScore(malam, `score_malam (item ${index})`),
       };
     });
 
     const updated = await PoiCategoryModel.bulkUpdateTimeScores(validatedItems);
+
+    // Non-blocking Audit Logging
+    await auditLogger.logAction({
+      userId: authUser?.id || authUser?.userId || null,
+      userRole: authUser?.role || "SUPERADMIN",
+      action: "BULK_UPDATE_POI_CATEGORY_CROWD_SCORES",
+      entityType: "POI_CATEGORY",
+      entityId: "BULK",
+      details: {
+        total_updated: updated.length,
+        updated_categories: updated.map((c) => ({
+          id: c.id,
+          name: c.name,
+          scores: {
+            pagi: c.score_pagi,
+            siang: c.score_siang,
+            sore: c.score_sore,
+            malam: c.score_malam,
+          },
+        })),
+      },
+    });
+
     return updated;
   }
 
@@ -115,3 +188,4 @@ export class POITimeCrowdService {
 }
 
 export const poiTimeCrowdService = POITimeCrowdService.getInstance();
+

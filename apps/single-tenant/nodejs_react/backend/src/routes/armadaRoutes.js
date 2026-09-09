@@ -1,7 +1,7 @@
 /*
  *   Copyright (c) 2026 
  *   All rights reserved.
- *   armadaRoutes.js (API Routes for Armada Management)
+ *   armadaRoutes.js (API Routes for Armada Management & 5-Min Hold Claim)
  */
 
 import express from "express";
@@ -11,17 +11,25 @@ import {
   createArmada,
   updateArmada,
   deleteArmada,
+  holdArmada,
+  claimArmada,
+  releaseArmada,
 } from "../controllers/armadaController.js";
 import { authenticateToken } from "../middlewares/authMiddleware.js";
 import { checkRole } from "../middlewares/roleMiddleware.js";
 
 const router = express.Router();
 
-// Get all armadas & get by ID (Authenticated users)
+// 1. Get all armadas & get by ID (Authenticated users)
 router.get("/", authenticateToken, getAllArmadas);
 router.get("/:id", authenticateToken, getArmadaById);
 
-// Create, Update, & Delete armadas (RBAC: SUPERADMIN, MANAGEMENT)
+// 2. 5-Minute Hold, Claim, and Release Endpoints (Riders & Staff)
+router.post("/:id/hold", authenticateToken, holdArmada);
+router.post("/:id/claim", authenticateToken, claimArmada);
+router.post("/:id/release", authenticateToken, releaseArmada);
+
+// 3. Create, Update, & Delete armadas (RBAC: SUPERADMIN, MANAGEMENT)
 router.post(
   "/",
   authenticateToken,

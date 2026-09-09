@@ -25,6 +25,8 @@ import systemSettingRoutes from "./src/routes/systemSettingRoutes.js";
 import productRoutes from "./src/routes/productRoutes.js";
 import salesRoutes from "./src/routes/salesRoutes.js";
 import dashboardRoutes from "./src/routes/dashboardRoutes.js";
+import syncRoutes from "./src/routes/syncRoutes.js";
+import analyticsRoutes from "./src/routes/analyticsRoutes.js";
 
 // Initialize BullMQ Background Workers
 import "./src/workers/overpassWorker.js";
@@ -40,7 +42,11 @@ const __dirname = path.dirname(__filename);
 
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import swaggerUi from "swagger-ui-express";
+import YAML from "yamljs";
 import { apiLimiter } from "./src/middlewares/rateLimiterMiddleware.js";
+
+const swaggerDocument = YAML.load(path.join(__dirname, "src/docs/swagger.yaml"));
 
 const app = express();
 const server = http.createServer(app);
@@ -104,6 +110,9 @@ app.use(
   })
 );
 
+// 3. Swagger / OpenAPI 3.0 Documentation UI
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+
 // 4. Register Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
@@ -117,6 +126,7 @@ app.use("/api/distribution", distributionRoutes);
 app.use("/api/armadas", armadaRoutes);
 app.use("/api/fleets", armadaRoutes);
 app.use("/api/rider", riderOperationalRoutes);
+app.use("/api/rider-operational", riderOperationalRoutes);
 app.use("/api/audit-logs", auditRoutes);
 app.use("/api/cron-management", cronRoutes);
 app.use("/api/lbs", lbsRoutes);
@@ -126,6 +136,8 @@ app.use("/api/system-settings", systemSettingRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/sales", salesRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/sync", syncRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 // Global Centralized Error Handling Middleware
 app.use((err, req, res, next) => {

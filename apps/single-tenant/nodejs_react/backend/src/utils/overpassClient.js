@@ -30,9 +30,16 @@ export class OverpassApiClient {
   }
 
   /**
-   * Executing Overpass QL Query with automatic mirror failover & retry logic
+   * Helper sleep delay
    */
-  async fetchOverpassData(query) {
+  sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Executing Overpass QL Query with exponential backoff & targeted mirror failover
+   */
+  async fetchOverpassData(query, maxRetriesPerMirror = 2) {
     if (!query || query.trim() === "") {
       throw new Error("Query Overpass QL tidak boleh kosong");
     }
@@ -42,31 +49,59 @@ export class OverpassApiClient {
 
     let lastError = null;
 
-    for (const url of this.mirrors) {
-      try {
-        console.log(`🌐 [OverpassApiClient] Memanggil API: ${url}...`);
-        const response = await fetch(url, {
-          method: "POST",
-          headers: {
-            "User-Agent": this.userAgent,
-            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-            "Accept": "application/json, */*",
-          },
-          body: params.toString(),
-        });
+    for (let mirrorIdx = 0; mirrorIdx < this.mirrors.length; mirrorIdx++) {
+      const url = this.mirrors[mirrorIdx];
 
-        if (!response.ok) {
-          const text = await response.text();
-          console.warn(`⚠️ [OverpassApiClient] (${url}) HTTP ${response.status} ${response.statusText}: ${text.slice(0, 200)}`);
-          lastError = new Error(`HTTP ${response.status}: ${response.statusText}`);
-          continue; // Failover to next mirror
+      for (let attempt = 1; attempt <= maxRetriesPerMirror; attempt++) {
+        try {
+          console.log(`🌐 [OverpassApiClient] Memanggil API: ${url} (Percobaan ${attempt}/${maxRetriesPerMirror})...`);
+          
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
+
+          const response = await fetch(url, {
+            method: "POST",
+            headers: {
+              "User-Agent": this.userAgent,
+              "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+              "Accept": "application/json, */*",
+            },
+            body: params.toString(),
+            signal: controller.signal,
+          });
+
+          clearTimeout(timeoutId);
+
+          if (!response.ok) {
+            const isTransient = [429, 500, 502, 503, 504].includes(response.status);
+            const text = await response.text();
+            console.warn(`⚠️ [OverpassApiClient] (${url}) HTTP ${response.status}: ${text.slice(0, 150)}`);
+            lastError = new Error(`HTTP ${response.status}: ${response.statusText}`);
+
+            if (isTransient && attempt < maxRetriesPerMirror) {
+              const backoffMs = attempt * 1500;
+              console.log(`⏳ [OverpassApiClient] Menunggu backoff ${backoffMs}ms sebelum retry...`);
+              await this.sleep(backoffMs);
+              continue;
+            }
+            break; // Move to next mirror on non-retryable or exhausted retries
+          }
+
+          const data = await response.json();
+          return data.elements || [];
+        } catch (error) {
+          const isTimeoutOrNetwork = error.name === "AbortError" || error.code === "ECONNRESET" || error.code === "ETIMEDOUT";
+          console.error(`💥 [OverpassApiClient] Error (${url}) percobaan ${attempt}:`, error.message);
+          lastError = error;
+
+          if (isTimeoutOrNetwork && attempt < maxRetriesPerMirror) {
+            const backoffMs = attempt * 1500;
+            console.log(`⏳ [OverpassApiClient] Menunggu backoff ${backoffMs}ms akibat network timeout...`);
+            await this.sleep(backoffMs);
+            continue;
+          }
+          break; // Move to next mirror
         }
-
-        const data = await response.json();
-        return data.elements || [];
-      } catch (error) {
-        console.error(`💥 [OverpassApiClient] Error mirror (${url}):`, error.message);
-        lastError = error;
       }
     }
 

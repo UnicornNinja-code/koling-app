@@ -21,14 +21,14 @@ export const Select = forwardRef(function Select(
   const selectId = id || (label ? `select-${label.toLowerCase().replace(/\s+/g, "-")}` : undefined);
 
   return (
-    <div className="w-full space-y-1.5 text-left">
+    <div className="w-full space-y-1 text-left">
       {label && (
         <label
           htmlFor={selectId}
-          className="block text-xs font-semibold text-slate-700"
+          className="block text-xs font-semibold text-[#525252]"
         >
           {label}
-          {required && <span className="text-[#FF634A] ml-0.5">*</span>}
+          {required && <span className="text-[#DC2626] ml-0.5">*</span>}
         </label>
       )}
 
@@ -39,11 +39,11 @@ export const Select = forwardRef(function Select(
           disabled={disabled}
           required={required}
           className={cn(
-            "w-full bg-white text-slate-900 border border-[#D2D2D4] rounded-lg appearance-none",
-            "px-3.5 py-2.5 pr-9 min-h-[44px] text-xs md:text-sm transition-all outline-none",
-            "focus:border-[#FF634A] focus:ring-1 focus:ring-[#FF634A]",
-            "disabled:bg-[#F4F4F6] disabled:text-slate-400 disabled:cursor-not-allowed cursor-pointer",
-            error && "border-rose-500 focus:border-rose-500 focus:ring-rose-500",
+            "w-full bg-white text-[#111111] border border-[#E5E5E5] rounded-[4px] appearance-none",
+            "px-2.5 py-1.5 pr-8 min-h-[34px] text-xs transition-colors outline-none",
+            "focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB]",
+            "disabled:bg-[#F5F5F5] disabled:text-[#A3A3A3] disabled:cursor-not-allowed cursor-pointer",
+            error && "border-[#DC2626] focus:border-[#DC2626] focus:ring-[#DC2626]",
             className
           )}
           {...props}
@@ -58,20 +58,21 @@ export const Select = forwardRef(function Select(
             : children}
         </select>
 
-        <div className="absolute right-3 text-slate-400 pointer-events-none flex items-center justify-center">
+        <div className="absolute right-3 text-[#A3A3A3] pointer-events-none flex items-center justify-center">
           <ChevronDown className="w-4 h-4" />
         </div>
       </div>
 
       {error && (
-        <p className="text-[11px] font-medium text-rose-600 flex items-center gap-1">
+        <p className="text-[11px] font-medium text-[#DC2626] flex items-center gap-1">
           <span>{error}</span>
         </p>
       )}
 
       {!error && helperText && (
-        <p className="text-[11px] text-slate-500 font-normal">{helperText}</p>
+        <p className="text-[11px] text-[#737373] font-normal">{helperText}</p>
       )}
     </div>
   );
 });
+

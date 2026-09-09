@@ -12,24 +12,24 @@ export function Alert({
 }) {
   const configs = {
     info: {
-      bg: "bg-blue-50/90 text-blue-900 border-blue-200",
+      bg: "bg-blue-500/10 text-blue-300 border-blue-500/25",
       icon: Info,
-      iconColor: "text-blue-600",
+      iconColor: "text-blue-400",
     },
     success: {
-      bg: "bg-emerald-50/90 text-emerald-900 border-emerald-200",
+      bg: "bg-emerald-500/10 text-emerald-300 border-emerald-500/25",
       icon: CheckCircle2,
-      iconColor: "text-emerald-600",
+      iconColor: "text-emerald-400",
     },
     warning: {
-      bg: "bg-amber-50/90 text-amber-900 border-amber-200",
+      bg: "bg-amber-500/10 text-amber-300 border-amber-500/25",
       icon: AlertTriangle,
-      iconColor: "text-amber-600",
+      iconColor: "text-amber-400",
     },
     danger: {
-      bg: "bg-rose-50/90 text-rose-900 border-rose-200",
+      bg: "bg-rose-500/10 text-rose-300 border-rose-500/25",
       icon: AlertCircle,
-      iconColor: "text-rose-600",
+      iconColor: "text-rose-400",
     },
   };
 

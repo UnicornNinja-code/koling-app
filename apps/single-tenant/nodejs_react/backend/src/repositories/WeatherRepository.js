@@ -117,13 +117,13 @@ export class WeatherRepository {
   }
 
   /**
-   * Fetch cached weather for a zone if created within ttlMinutes
+   * Fetch cached weather for a zone if still fresh (expires_at > NOW())
    */
-  async getCachedWeather(zoneId, ttlMinutes = 60) {
+  async getCachedWeather(zoneId, ttlMinutes = 30) {
     const query = `
       SELECT * FROM weathers 
       WHERE zone_id = $1 
-        AND updated_at >= NOW() - ($2 || ' minutes')::interval
+        AND (expires_at > NOW() OR updated_at >= NOW() - ($2 || ' minutes')::interval)
       ORDER BY updated_at DESC
       LIMIT 1;
     `;
@@ -132,10 +132,12 @@ export class WeatherRepository {
   }
 
   /**
-   * Upsert cached weather payload into weathers table
+   * Upsert cached weather payload into weathers table with DB-level freshness
    */
-  async saveCachedWeather(zoneId, weatherPayload) {
-    const hourlyJson = JSON.stringify(weatherPayload.hourly || {});
+  async saveCachedWeather(zoneId, weatherPayload, ttlMinutes = 30) {
+    const supporting = weatherPayload.supporting_info || {};
+    const riskScore = weatherPayload.skor_c4 !== undefined ? weatherPayload.skor_c4 : (weatherPayload.weather_risk_score || 0);
+    const conditionLabel = weatherPayload.condition_label || supporting.condition_label || "Normal";
 
     // Delete previous cached entry for this zone to keep table clean
     await this.pool.query(`DELETE FROM weathers WHERE zone_id = $1;`, [zoneId]);
@@ -144,13 +146,14 @@ export class WeatherRepository {
       INSERT INTO weathers (
         zone_id, timestamp, temperature_2m, relative_humidity_2m, 
         dew_point_2m, apparent_temperature, precipitation_probability, 
-        precipitation, rain, weather_code, showers, visibility, updated_at
+        precipitation, rain, weather_code, showers, visibility,
+        weather_risk_score, condition_label, expires_at, updated_at
       ) VALUES (
-        $1, CURRENT_TIMESTAMP, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP
+        $1, CURRENT_TIMESTAMP, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+        $12, $13, CURRENT_TIMESTAMP + ($14 || ' minutes')::interval, CURRENT_TIMESTAMP
       ) RETURNING *;
     `;
 
-    const supporting = weatherPayload.supporting_info || {};
     const values = [
       zoneId,
       supporting.temperature || 0,
@@ -163,11 +166,13 @@ export class WeatherRepository {
       supporting.weather_code || 0,
       0,
       10000,
+      riskScore,
+      conditionLabel,
+      ttlMinutes,
     ];
 
     const { rows } = await this.pool.query(query, values);
     
-    // Store full raw hourly object into metadata / updated entry
     if (rows[0]) {
       rows[0].hourly_cache = weatherPayload.hourly;
     }

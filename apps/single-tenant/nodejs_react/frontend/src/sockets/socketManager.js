@@ -2,7 +2,7 @@ import { io } from "socket.io-client";
 import { SOCKET_EVENTS } from "./socketEvents.js";
 import { defaultDeduplicator } from "./eventDeduplicator.js";
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:9000";
+const SOCKET_URL = (typeof import.meta !== "undefined" && import.meta.env?.VITE_SOCKET_URL) || "http://localhost:9000";
 
 class SocketManager {
   constructor() {
@@ -15,7 +15,7 @@ class SocketManager {
    * Initializes and connects Socket.io client with JWT handshake auth
    */
   connect(token) {
-    if (this.socket && this.isConnected) return this.socket;
+    if (this.socket) return this.socket;
 
     const authToken = token || localStorage.getItem("token");
     if (!authToken) return null;
@@ -31,7 +31,7 @@ class SocketManager {
 
     this.socket.on(SOCKET_EVENTS.CONNECT, () => {
       this.isConnected = true;
-      console.log("⚡ [SOCKET.IO] Connected to Real-Time Server:", this.socket.id);
+      console.log("⚡ [SOCKET.IO] Connected to Real-Time Server:", this.socket?.id || "established");
     });
 
     this.socket.on(SOCKET_EVENTS.CONNECT_ERROR, (err) => {

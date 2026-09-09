@@ -61,7 +61,7 @@ export function BottomNav() {
   const navItems = getNavItems();
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xs border-t border-[#D2D2D4] z-40 px-2 py-1.5 flex items-center justify-around shadow-lg safe-bottom-padding select-none">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[#121215] border-t border-[#24242A] z-40 px-2 py-1 flex items-center justify-around shadow-lg safe-bottom-padding select-none">
       {navItems.map((item) => {
         const Icon = item.icon;
         return (
@@ -69,10 +69,10 @@ export function BottomNav() {
             key={item.path}
             to={item.path}
             className={({ isActive }) =>
-              `flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg transition-all text-[11px] font-semibold min-h-[44px] min-w-[56px] justify-center ${
+              `flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-colors text-[11px] font-medium min-h-[44px] min-w-[56px] justify-center ${
                 isActive
-                  ? "text-[#FF634A] font-bold"
-                  : "text-slate-500 hover:text-slate-800"
+                  ? "text-[#f97316] font-bold"
+                  : "text-[#71717A] hover:text-white"
               }`
             }
           >
@@ -84,3 +84,4 @@ export function BottomNav() {
     </nav>
   );
 }
+

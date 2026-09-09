@@ -21,9 +21,15 @@ export const queryKeys = {
   },
   pois: {
     all: ["pois"],
+    operationalArea: () => ["pois", "operational-area"],
     byZone: (zoneId) => ["pois", "zone", zoneId],
     pending: () => ["pois", "pending"],
     approvalLogs: () => ["pois", "approval-logs"],
+  },
+  competitors: {
+    all: ["competitors"],
+    byZone: (zoneId) => ["competitors", "zone", zoneId],
+    score: (zoneId) => ["competitors", "score", zoneId],
   },
   weather: {
     all: ["weather"],
@@ -33,10 +39,20 @@ export const queryKeys = {
   dss: {
     all: ["dss"],
     active: () => ["dss", "active"],
+    c3CrowdScores: () => ["dss", "c3-crowd-scores"],
     recommendations: (params = {}) => ["dss", "recommendations", params],
     snapshots: (params = {}) => ["dss", "snapshots", params],
     snapshotDetail: (id) => ["dss", "snapshots", "detail", id],
     rawEvaluation: (zoneId, params = {}) => ["dss", "zones", zoneId, "raw-evaluation", params],
+  },
+  analytics: {
+    all: ["analytics"],
+    overview: (params = {}) => ["analytics", "overview", params],
+    operational: (params = {}) => ["analytics", "operational", params],
+    compliance: (params = {}) => ["analytics", "compliance", params],
+    sales: (params = {}) => ["analytics", "sales", params],
+    dssPerformance: (params = {}) => ["analytics", "dss-performance", params],
+    dailyReport: (params = {}) => ["analytics", "reports", "daily", params],
   },
   distribution: {
     all: ["distribution"],
@@ -85,5 +101,17 @@ export const queryKeys = {
   operationalRules: {
     all: ["operationalRules"],
     list: () => ["operationalRules", "list"],
+  },
+  settings: {
+    all: ["settings"],
+    readiness: () => ["settings", "readiness"],
+    hub: () => ["settings", "hub"],
+    operationalRules: () => ["settings", "operational-rules"],
+    mapConfig: () => ["settings", "map-config"],
+  },
+  sync: {
+    all: ["sync"],
+    status: () => ["sync", "status"],
+    runs: () => ["sync", "runs"],
   },
 };

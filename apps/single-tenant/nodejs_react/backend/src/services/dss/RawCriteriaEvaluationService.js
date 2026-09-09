@@ -84,19 +84,28 @@ export class RawCriteriaEvaluationService {
       longitude: comp.longitude,
     }));
 
+    const isAnyDegraded = (c4Res?.data_quality === "DEGRADED");
+    const overallQuality = isAnyDegraded ? "DEGRADED" : "VALID";
+
     return {
       zone_id: zone.id,
       zone_name: zone.name,
       evaluation_version: "DSS-CRITERIA-v1.0",
       evaluated_at: evaluatedAt.toISOString(),
       time_slot: activeSlot,
+      data_status: "COMPLETE",
+      data_quality: overallQuality,
       criteria: {
         C1: {
           code: "C1",
           name: "Densitas POI",
           type: "BENEFIT",
           raw_value: c1Val,
+          value: c1Val,
           unit: "POI",
+          source: "POI_MASTER_POSTGIS",
+          quality: "VALID",
+          methodology: "DISTINCT_LOGICAL_POI_COUNT",
           details: { total_distinct_logical_pois: c1Val },
         },
         C2: {
@@ -104,7 +113,11 @@ export class RawCriteriaEvaluationService {
           name: "Diversitas POI",
           type: "BENEFIT",
           raw_value: c2Val,
+          value: c2Val,
           unit: "CATEGORY",
+          source: "POI_MASTER_POSTGIS",
+          quality: "VALID",
+          methodology: "DISTINCT_ACTIVE_CATEGORY_COUNT",
           details: { total_distinct_active_categories: c2Val },
         },
         C3: {
@@ -112,7 +125,11 @@ export class RawCriteriaEvaluationService {
           name: "Keramaian Waktu",
           type: "BENEFIT",
           raw_value: c3Val,
+          value: c3Val,
           unit: "SCORE",
+          source: "POI_TIME_SCORES",
+          quality: "VALID",
+          methodology: "EXPERT_BASELINE_LIKERT_1_5",
           details: c3Details,
         },
         C4: {
@@ -120,7 +137,12 @@ export class RawCriteriaEvaluationService {
           name: "Kondisi Cuaca",
           type: "COST",
           raw_value: c4Val,
+          value: c4Val,
           unit: "PERCENT",
+          source: c4Res?.source || "OPEN_METEO",
+          quality: c4Res?.data_quality || "FRESH",
+          methodology: "OPERATIONAL_HOURS_MAX_PRECIPITATION_PROBABILITY",
+          warning: c4Res?.warning || null,
           details: {
             source: "Open-Meteo API",
             max_precipitation_probability: c4Val,
@@ -135,11 +157,15 @@ export class RawCriteriaEvaluationService {
           name: "Jarak Aksesibilitas",
           type: "COST",
           raw_value: c5Val,
+          value: c5Val,
           unit: "KM",
+          source: c5Res?.source || c5Res?.origin?.type || "DEFAULT_HUB",
+          quality: c5Res?.data_quality || (c5Res?.origin?.type === "RIDER_LIVE_LOCATION" ? "OPERATIONAL" : "BASELINE"),
+          methodology: "GEODESIC_DISTANCE_CENTROID",
           details: {
             distance_meters: c5Res?.distance_meters || 0,
             centroid: c5Res?.centroid || { latitude: 0, longitude: 0 },
-            origin: c5Res?.origin || { type: "HUB_DEFAULT_LOCATION", latitude: 0, longitude: 0 },
+            origin: c5Res?.origin || { type: "DEFAULT_HUB", latitude: -7.397402, longitude: 112.711958 },
           },
         },
         C6: {
@@ -147,7 +173,11 @@ export class RawCriteriaEvaluationService {
           name: "Tingkat Persaingan",
           type: "COST",
           raw_value: c6Val,
+          value: c6Val,
           unit: "INDEX",
+          source: "COMPETITOR_COMBINED",
+          quality: "VALID",
+          methodology: "SURVEY_AND_COFFEE_POI_WEIGHTED_SUM",
           details: formattedCompetitors,
         },
       },

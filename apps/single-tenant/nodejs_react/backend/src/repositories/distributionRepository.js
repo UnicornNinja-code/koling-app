@@ -1,7 +1,7 @@
 /*
  *   Copyright (c) 2026 
  *   All rights reserved.
- *   distributionRepository.js (Data Access Layer for rider_duty_queues and zone_assignments)
+ *   distributionRepository.js (Data Access Layer for distribution_runs, rider_duty_queues, and zone_assignments)
  */
 
 import { pool } from "../config/database.js";
@@ -84,21 +84,131 @@ export class DistributionRepository {
   }
 
   /**
-   * Create zone assignment for rider & update duty queue status
+   * Create Distribution Execution Run Record
    */
-  async createAssignment({ rider_id, zone_id, assigned_by = null, assignment_type = "AUTO" }) {
+  async createDistributionRun({
+    dss_history_id = null,
+    time_slot,
+    execution_type = "AUTO",
+    executed_by = null,
+    total_waiting_riders = 0,
+    total_assigned_riders = 0,
+    total_unassigned_riders = 0,
+    is_capacity_sufficient = true,
+    summary = {},
+  }) {
+    const query = `
+      INSERT INTO distribution_runs (
+        dss_history_id, time_slot, execution_type, executed_by,
+        total_waiting_riders, total_assigned_riders, total_unassigned_riders,
+        is_capacity_sufficient, summary
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING *;
+    `;
+    const { rows } = await this.pool.query(query, [
+      dss_history_id,
+      time_slot,
+      execution_type,
+      executed_by,
+      total_waiting_riders,
+      total_assigned_riders,
+      total_unassigned_riders,
+      is_capacity_sufficient,
+      JSON.stringify(summary),
+    ]);
+    return rows[0];
+  }
+
+  /**
+   * Fetch recent distribution runs
+   */
+  async findDistributionRuns(limit = 20) {
+    const query = `
+      SELECT 
+        dr.*,
+        u.name AS executed_by_name,
+        u.role AS executed_by_role
+      FROM distribution_runs dr
+      LEFT JOIN users u ON dr.executed_by = u.id
+      ORDER BY dr.created_at DESC
+      LIMIT $1;
+    `;
+    const { rows } = await this.pool.query(query, [limit]);
+    return rows;
+  }
+
+  /**
+   * Fetch single distribution run by ID with associated assignments
+   */
+  async findDistributionRunById(id) {
+    const runQuery = `
+      SELECT 
+        dr.*,
+        u.name AS executed_by_name
+      FROM distribution_runs dr
+      LEFT JOIN users u ON dr.executed_by = u.id
+      WHERE dr.id = $1;
+    `;
+    const { rows: runRows } = await this.pool.query(runQuery, [id]);
+    if (!runRows[0]) return null;
+
+    const assignmentsQuery = `
+      SELECT 
+        za.*,
+        u.name AS rider_name,
+        z.name AS zone_name,
+        a.code AS armada_code
+      FROM zone_assignments za
+      JOIN users u ON za.rider_id = u.id
+      JOIN zones z ON za.zone_id = z.id
+      LEFT JOIN armadas a ON za.armada_id = a.id
+      WHERE za.distribution_run_id = $1
+      ORDER BY za.topsis_rank ASC NULLS LAST, za.created_at ASC;
+    `;
+    const { rows: assignRows } = await this.pool.query(assignmentsQuery, [id]);
+
+    return {
+      ...runRows[0],
+      assignments: assignRows,
+    };
+  }
+
+  /**
+   * Create zone assignment for rider & update duty queue status (with DSS Linkage)
+   */
+  async createAssignment(params) {
+    const rider_id = params.rider_id || params.riderId;
+    const zone_id = params.zone_id || params.zoneId;
+    const assigned_by = params.assigned_by || params.assignedBy || null;
+    const assignment_type = params.assignment_type || params.assignmentType || "AUTO";
+    const distribution_run_id = params.distribution_run_id || params.distributionRunId || null;
+    const dss_history_id = params.dss_history_id || params.dssHistoryId || null;
+    const topsis_rank = params.topsis_rank || params.topsisRank || null;
+    const preference_score = params.preference_score || params.preferenceScore || null;
+    const evaluation_version = params.evaluation_version || params.evaluationVersion || "DSS-CRITERIA-v1.0";
+    const model_version = params.model_version || params.modelVersion || "BWM-TOPSIS-v1.0";
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
 
-      // 1. Insert into zone_assignments
+      // 1. Insert or update zone_assignments with DSS Linkage
       const assignQuery = `
-        INSERT INTO zone_assignments (rider_id, zone_id, assigned_by, assignment_type, assignment_date, status)
-        VALUES ($1, $2, $3, $4, CURRENT_DATE, 'ASSIGNED')
+        INSERT INTO zone_assignments (
+          rider_id, zone_id, assigned_by, assignment_type, assignment_date, status,
+          distribution_run_id, dss_history_id, topsis_rank, preference_score,
+          evaluation_version, model_version
+        )
+        VALUES ($1, $2, $3, $4, CURRENT_DATE, 'ASSIGNED', $5, $6, $7, $8, $9, $10)
         ON CONFLICT (rider_id, assignment_date) DO UPDATE
         SET zone_id = EXCLUDED.zone_id,
             assigned_by = EXCLUDED.assigned_by,
             assignment_type = EXCLUDED.assignment_type,
+            distribution_run_id = EXCLUDED.distribution_run_id,
+            dss_history_id = EXCLUDED.dss_history_id,
+            topsis_rank = EXCLUDED.topsis_rank,
+            preference_score = EXCLUDED.preference_score,
+            evaluation_version = EXCLUDED.evaluation_version,
+            model_version = EXCLUDED.model_version,
             status = 'ASSIGNED',
             created_at = CURRENT_TIMESTAMP
         RETURNING *;
@@ -108,6 +218,12 @@ export class DistributionRepository {
         zone_id,
         assigned_by,
         assignment_type,
+        distribution_run_id,
+        dss_history_id,
+        topsis_rank,
+        preference_score,
+        evaluation_version,
+        model_version,
       ]);
       const assignment = rows[0];
 
@@ -128,6 +244,98 @@ export class DistributionRepository {
   }
 
   /**
+   * Get Unified Operational Status for Rider (One-Stop Status Aggregation)
+   */
+  async getRiderUnifiedStatus(riderId) {
+    // 1. Check today's duty queue
+    const queueQuery = `
+      SELECT * FROM rider_duty_queues 
+      WHERE rider_id = $1 AND duty_date = CURRENT_DATE;
+    `;
+    const { rows: queueRows } = await this.pool.query(queueQuery, [riderId]);
+    const queueItem = queueRows[0] || null;
+
+    // 2. Calculate FIFO queue position if WAITING
+    let queuePosition = null;
+    if (queueItem && queueItem.status === "WAITING") {
+      const posQuery = `
+        SELECT COUNT(*)::int AS position 
+        FROM rider_duty_queues 
+        WHERE duty_date = CURRENT_DATE 
+          AND status = 'WAITING' 
+          AND confirmed_at <= $1;
+      `;
+      const { rows: posRows } = await this.pool.query(posQuery, [queueItem.confirmed_at]);
+      queuePosition = posRows[0]?.position || 1;
+    }
+
+    // 3. Check today's assignment
+    const assignQuery = `
+      SELECT 
+        za.*,
+        z.name AS zone_name,
+        z.polygon AS zone_polygon,
+        u.name AS assigned_by_name
+      FROM zone_assignments za
+      JOIN zones z ON za.zone_id = z.id
+      LEFT JOIN users u ON za.assigned_by = u.id
+      WHERE za.rider_id = $1 AND za.assignment_date = CURRENT_DATE;
+    `;
+    const { rows: assignRows } = await this.pool.query(assignQuery, [riderId]);
+    const assignment = assignRows[0] || null;
+
+    // 4. Check active/held armada
+    const armadaQuery = `
+      SELECT 
+        id, code, type, status, reserved_until,
+        CASE 
+          WHEN current_rider_id = $1 THEN 'CLAIMED'
+          WHEN reserved_by_rider_id = $1 AND reserved_until >= NOW() THEN 'HELD'
+          ELSE 'NONE'
+        END AS rider_relation
+      FROM armadas
+      WHERE current_rider_id = $1 
+         OR (reserved_by_rider_id = $1 AND reserved_until >= NOW());
+    `;
+    const { rows: armadaRows } = await this.pool.query(armadaQuery, [riderId]);
+    const armada = armadaRows[0] || null;
+
+    let dutyStatus = "UNCONFIRMED";
+    if (assignment) {
+      dutyStatus = assignment.status; // 'ASSIGNED', 'CHECKED_IN', 'COMPLETED'
+    } else if (queueItem) {
+      dutyStatus = queueItem.status; // 'WAITING', 'PLOTTED'
+    }
+
+    return {
+      duty_status: dutyStatus,
+      queue_position: queuePosition,
+      duty_confirmed_at: queueItem?.confirmed_at || null,
+      assignment: assignment ? {
+        id: assignment.id,
+        zone_id: assignment.zone_id,
+        zone_name: assignment.zone_name,
+        assignment_type: assignment.assignment_type,
+        status: assignment.status,
+        topsis_rank: assignment.topsis_rank,
+        preference_score: assignment.preference_score,
+        dss_history_id: assignment.dss_history_id,
+        distribution_run_id: assignment.distribution_run_id,
+        evaluation_version: assignment.evaluation_version,
+        model_version: assignment.model_version,
+        assigned_at: assignment.created_at,
+      } : null,
+      fleet: armada ? {
+        armada_id: armada.id,
+        code: armada.code,
+        type: armada.type,
+        status: armada.rider_relation,
+        reserved_until: armada.reserved_until,
+      } : null,
+    };
+  }
+
+  /**
    * Fetch personal operational duty & assignment history for a specific rider
    */
   async getRiderDutyHistory(riderId, limit = 30) {
@@ -137,6 +345,9 @@ export class DistributionRepository {
         za.assignment_date,
         za.assignment_type,
         za.status AS assignment_status,
+        za.topsis_rank,
+        za.preference_score,
+        za.dss_history_id,
         za.created_at AS assigned_at,
         z.id AS zone_id,
         z.name AS zone_name,
@@ -163,8 +374,8 @@ export class DistributionRepository {
   async resetTodayDistribution() {
     await this.pool.query("DELETE FROM zone_assignments WHERE assignment_date = CURRENT_DATE;");
     await this.pool.query("DELETE FROM rider_duty_queues WHERE duty_date = CURRENT_DATE;");
+    await this.pool.query("DELETE FROM distribution_runs WHERE created_at::date = CURRENT_DATE;");
   }
 }
 
 export const distributionRepository = DistributionRepository.getInstance();
-

@@ -46,23 +46,23 @@ export function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col justify-center py-12 sm:px-6 lg:px-8 px-4">
+    <div className="min-h-screen bg-[#FAFAFA] flex flex-col justify-center py-12 sm:px-6 lg:px-8 px-4">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         {/* Brand Header */}
         <div className="text-center space-y-2 mb-6">
-          <div className="w-12 h-12 bg-[#FF5052] rounded-xl flex items-center justify-center text-white mx-auto shadow-md shadow-red-200 shrink-0">
+          <div className="w-12 h-12 bg-[#2563EB] rounded-[10px] flex items-center justify-center text-white mx-auto shadow-md shadow-blue-200 shrink-0">
             <Coffee className="w-6 h-6" />
           </div>
-          <h1 className="text-2xl font-heading font-extrabold text-slate-900 tracking-tight">
+          <h1 className="text-2xl font-heading font-extrabold text-[#111111] tracking-tight">
             Lupa Kata Sandi
           </h1>
-          <p className="text-xs text-slate-500 font-medium">
+          <p className="text-xs text-[#737373] font-normal">
             Masukkan email terdaftar untuk menerima instruksi pemulihan akun
           </p>
         </div>
 
         {/* Card Form Container */}
-        <div className="bg-white py-8 px-6 sm:px-8 rounded-2xl border border-slate-200 shadow-xl space-y-5">
+        <div className="bg-white py-8 px-6 sm:px-8 rounded-[12px] border border-[#E5E5E5] shadow-2xs space-y-5">
           {successMsg && (
             <Alert variant="success" title="Permintaan Terkirim">
               {successMsg}
@@ -92,7 +92,7 @@ export function ForgotPasswordPage() {
                 variant="primary"
                 size="md"
                 isPending={loading}
-                className="w-full py-3 shadow-xs font-bold"
+                className="w-full py-2.5 font-bold"
                 rightIcon={Send}
               >
                 {loading ? "Mengirim Permintaan..." : "Kirim Tautan Pemulihan"}
@@ -100,10 +100,10 @@ export function ForgotPasswordPage() {
             </form>
           )}
 
-          <div className="pt-3 border-t border-slate-100 text-center">
+          <div className="pt-3 border-t border-[#E5E5E5] text-center">
             <Link
               to="/login"
-              className="inline-flex items-center gap-1.5 text-xs text-slate-600 hover:text-[#FF5052] font-bold"
+              className="inline-flex items-center gap-1.5 text-xs text-[#525252] hover:text-[#2563EB] font-bold"
             >
               <ArrowLeft className="w-3.5 h-3.5" /> Kembali ke Halaman Masuk
             </Link>

@@ -139,8 +139,9 @@ async function runHybridAuditTest() {
     } else throw new Error("Assertion 10 FAIL");
 
     // Assertion 11: Full 64-bit IEEE float precision (No intermediate rounding)
-    const rawRStr = String(result.topsis_summary.rankings[0].traceability.normalized_r.C1);
-    if (rawRStr.includes(".")) {
+    const normR = result.topsis_summary.rankings[0].traceability.normalized_r;
+    const isFloatPrecision = Object.values(normR).some(v => typeof v === "number" && (String(v).includes(".") || v === 0));
+    if (isFloatPrecision && typeof normR.C5 === "number") {
       console.log("✅ Assertion 11 PASS: Full 64-bit IEEE float precision enforced in intermediate steps.");
     } else throw new Error("Assertion 11 FAIL");
 

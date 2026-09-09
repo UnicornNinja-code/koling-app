@@ -1,32 +1,31 @@
 /*
- *   Copyright (c) 2026 
- *   All rights reserved.
- *   lbsController.js (HTTP Controller for Redis Geospatial Proximity & Radius Search)
+ * lbsController.js
+ * HTTP Controller for Milestone B-11: Real-Time Location-Based Services (LBS) & Geofencing
+ * Backed 100% by PostgreSQL / PostGIS as State Authority.
  */
 
-import { redisGeoService } from "../services/lbs/RedisGeoService.js";
 import { lbsGeofenceService } from "../services/lbs/LbsGeofenceService.js";
+import { operationalSessionRepository } from "../repositories/operationalSessionRepository.js";
 
 /**
- * Track Live Rider GPS Location Ping (LBS Geofence + Proximity + DSS Compliance)
- * POST /api/lbs/track
+ * Ingest Rider Live GPS Telemetry Ping
+ * POST /api/lbs/ping and POST /api/lbs/track
  */
-export const trackRiderLocation = async (req, res) => {
+export const pingRiderLocation = async (req, res) => {
   try {
-    const { rider_id, rider_name, lat, lon, speed, heading } = req.body;
+    const { rider_id, rider_name, latitude, longitude, lat, lon, speed, heading, recorded_at } = req.body;
     const riderId = rider_id || req.user?.id || req.user?.userId;
-
-    if (!riderId || lat === undefined || lon === undefined) {
-      return res.status(400).json({ msg: "Parameter 'rider_id', 'lat', dan 'lon' wajib diisi." });
-    }
 
     const result = await lbsGeofenceService.processRiderGpsPing({
       riderId,
       riderName: rider_name || req.user?.name || "Rider Operasional",
-      lat: parseFloat(lat),
-      lon: parseFloat(lon),
-      speed: speed ? parseFloat(speed) : 0,
-      heading: heading ? parseFloat(heading) : 0,
+      latitude,
+      longitude,
+      lat,
+      lon,
+      speed,
+      heading,
+      recorded_at,
     });
 
     return res.status(200).json({
@@ -40,7 +39,30 @@ export const trackRiderLocation = async (req, res) => {
 };
 
 /**
- * Proximity Radius Search: Fetch active Riders near specific GPS coordinates in Redis
+ * Fetch all Live Rider Positions
+ * GET /api/lbs/riders/live
+ */
+export const getLiveRiders = async (req, res) => {
+  try {
+    const { zone_id, compliance } = req.query;
+    const riders = await lbsGeofenceService.getLiveRiderPositions({
+      zoneId: zone_id,
+      compliance,
+    });
+
+    return res.status(200).json({
+      status: "success",
+      total_active: riders.length,
+      data: riders,
+    });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Internal server error" });
+  }
+};
+
+/**
+ * Proximity Radius Search: Fetch active Riders near specific GPS coordinates
  * GET /api/lbs/nearby?lon=112.7183&lat=-7.4478&radius=5&limit=50
  */
 export const getNearbyRiders = async (req, res) => {
@@ -50,18 +72,13 @@ export const getNearbyRiders = async (req, res) => {
     const radius = req.query.radius !== undefined ? req.query.radius : (req.query.radiusKm || 5);
     const limit = req.query.limit || 50;
 
-    if (lon === undefined || lat === undefined) {
-      return res.status(400).json({ msg: "Parameter 'lon' (atau 'longitude') dan 'lat' (atau 'latitude') harus diisi." });
-    }
-
     const startTime = Date.now();
-    const result = await redisGeoService.getNearbyRiders({
-      lon: parseFloat(lon),
-      lat: parseFloat(lat),
-      radiusKm: parseFloat(radius),
-      limit: parseInt(limit, 10),
+    const result = await lbsGeofenceService.getNearbyRiders({
+      lon,
+      lat,
+      radiusKm: radius,
+      limit,
     });
-
     const executionMs = Date.now() - startTime;
 
     return res.status(200).json({
@@ -76,19 +93,23 @@ export const getNearbyRiders = async (req, res) => {
 };
 
 /**
- * Get Single Rider Live Position from Redis
+ * Get Single Rider Live Position
  * GET /api/lbs/riders/:riderId
  */
 export const getRiderLocation = async (req, res) => {
   try {
     const { riderId } = req.params;
-    const result = await redisGeoService.getRiderLocation(riderId);
+    const rows = await lbsGeofenceService.getLiveRiderPositions();
+    const rider = rows.find((r) => r.rider_id === riderId);
 
-    if (!result) {
-      return res.status(404).json({ msg: `Posisi live untuk Rider ID '${riderId}' tidak ditemukan di Redis.` });
+    if (!rider) {
+      return res.status(404).json({ msg: `Posisi live untuk Rider ID '${riderId}' tidak ditemukan.` });
     }
 
-    return res.status(200).json(result);
+    return res.status(200).json({
+      status: "success",
+      data: rider,
+    });
   } catch (error) {
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({ msg: error.message || "Internal server error" });
@@ -96,7 +117,32 @@ export const getRiderLocation = async (req, res) => {
 };
 
 /**
- * Calculate Geodesic Distance between two Riders in Redis
+ * Fetch Discrete Geofence Transition & Audit Logs
+ * GET /api/lbs/zone-logs
+ */
+export const getZoneLogs = async (req, res) => {
+  try {
+    const { rider_id, zone_id, session_id, page, limit } = req.query;
+    const result = await lbsGeofenceService.getZoneLogs({
+      riderId: rider_id,
+      zoneId: zone_id,
+      sessionId: session_id,
+      page,
+      limit,
+    });
+
+    return res.status(200).json({
+      status: "success",
+      ...result,
+    });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Internal server error" });
+  }
+};
+
+/**
+ * Calculate Geodesic Distance between two Riders
  * GET /api/lbs/distance?rider1=ID1&rider2=ID2
  */
 export const calculateRiderDistance = async (req, res) => {
@@ -107,13 +153,34 @@ export const calculateRiderDistance = async (req, res) => {
       return res.status(400).json({ msg: "Parameter 'rider1' dan 'rider2' harus diisi." });
     }
 
-    const result = await redisGeoService.calculateRiderDistance(rider1, rider2);
+    const rows = await lbsGeofenceService.getLiveRiderPositions();
+    const pos1 = rows.find((r) => r.rider_id === rider1);
+    const pos2 = rows.find((r) => r.rider_id === rider2);
 
-    if (!result) {
-      return res.status(404).json({ msg: "Salah satu atau kedua Rider tidak memiliki data posisi di Redis." });
+    if (!pos1 || !pos2) {
+      return res.status(404).json({ msg: "Salah satu atau kedua Rider tidak memiliki data posisi live." });
     }
 
-    return res.status(200).json(result);
+    // Haversine geodesic calculation
+    const R = 6371; // km
+    const dLat = ((pos2.latitude - pos1.latitude) * Math.PI) / 180;
+    const dLon = ((pos2.longitude - pos1.longitude) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((pos1.latitude * Math.PI) / 180) *
+        Math.cos((pos2.latitude * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distanceKm = R * c;
+
+    return res.status(200).json({
+      status: "success",
+      rider1: { id: rider1, name: pos1.rider_name, location: { lat: pos1.latitude, lon: pos1.longitude } },
+      rider2: { id: rider2, name: pos2.rider_name, location: { lat: pos2.latitude, lon: pos2.longitude } },
+      distance_km: parseFloat(distanceKm.toFixed(3)),
+      distance_meters: parseFloat((distanceKm * 1000).toFixed(1)),
+    });
   } catch (error) {
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({ msg: error.message || "Internal server error" });

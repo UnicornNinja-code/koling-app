@@ -2,7 +2,7 @@ import { axiosInstance } from "../lib/axios.js";
 
 export const distributionService = {
   confirmDuty: async (payload = {}) => {
-    const res = await axiosInstance.post("/distribution/duty-confirm", payload);
+    const res = await axiosInstance.post("/distribution/duty/confirm", payload);
     return res.data;
   },
   getOverview: async () => {
@@ -10,11 +10,12 @@ export const distributionService = {
     return res.data;
   },
   autoDistribute: async () => {
-    const res = await axiosInstance.post("/distribution/auto");
+    const res = await axiosInstance.post("/distribution/auto-assign");
     return res.data;
   },
   manualDistribute: async ({ rider_id, zone_id }) => {
-    const res = await axiosInstance.post("/distribution/manual", { rider_id, zone_id });
+    const res = await axiosInstance.post("/distribution/manual-assign", { rider_id, zone_id });
     return res.data;
   },
 };
+

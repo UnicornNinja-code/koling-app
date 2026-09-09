@@ -7,6 +7,7 @@ import { pool } from "../config/database.js";
 import { candidateSellingLocationRepository } from "../repositories/candidateSellingLocationRepository.js";
 import { poiRepository } from "../repositories/poiRepository.js";
 import { zoneRepository } from "../repositories/zoneRepository.js";
+import { spatialRestrictionService } from "./spatial/SpatialRestrictionService.js";
 
 export class CandidateSellingLocationService {
   /**
@@ -28,59 +29,12 @@ export class CandidateSellingLocationService {
   async validateCandidateLocation(input = {}) {
     const { zone_id, poi_id = null, latitude, longitude, name = "Candidate Location", source = "MANUAL" } = input;
 
-    // STEP 1: Coordinate Validation
-    if (!this.isValidCoordinates(latitude, longitude)) {
+    // STEP 1-3: Use SpatialRestrictionService (SSOT for Coordinate, Containment & Road Prohibitions)
+    const spatialCheck = await spatialRestrictionService.validateCandidateSpot(latitude, longitude, zone_id);
+    if (spatialCheck.validation_status === "REJECTED") {
       return {
         validation_status: "REJECTED",
-        rejection_reason: "INVALID_COORDINATES",
-      };
-    }
-
-    // STEP 2: Zone Containment Check via PostGIS ST_Contains
-    if (!zone_id) {
-      return {
-        validation_status: "REJECTED",
-        rejection_reason: "OUTSIDE_ZONE",
-      };
-    }
-
-    const zoneQuery = `
-      SELECT id, name 
-      FROM zones 
-      WHERE id = $1 
-        AND ST_Contains(
-          CASE 
-            WHEN json_typeof(polygon::json) = 'object' THEN ST_GeomFromGeoJSON(polygon::text)
-            ELSE ST_GeomFromGeoJSON(polygon::text)
-          END,
-          ST_SetSRID(ST_MakePoint($3, $2), 4326)
-        );
-    `;
-
-    const { rows: zoneRows } = await pool.query(zoneQuery, [zone_id, latitude, longitude]);
-    if (zoneRows.length === 0) {
-      return {
-        validation_status: "REJECTED",
-        rejection_reason: "OUTSIDE_ZONE",
-      };
-    }
-
-    // STEP 3: Protocol Road Restriction Check via PostGIS ST_Intersects
-    const roadQuery = `
-      SELECT id, name 
-      FROM protocol_roads 
-      WHERE ST_Intersects(
-        geom,
-        ST_Buffer(ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography, 10)::geometry
-      )
-      LIMIT 1;
-    `;
-
-    const { rows: roadRows } = await pool.query(roadQuery, [latitude, longitude]);
-    if (roadRows.length > 0) {
-      return {
-        validation_status: "REJECTED",
-        rejection_reason: "PROHIBITED_ROAD",
+        rejection_reason: spatialCheck.rejection_reason,
       };
     }
 

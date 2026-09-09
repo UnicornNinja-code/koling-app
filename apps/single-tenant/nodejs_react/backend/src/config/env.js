@@ -1,14 +1,14 @@
 import "dotenv/config"
 
 const env = {
-    PORT: Number(process.env.PORT || 9001), 
-    NODE_ENV: process.env.NODE_ENV || 'development',
-    DB: {
-        HOST: process.env.DB_HOST || "localhost",
-        PORT: Number(process.env.DB_PORT || 5432),
-        USER: process.env.DB_USER || "postgres",
-        PASSWORD: process.env.DB_PASSWORD || "secret",
-        NAME: process.env.DB_NAME || "my_db",
+  PORT: Number(process.env.PORT || 5502),
+  NODE_ENV: process.env.NODE_ENV || 'development',
+  DB: {
+    HOST: process.env.DB_HOST || "localhost",
+    PORT: Number(process.env.DB_PORT || 5432),
+    USER: process.env.DB_USER || "postgres",
+    PASSWORD: process.env.DB_PASSWORD || "secret",
+    NAME: process.env.DB_NAME || "mova_db",
   },
   REDIS: {
     HOST: process.env.REDIS_HOST || "localhost",

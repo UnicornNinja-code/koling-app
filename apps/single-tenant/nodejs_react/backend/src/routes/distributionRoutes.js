@@ -7,9 +7,12 @@
 import express from "express";
 import {
   confirmDuty,
+  getRiderDutyStatus,
   getDistributionOverview,
   autoDistribute,
   manualDistribute,
+  getDistributionRuns,
+  getDistributionRunById,
   getMyDutyHistory,
 } from "../controllers/distributionController.js";
 import { authenticateToken } from "../middlewares/authMiddleware.js";
@@ -17,14 +20,26 @@ import { checkRole } from "../middlewares/roleMiddleware.js";
 
 const router = express.Router();
 
-// 1. Rider confirms availability duty for today (RIDER, SPV, SUPERADMIN)
+// 1. Rider Duty Confirmation (RIDER, SUPERVISOR, SUPERADMIN)
+router.post(
+  "/duty/confirm",
+  authenticateToken,
+  confirmDuty
+);
 router.post(
   "/duty-confirm",
   authenticateToken,
   confirmDuty
 );
 
-// 2. Fetch Distribution Overview: FIFO Queue + TOPSIS Ranks + Capacity (SPV, MANAGEMENT, SUPERADMIN)
+// 2. Rider Operational Status Unified Endpoint (All Authenticated)
+router.get(
+  "/duty/status",
+  authenticateToken,
+  getRiderDutyStatus
+);
+
+// 3. Fetch Distribution Overview (SPV, MANAGEMENT, SUPERADMIN)
 router.get(
   "/overview",
   authenticateToken,
@@ -32,7 +47,13 @@ router.get(
   getDistributionOverview
 );
 
-// 3. Trigger Automatic Distribution (FIFO + TOPSIS Rank + Capacity) (SPV, SUPERADMIN)
+// 4. Trigger Automatic Distribution (SPV, SUPERADMIN)
+router.post(
+  "/auto-assign",
+  authenticateToken,
+  checkRole(["SUPERADMIN", "SUPERVISOR"]),
+  autoDistribute
+);
 router.post(
   "/auto",
   authenticateToken,
@@ -40,7 +61,13 @@ router.post(
   autoDistribute
 );
 
-// 4. Trigger Manual Distribution (Plotting single rider manually) (SPV, SUPERADMIN)
+// 5. Trigger Manual Distribution (SPV, SUPERADMIN)
+router.post(
+  "/manual-assign",
+  authenticateToken,
+  checkRole(["SUPERADMIN", "SUPERVISOR"]),
+  manualDistribute
+);
 router.post(
   "/manual",
   authenticateToken,
@@ -48,7 +75,22 @@ router.post(
   manualDistribute
 );
 
-// 5. Fetch authenticated rider's personal duty & assignment history (Ownership-scoped)
+// 6. Distribution Runs Audit History (SPV, MANAGEMENT, SUPERADMIN)
+router.get(
+  "/runs",
+  authenticateToken,
+  checkRole(["SUPERADMIN", "MANAGEMENT", "SUPERVISOR"]),
+  getDistributionRuns
+);
+
+router.get(
+  "/runs/:id",
+  authenticateToken,
+  checkRole(["SUPERADMIN", "MANAGEMENT", "SUPERVISOR"]),
+  getDistributionRunById
+);
+
+// 7. Authenticated Rider Duty & Assignment History
 router.get(
   "/my-history",
   authenticateToken,
@@ -56,4 +98,3 @@ router.get(
 );
 
 export default router;
-

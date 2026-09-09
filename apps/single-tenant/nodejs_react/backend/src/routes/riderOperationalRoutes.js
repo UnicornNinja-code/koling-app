@@ -1,7 +1,6 @@
 /*
- *   Copyright (c) 2026 
- *   All rights reserved.
- *   riderOperationalRoutes.js (API Routes for Rider Daily Operations)
+ * riderOperationalRoutes.js
+ * API Routes for Milestone B-11: Rider Field Operations & Operational Sessions
  */
 
 import express from "express";
@@ -46,5 +45,6 @@ router.get("/my-sales", authenticateToken, getMySales);
 
 // 9. Checkout operational session & return armada unit to Hub
 router.post("/checkout", authenticateToken, checkoutSession);
+router.post("/check-out", authenticateToken, checkoutSession);
 
 export default router;

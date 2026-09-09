@@ -83,23 +83,23 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F4F4F6] flex flex-col justify-center py-12 sm:px-6 lg:px-8 px-4 font-sans">
+    <div className="min-h-screen bg-[#FAFAFA] flex flex-col justify-center py-12 sm:px-6 lg:px-8 px-4 font-sans">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         {/* Brand Header */}
         <div className="text-center space-y-2 mb-6">
-          <div className="w-12 h-12 bg-[#FF634A] rounded-xl flex items-center justify-center text-white mx-auto shadow-md shadow-orange-200 shrink-0">
+          <div className="w-12 h-12 bg-[#2563EB] rounded-[10px] flex items-center justify-center text-white mx-auto shadow-md shadow-blue-200 shrink-0">
             <Coffee className="w-6 h-6" />
           </div>
-          <h1 className="text-2xl font-heading font-extrabold text-slate-900 tracking-tight">
-            COZIS
+          <h1 className="text-2xl font-heading font-extrabold text-[#111111] tracking-tight">
+            MOVA
           </h1>
-          <p className="text-xs text-slate-500 font-medium max-w-xs mx-auto">
+          <p className="text-xs text-[#737373] font-normal max-w-xs mx-auto">
             Coffee Operational Zone Intelligence System
           </p>
         </div>
 
         {/* Card Form Container */}
-        <div className="bg-white py-8 px-6 sm:px-8 rounded-2xl border border-[#D2D2D4] shadow-xl space-y-6">
+        <div className="bg-white py-8 px-6 sm:px-8 rounded-[12px] border border-[#E5E5E5] shadow-2xs space-y-6">
           {/* Session Expired Notification */}
           {isExpired && !errorMsg && (
             <Alert variant="warning" title="Sesi Berakhir">
@@ -126,12 +126,12 @@ export function LoginPage() {
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-semibold text-slate-700">
-                  Kata Sandi <span className="text-[#FF634A]">*</span>
+                <label className="block text-xs font-semibold text-[#525252]">
+                  Kata Sandi <span className="text-[#DC2626]">*</span>
                 </label>
                 <Link
                   to="/forgot-password"
-                  className="text-xs text-[#FF634A] hover:text-[#E54E36] font-semibold"
+                  className="text-xs text-[#2563EB] hover:text-[#1D4ED8] font-semibold"
                 >
                   Lupa kata sandi?
                 </Link>
@@ -152,7 +152,7 @@ export function LoginPage() {
               variant="primary"
               size="md"
               isPending={loading}
-              className="w-full py-3 shadow-xs font-bold"
+              className="w-full py-2.5 font-bold"
               rightIcon={ArrowRight}
             >
               {loading ? "Memverifikasi Kredensial..." : "Masuk ke Sistem"}
@@ -160,21 +160,21 @@ export function LoginPage() {
           </form>
 
           {/* Activation Prompt */}
-          <div className="p-3 bg-[#F4F4F6] rounded-xl border border-[#D2D2D4] text-center text-xs text-slate-600">
+          <div className="p-3 bg-[#F5F5F5] rounded-[8px] border border-[#E5E5E5] text-center text-xs text-[#525252]">
             Menerima undangan akun baru?{" "}
-            <Link to="/activate" className="text-[#FF634A] hover:underline font-bold inline-flex items-center gap-1">
+            <Link to="/activate" className="text-[#2563EB] hover:underline font-bold inline-flex items-center gap-1">
               <KeyRound className="w-3.5 h-3.5" /> Aktivasi Akun
             </Link>
           </div>
 
           {/* Enterprise Restricted Notice Footer */}
-          <div className="pt-4 border-t border-[#D2D2D4]/50 text-center space-y-2">
-            <div className="flex items-center justify-center gap-1.5 text-xs text-slate-500 font-medium">
-              <Shield className="w-3.5 h-3.5 text-slate-400" />
+          <div className="pt-4 border-t border-[#E5E5E5] text-center space-y-2">
+            <div className="flex items-center justify-center gap-1.5 text-xs text-[#737373] font-medium">
+              <Shield className="w-3.5 h-3.5 text-[#A3A3A3]" />
               <span>Akses Terbatas: Sistem Internal Perusahaan</span>
             </div>
-            <p className="text-[11px] text-slate-400 font-normal">
-              Akun pengguna hanya diterbitkan oleh Tim Administrator COZIS.
+            <p className="text-[11px] text-[#A3A3A3] font-normal">
+              Akun pengguna hanya diterbitkan oleh Tim Administrator MOVA.
             </p>
           </div>
         </div>

@@ -17,25 +17,26 @@ const router = express.Router();
 // All user routes require authentication
 router.use(authenticateToken);
 
+// 1. Self Profile Operations (All Authenticated Users)
 router.get("/profile", getProfile);
 router.put("/change-password", changePassword);
 
-// Only Superadmin & Management can view all users
-router.get("/", checkRole(["SUPERADMIN", "MANAGEMENT"]), getAllUsers);
+// 2. User Listing (SUPERADMIN, MANAGEMENT, and SUPERVISOR-scoped)
+router.get("/", checkRole(["SUPERADMIN", "MANAGEMENT", "SUPERVISOR"]), getAllUsers);
 
-// Create user account (SUPERADMIN & MANAGEMENT only, hierarchy enforced in service)
+// 3. User Creation (SUPERADMIN & MANAGEMENT with Hierarchy Guard)
 router.post("/", checkRole(["SUPERADMIN", "MANAGEMENT"]), createUser);
 
-// Only Superadmin & Management can view specific user details
-router.get("/:id", checkRole(["SUPERADMIN", "MANAGEMENT"]), getUserById);
+// 4. User Details (SUPERADMIN, MANAGEMENT, and SUPERVISOR-scoped)
+router.get("/:id", checkRole(["SUPERADMIN", "MANAGEMENT", "SUPERVISOR"]), getUserById);
 
-// Update user profile/role (Ownership & RBAC check enforced in service)
+// 5. Update User Profile / Role (IDOR Protection & Hierarchy Guard in Service)
 router.put("/:id", updateUser);
 
-// Activate / Deactivate user account (SUPERADMIN & MANAGEMENT only, hierarchy enforced in service)
+// 6. Toggle User Active Status (SUPERADMIN & MANAGEMENT with Hierarchy Guard)
 router.patch("/:id/status", checkRole(["SUPERADMIN", "MANAGEMENT"]), setUserStatus);
 
-// Delete user (SUPERADMIN & MANAGEMENT, hierarchy enforced in service)
+// 7. Delete User (SUPERADMIN & MANAGEMENT with Hierarchy Guard)
 router.delete("/:id", checkRole(["SUPERADMIN", "MANAGEMENT"]), deleteUser);
 
 export default router;

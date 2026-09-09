@@ -15,6 +15,7 @@ export const confirmDuty = async (req, res) => {
 
     const queueEntry = await distributionService.confirmRiderDuty(riderId);
     return res.status(200).json({
+      status: "success",
       msg: "Konfirmasi kesediaan bertugas berhasil. Rider telah masuk ke Antrean FIFO.",
       queue: queueEntry,
     });
@@ -24,10 +25,32 @@ export const confirmDuty = async (req, res) => {
   }
 };
 
+export const getRiderDutyStatus = async (req, res) => {
+  try {
+    const riderId = req.user?.id || req.query?.rider_id;
+    if (!riderId) {
+      return res.status(400).json({ msg: "Rider ID harus disertakan." });
+    }
+
+    const status = await distributionService.getRiderOperationalStatus(riderId);
+    return res.status(200).json({
+      status: "success",
+      data: status,
+    });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Internal server error" });
+  }
+};
+
 export const getDistributionOverview = async (req, res) => {
   try {
-    const overview = await distributionService.getDistributionOverview();
-    return res.status(200).json(overview);
+    const { time } = req.query;
+    const overview = await distributionService.getDistributionOverview(time);
+    return res.status(200).json({
+      status: "success",
+      data: overview,
+    });
   } catch (error) {
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({ msg: error.message || "Internal server error" });
@@ -36,8 +59,13 @@ export const getDistributionOverview = async (req, res) => {
 
 export const autoDistribute = async (req, res) => {
   try {
-    const result = await distributionService.autoDistributeRiders();
-    return res.status(200).json(result);
+    const executedBy = req.user?.id || null;
+    const { time } = req.body || {};
+    const result = await distributionService.autoDistributeRiders(executedBy, time);
+    return res.status(200).json({
+      status: "success",
+      ...result,
+    });
   } catch (error) {
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({ msg: error.message || "Internal server error" });
@@ -46,16 +74,48 @@ export const autoDistribute = async (req, res) => {
 
 export const manualDistribute = async (req, res) => {
   try {
-    const { rider_id, zone_id } = req.body;
-    const assignedBy = req.user?.id;
+    const { rider_id, zone_id, time } = req.body;
+    const assignedBy = req.user?.id || null;
 
     const result = await distributionService.manualDistributeRider({
       riderId: rider_id,
       zoneId: zone_id,
       assignedBy,
+      timeInput: time,
     });
 
-    return res.status(200).json(result);
+    return res.status(200).json({
+      status: "success",
+      ...result,
+    });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Internal server error" });
+  }
+};
+
+export const getDistributionRuns = async (req, res) => {
+  try {
+    const limit = req.query.limit ? parseInt(req.query.limit, 10) : 20;
+    const runs = await distributionService.getDistributionRuns(limit);
+    return res.status(200).json({
+      status: "success",
+      data: runs,
+    });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Internal server error" });
+  }
+};
+
+export const getDistributionRunById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const run = await distributionService.getDistributionRunById(id);
+    return res.status(200).json({
+      status: "success",
+      data: run,
+    });
   } catch (error) {
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({ msg: error.message || "Internal server error" });
@@ -71,10 +131,12 @@ export const getMyDutyHistory = async (req, res) => {
     const limit = req.query.limit ? parseInt(req.query.limit, 10) : 30;
 
     const result = await distributionService.getMyDutyHistory(riderId, limit);
-    return res.status(200).json(result);
+    return res.status(200).json({
+      status: "success",
+      ...result,
+    });
   } catch (error) {
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({ msg: error.message || "Internal server error" });
   }
 };
-

@@ -8,6 +8,7 @@ import { StatusBadge } from "../../components/ui/StatusBadge.jsx";
 import { Button } from "../../components/common/Button.jsx";
 import { zoneService } from "../../services/zoneService.js";
 import { riderService } from "../../services/riderService.js";
+import { getActiveBasemapProvider } from "../../lib/mapPreferences.js";
 import { MapPin, Navigation, Bike, Clock, CheckCircle } from "lucide-react";
 
 export function RiderMapPage() {
@@ -15,13 +16,20 @@ export function RiderMapPage() {
   const [selectedZoneId, setSelectedZoneId] = useState(null);
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
+  const tileLayerRef = useRef(null);
 
   const { data: zonesRes } = useQuery({
     queryKey: ["zones"],
     queryFn: zoneService.getZones,
   });
 
+  const { data: sessionRes } = useQuery({
+    queryKey: ["riderSession"],
+    queryFn: riderService.getActiveSession,
+  });
+
   const zones = zonesRes?.zones || zonesRes?.data || [];
+  const session = sessionRes?.session || sessionRes?.data || null;
 
   const claimMutation = useMutation({
     mutationFn: riderService.claimZone,
@@ -46,9 +54,22 @@ export function RiderMapPage() {
       mapContainerRef.current._leaflet_id = null;
     }
 
-    const map = L.map(mapContainerRef.current).setView([-7.4478, 112.7183], 13);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "&copy; OpenStreetMap contributors",
+    const map = L.map(mapContainerRef.current, {
+      center: [-7.4478, 112.7183],
+      zoom: 13,
+      preferCanvas: true,
+    });
+    const activeProvider = getActiveBasemapProvider();
+    tileLayerRef.current = L.tileLayer(activeProvider.url, {
+      maxZoom: activeProvider.maxZoom || 19,
+      subdomains: activeProvider.subdomains || ["a", "b", "c"],
+      attribution: activeProvider.attribution,
+      tileSize: activeProvider.tileSize || 256,
+      zoomOffset: activeProvider.zoomOffset || 0,
+      crossOrigin: true,
+      updateWhenIdle: false,
+      updateWhenZooming: true,
+      keepBuffer: 8,
     }).addTo(map);
 
     mapInstanceRef.current = map;
@@ -128,7 +149,7 @@ export function RiderMapPage() {
             </Button>
           )}
         </div>
-        <div ref={mapContainerRef} style={{ height: "380px", width: "100%", zIndex: 1 }} className="rounded-xl border border-slate-200" />
+        <div ref={mapContainerRef} style={{ height: "380px", width: "100%" }} className="rounded-xl border border-slate-200 isolate z-0 overflow-hidden" />
       </div>
 
       {/* Select Zone List for Claim */}

@@ -1,36 +1,44 @@
 /*
- *   Copyright (c) 2026 
- *   All rights reserved.
- *   riderOperationalRepository.js (Data Access Layer for Use Case 6: Rider Daily Operations)
- *   Integrates Temporary Reservation Locks (Hold Claim) & PostGIS Geofence Check-in.
+ * riderOperationalRepository.js
+ * Data Access Layer for Milestone B-11: Rider Daily Operations
+ * Integrates PostGIS ST_Covers Geofencing, 5-Minute Hold Claim, and Operational Session State Transitions.
  */
 
 import { pool } from "../config/database.js";
+import { operationalSessionRepository } from "./operationalSessionRepository.js";
 
 export class RiderOperationalRepository {
   static instance = null;
 
-  constructor(dbPool = pool) {
+  constructor(dbPool = pool, sessionRepo = operationalSessionRepository) {
     if (RiderOperationalRepository.instance && dbPool === pool) {
       return RiderOperationalRepository.instance;
     }
     this.pool = dbPool;
+    this.sessionRepo = sessionRepo;
     if (dbPool === pool) {
       RiderOperationalRepository.instance = this;
     }
   }
 
-  static getInstance(dbPool = pool) {
+  static getInstance(dbPool = pool, sessionRepo = operationalSessionRepository) {
     if (!RiderOperationalRepository.instance) {
-      RiderOperationalRepository.instance = new RiderOperationalRepository(dbPool);
+      RiderOperationalRepository.instance = new RiderOperationalRepository(dbPool, sessionRepo);
     }
     return RiderOperationalRepository.instance;
   }
 
   /**
-   * Fetch active assignment session for a rider today
+   * Fetch active assignment & operational session for a rider today
    */
   async findActiveRiderSession(riderId) {
+    // 1. Try finding active operational session first
+    const activeSession = await this.sessionRepo.findActiveSessionByRiderId(riderId);
+    if (activeSession) {
+      return activeSession;
+    }
+
+    // 2. If no active session yet, check today's active assignment in zone_assignments
     const query = `
       SELECT 
         za.id AS assignment_id,
@@ -39,21 +47,52 @@ export class RiderOperationalRepository {
         za.armada_id,
         za.assignment_date,
         za.status AS assignment_status,
+        za.topsis_rank,
+        za.preference_score,
         z.name AS zone_name,
         z.polygon AS zone_polygon,
+        ST_AsGeoJSON(z.geom) AS zone_geom_geojson,
         a.code AS armada_code,
         a.type AS armada_type,
-        a.status AS armada_status
+        a.status AS armada_status,
+        u.name AS rider_name,
+        u.email AS rider_email
       FROM zone_assignments za
+      JOIN users u ON za.rider_id = u.id
       JOIN zones z ON za.zone_id = z.id
       LEFT JOIN armadas a ON za.armada_id = a.id
       WHERE za.rider_id = $1 
         AND za.assignment_date = CURRENT_DATE
         AND za.status IN ('ASSIGNED', 'CHECKED_IN')
+      ORDER BY za.created_at DESC
       LIMIT 1;
     `;
     const { rows } = await this.pool.query(query, [riderId]);
-    return rows[0] || null;
+    const assignment = rows[0] || null;
+
+    if (!assignment) {
+      return null;
+    }
+
+    // Auto-create or get operational session for this assignment
+    const session = await this.sessionRepo.createOrGetSession({
+      riderId: assignment.rider_id,
+      assignmentId: assignment.assignment_id,
+      armadaId: assignment.armada_id,
+      zoneId: assignment.zone_id,
+      status: assignment.armada_id ? "CLAIMED" : "CLAIMED",
+    });
+
+    return {
+      ...assignment,
+      session_id: session.id,
+      id: session.id,
+      session_status: session.status,
+      started_at: session.started_at,
+      checked_in_at: session.checked_in_at,
+      check_in_lat: session.check_in_lat,
+      check_in_lon: session.check_in_lon,
+    };
   }
 
   /**
@@ -84,7 +123,7 @@ export class RiderOperationalRepository {
   }
 
   /**
-   * Temporary hold reservation on armada unit when rider inspects detail page (Ticket-Booking Lock)
+   * Temporary hold reservation on armada unit (Ticket-Booking Lock)
    */
   async holdArmadaUnit({ riderId, armadaId, holdMinutes = 5 }) {
     const client = await this.pool.connect();
@@ -145,7 +184,7 @@ export class RiderOperationalRepository {
   }
 
   /**
-   * Cancel temporary reservation hold (Rider backs out from armada detail page)
+   * Cancel temporary reservation hold
    */
   async cancelArmadaHold({ riderId, armadaId }) {
     const query = `
@@ -211,9 +250,22 @@ export class RiderOperationalRepository {
       // Bind armada to assignment
       if (assignmentId) {
         await client.query(
-          `UPDATE zone_assignments SET armada_id = $2 WHERE id = $1;`,
+          `UPDATE zone_assignments SET armada_id = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1;`,
           [assignmentId, armadaId]
         );
+
+        // Update or create operational session
+        const assignQuery = `SELECT zone_id FROM zone_assignments WHERE id = $1;`;
+        const { rows: assignRows } = await client.query(assignQuery, [assignmentId]);
+        if (assignRows[0]) {
+          await client.query(
+            `INSERT INTO operational_sessions (rider_id, assignment_id, armada_id, zone_id, status, started_at)
+             VALUES ($1, $2, $3, $4, 'CLAIMED', CURRENT_TIMESTAMP)
+             ON CONFLICT (assignment_id) DO UPDATE
+             SET armada_id = EXCLUDED.armada_id, status = 'CLAIMED', updated_at = CURRENT_TIMESTAMP;`,
+            [riderId, assignmentId, armadaId, assignRows[0].zone_id]
+          );
+        }
       }
 
       await client.query("COMMIT");
@@ -227,10 +279,10 @@ export class RiderOperationalRepository {
   }
 
   /**
-   * Validate rider GPS coordinates against assigned zone polygon via PostGIS ST_Contains
+   * Validate rider GPS coordinates against assigned zone polygon via PostGIS ST_Covers
    */
-  async validateAndCheckInRider({ riderId, assignmentId, zoneId, lat, lon }) {
-    const zoneQuery = `SELECT id, name, polygon FROM zones WHERE id = $1;`;
+  async validateAndCheckInRider({ riderId, assignmentId, sessionId, zoneId, lat, lon }) {
+    const zoneQuery = `SELECT id, name, polygon, geom FROM zones WHERE id = $1;`;
     const { rows: zoneRows } = await this.pool.query(zoneQuery, [zoneId]);
     const zone = zoneRows[0];
 
@@ -240,40 +292,27 @@ export class RiderOperationalRepository {
       throw error;
     }
 
-    // Format zone polygon to valid GeoJSON Polygon object
-    let geoJsonObj = zone.polygon;
-    if (typeof geoJsonObj === "string") {
-      try {
-        geoJsonObj = JSON.parse(geoJsonObj);
-      } catch (e) {}
-    }
-
-    if (Array.isArray(geoJsonObj)) {
-      const coords = [...geoJsonObj];
-      const first = coords[0];
-      const last = coords[coords.length - 1];
-      if (first[0] !== last[0] || first[1] !== last[1]) {
-        coords.push(first);
-      }
-      geoJsonObj = {
-        type: "Polygon",
-        coordinates: [coords],
-      };
-    } else if (geoJsonObj && geoJsonObj.geometry) {
-      geoJsonObj = geoJsonObj.geometry;
-    }
-
-    // PostGIS Spatial Geofence Check: ST_Contains(polygon, Point(lon, lat))
+    // PostGIS Spatial Geofence Check: ST_Covers(zone.geom, Point(lon, lat))
     const spatialCheckQuery = `
-      SELECT ST_Contains(
-        ST_GeomFromGeoJSON($1),
-        ST_SetSRID(ST_MakePoint($2, $3), 4326)
-      ) AS is_inside;
+      SELECT ST_Covers(
+        COALESCE(
+          geom,
+          ST_SetSRID(ST_GeomFromGeoJSON(
+            CASE 
+              WHEN polygon::text LIKE '{"type"%' THEN polygon::text
+              ELSE concat('{"type":"Polygon","coordinates":[', polygon::text, ']}')
+            END
+          ), 4326)
+        ),
+        ST_SetSRID(ST_MakePoint($1, $2), 4326)
+      ) AS is_inside
+      FROM zones
+      WHERE id = $3;
     `;
     const { rows: spatialRows } = await this.pool.query(spatialCheckQuery, [
-      JSON.stringify(geoJsonObj),
       parseFloat(lon),
       parseFloat(lat),
+      zoneId,
     ]);
 
     const isInside = spatialRows[0]?.is_inside || false;
@@ -284,54 +323,59 @@ export class RiderOperationalRepository {
       throw error;
     }
 
-    // Update assignment status to CHECKED_IN
-    const checkInQuery = `
-      UPDATE zone_assignments 
-      SET 
-        status = 'CHECKED_IN',
-        created_at = CURRENT_TIMESTAMP
-      WHERE id = $1
-      RETURNING *;
-    `;
-    const { rows: updatedAssignment } = await this.pool.query(checkInQuery, [assignmentId]);
+    // Explicit Transition: CHECKED_IN -> OPERATING in operational_sessions
+    const resolvedSessionId = sessionId || (await this.sessionRepo.findActiveSessionByRiderId(riderId))?.session_id;
+    const updatedSession = await this.sessionRepo.checkInSession({
+      sessionId: resolvedSessionId,
+      assignmentId,
+      checkInLat: parseFloat(lat),
+      checkInLon: parseFloat(lon),
+    });
 
     return {
-      assignment: updatedAssignment[0],
+      session: updatedSession,
+      assignment_id: assignmentId,
       zone_name: zone.name,
       check_in_lat: parseFloat(lat),
       check_in_lon: parseFloat(lon),
-      checked_in_at: new Date(),
+      checked_in_at: updatedSession?.checked_in_at || new Date(),
+      status: updatedSession?.status || "OPERATING",
     };
   }
 
   /**
-   * Insert product sales log with monetary snapshot and assignment binding
+   * Insert product sales log with monetary snapshot and operational session binding
    */
-  async insertSalesLog({ riderId, zoneId, assignmentId, productId, quantity, unitPrice, totalPrice, lat = -7.4478, lon = 112.7183 }) {
-    const finalLat = lat !== null && lat !== undefined ? lat : -7.4478;
-    const finalLon = lon !== null && lon !== undefined ? lon : 112.7183;
-
-    const query = `
-      INSERT INTO sales_logs (rider_id, zone_id, assignment_id, product_id, qty, unit_price, total_price, latitude, longitude)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      RETURNING *;
-    `;
-    const { rows } = await this.pool.query(query, [
+  async insertSalesLog({
+    sessionId,
+    riderId,
+    zoneId,
+    actualZoneId = null,
+    complianceAtSale = "COMPLIANT",
+    productId,
+    quantity,
+    unitPrice,
+    totalPrice,
+    lat = -7.4478,
+    lon = 112.7183,
+  }) {
+    return await this.sessionRepo.insertFieldSale({
+      sessionId,
       riderId,
-      zoneId,
-      assignmentId,
+      assignedZoneId: zoneId,
+      actualZoneId,
+      complianceAtSale,
       productId,
       quantity,
       unitPrice,
       totalPrice,
-      finalLat,
-      finalLon,
-    ]);
-    return rows[0];
+      lat,
+      lon,
+    });
   }
 
   /**
-   * Fetch paginated sales history for a specific rider (Ownership-scoped)
+   * Fetch paginated sales history for a specific rider
    */
   async getRiderSalesHistory({ riderId, date = null, page = 1, limit = 20 }) {
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
@@ -351,9 +395,11 @@ export class RiderOperationalRepository {
     const query = `
       SELECT 
         sl.id AS sale_id,
+        sl.session_id,
         sl.rider_id,
-        sl.zone_id,
-        sl.assignment_id,
+        sl.zone_id AS assigned_zone_id,
+        sl.actual_zone_id,
+        sl.compliance_at_sale,
         sl.product_id,
         sl.qty,
         sl.unit_price,
@@ -403,37 +449,16 @@ export class RiderOperationalRepository {
   /**
    * Checkout rider session & return armada unit to Hub
    */
-  async checkoutRiderSession({ assignmentId, armadaId, returnStatus = "ACTIVE" }) {
-    const client = await this.pool.connect();
-    try {
-      await client.query("BEGIN");
-
-      // 1. Mark assignment status COMPLETED
-      const updateAssignQuery = `
-        UPDATE zone_assignments 
-        SET status = 'COMPLETED' 
-        WHERE id = $1 
-        RETURNING *;
-      `;
-      const { rows: assignRows } = await client.query(updateAssignQuery, [assignmentId]);
-
-      // 2. Return armada unit status to ACTIVE or MAINTENANCE
-      if (armadaId) {
-        const validReturnStatus = ["ACTIVE", "MAINTENANCE"].includes(returnStatus) ? returnStatus : "ACTIVE";
-        await client.query(
-          `UPDATE armadas SET status = $2, current_rider_id = NULL, reserved_by_rider_id = NULL, reserved_until = NULL WHERE id = $1;`,
-          [armadaId, validReturnStatus]
-        );
-      }
-
-      await client.query("COMMIT");
-      return assignRows[0];
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
-    }
+  async checkoutRiderSession({ sessionId, assignmentId, armadaId, returnStatus = "ACTIVE", lat = null, lon = null, notes = null }) {
+    return await this.sessionRepo.checkoutSession({
+      sessionId,
+      assignmentId,
+      armadaId,
+      returnStatus,
+      checkoutLat: lat,
+      checkoutLon: lon,
+      notes,
+    });
   }
 }
 

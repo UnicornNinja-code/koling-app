@@ -2,7 +2,7 @@
  *   Copyright (c) 2026 
  *   All rights reserved.
  *   DistributionService.js (Clean Architecture Singleton Service for Rider Distribution Engine)
- *   Integrates FIFO Queue + TOPSIS Zone Rankings + Capacity Validation.
+ *   Integrates FIFO Queue + TOPSIS Zone Rankings + Capacity Validation + DSS Linkage.
  */
 
 import { distributionRepository } from "../../repositories/distributionRepository.js";
@@ -47,15 +47,27 @@ export class DistributionService {
   }
 
   /**
+   * Get Unified Operational Status for Rider
+   */
+  async getRiderOperationalStatus(riderId) {
+    if (!riderId) {
+      const error = new Error("Rider ID harus diisi.");
+      error.statusCode = 400;
+      throw error;
+    }
+    return await this.repo.getRiderUnifiedStatus(riderId);
+  }
+
+  /**
    * Get distribution overview: FIFO Waiting Queue + TOPSIS Zone Rankings + Remaining Capacities
    */
-  async getDistributionOverview() {
-    const currentSlot = TimeSlotEvaluator.getSlot(new Date());
+  async getDistributionOverview(timeInput = null) {
+    const currentSlot = timeInput ? TimeSlotEvaluator.getSlot(timeInput) : TimeSlotEvaluator.getSlot(new Date());
 
     // 1. Fetch FIFO waiting riders
     const waitingQueue = await this.repo.getWaitingRidersQueue();
 
-    // 2. Fetch active zones & TOPSIS rankings
+    // 2. Fetch active zones & TOPSIS recommendations
     const topsisResult = await topsisEngineService.calculateTopsisRecommendations({
       timeSlot: currentSlot,
     });
@@ -64,17 +76,15 @@ export class DistributionService {
     const assignedCounts = await this.repo.getAssignedRidersCountPerZone();
 
     // 4. Map remaining capacities
-    const zonesOverview = topsisResult.rankings.map((rankItem) => {
-      const zoneDetails = topsisResult.rankings.find((z) => z.zone_id === rankItem.zone_id) || {};
+    const zonesOverview = (topsisResult.rankings || []).map((rankItem) => {
       const assigned = assignedCounts[rankItem.zone_id] || 0;
-      // Fetch max_capacity from database active zones
       return {
         ...rankItem,
         assigned_count: assigned,
       };
     });
 
-    // Fetch max_capacity details from topsisRepository active zones
+    // Fetch max_capacity details from database active zones
     const activeZones = await topsisRepository.findAllActiveZones();
     const fullZonesOverview = zonesOverview.map((z) => {
       const activeZone = activeZones.find((az) => az.id === z.zone_id) || {};
@@ -97,6 +107,8 @@ export class DistributionService {
 
     return {
       time_slot: currentSlot,
+      evaluation_version: topsisResult.evaluation_version || "DSS-CRITERIA-v1.0",
+      model_version: topsisResult.model_version || "BWM-TOPSIS-v1.0",
       total_waiting_riders: totalWaitingRiders,
       total_remaining_capacity: totalRemainingCapacity,
       is_capacity_sufficient: totalRemainingCapacity >= totalWaitingRiders,
@@ -108,13 +120,17 @@ export class DistributionService {
   /**
    * Execute Automatic Distribution (Matches FIFO Queue to TOPSIS Zone Rank & Capacity)
    */
-  async autoDistributeRiders() {
+  async autoDistributeRiders(executedBy = null, timeInput = null) {
     console.log("\n================================================================================");
     console.log("🚀 [DISTRIBUSI ENGINE] MEMULAI DISTRIBUSI OTOMATIS RIDER (FIFO + TOPSIS)");
     console.log("================================================================================");
 
-    const overview = await this.getDistributionOverview();
-    const { waiting_queue: queue, zones_overview: zones, total_remaining_capacity } = overview;
+    const overview = await this.getDistributionOverview(timeInput);
+    const { waiting_queue: queue, zones_overview: zones, total_remaining_capacity: totalRemainingCapacity, time_slot } = overview;
+
+    // Fetch latest DSS History snapshot if available
+    const latestHistories = await topsisRepository.findHistories(1);
+    const latestSnapshotId = latestHistories[0]?.id || null;
 
     if (queue.length === 0) {
       console.log("ℹ️ Tidak ada Rider dalam antrean bertugas (FIFO Queue Kosong).");
@@ -130,19 +146,39 @@ export class DistributionService {
     let queueIndex = 0;
     const totalQueueCount = queue.length;
 
-    // Iterate through zones in TOPSIS Rank Order (Rank 1, Rank 2, ...)
+    // 1. Initialize Distribution Run Record
+    const initialRun = await this.repo.createDistributionRun({
+      dss_history_id: latestSnapshotId,
+      time_slot: time_slot || "pagi",
+      execution_type: "AUTO",
+      executed_by: executedBy,
+      total_waiting_riders: totalQueueCount,
+      total_assigned_riders: 0,
+      total_unassigned_riders: totalQueueCount,
+      is_capacity_sufficient: totalRemainingCapacity >= totalQueueCount,
+      summary: { start_time: new Date().toISOString() },
+    });
+
+
+    // 2. Iterate through zones in TOPSIS Rank Order (Rank 1, Rank 2, ...)
     for (const zone of zones) {
       let remainingCap = zone.remaining_capacity;
 
       while (remainingCap > 0 && queueIndex < totalQueueCount) {
         const rider = queue[queueIndex];
 
-        // Create assignment record
+        // Create assignment record with DSS Linkage
         const assignment = await this.repo.createAssignment({
           rider_id: rider.rider_id,
           zone_id: zone.zone_id,
-          assigned_by: null,
+          assigned_by: executedBy,
           assignment_type: "AUTO",
+          distribution_run_id: initialRun.id,
+          dss_history_id: latestSnapshotId,
+          topsis_rank: zone.rank,
+          preference_score: zone.preference_score,
+          evaluation_version: overview.evaluation_version || "DSS-CRITERIA-v1.0",
+          model_version: overview.model_version || "BWM-TOPSIS-v1.0",
         });
 
         assignments.push({
@@ -150,11 +186,12 @@ export class DistributionService {
           rider_name: rider.rider_name,
           zone_name: zone.zone_name,
           topsis_rank: zone.rank,
+          preference_score: zone.preference_score,
         });
 
-        console.log(`   🎯 [AUTO PLOT] Rider ${rider.rider_name.padEnd(20)} -> TOPSIS Rank ${zone.rank}: ${zone.zone_name}`);
+        console.log(`   🎯 [AUTO PLOT] Rider ${rider.rider_name.padEnd(20)} -> TOPSIS Rank ${zone.rank}: ${zone.zone_name} (Score: ${zone.preference_score})`);
 
-        // 1. Emit Real-Time Socket Event (Instant UI update)
+        // Emit Real-Time Socket Event
         eventPublisher.publishRiderAssigned({
           assignmentId: assignment.id,
           riderId: rider.rider_id,
@@ -163,7 +200,7 @@ export class DistributionService {
           assignmentType: "AUTO",
         });
 
-        // 2. Push WebSockets Assignment Notification Job to BullMQ Queue (Durable Retry)
+        // Push WebSockets Assignment Notification Job (Durable Retry)
         await addRiderAssignedNotifJob({
           assignmentId: assignment.id,
           riderId: rider.rider_id,
@@ -196,6 +233,8 @@ export class DistributionService {
 
     return {
       message: responseMsg,
+      distribution_run_id: initialRun.id,
+      dss_history_id: latestSnapshotId,
       is_capacity_sufficient: isSufficient,
       assigned_riders_count: assignments.length,
       unassigned_riders_count: unassignedCount,
@@ -204,9 +243,9 @@ export class DistributionService {
   }
 
   /**
-   * Execute Manual Distribution by Supervisor (Validates Zone Capacity)
+   * Execute Manual Distribution by Supervisor (Validates Zone Capacity & Links DSS)
    */
-  async manualDistributeRider({ riderId, zoneId, assignedBy = null }) {
+  async manualDistributeRider({ riderId, zoneId, assignedBy = null, timeInput = null }) {
     if (!riderId || !zoneId) {
       const error = new Error("Rider ID dan Zone ID harus diisi.");
       error.statusCode = 400;
@@ -214,7 +253,7 @@ export class DistributionService {
     }
 
     // Check capacity of target zone
-    const overview = await this.getDistributionOverview();
+    const overview = await this.getDistributionOverview(timeInput);
     const targetZone = overview.zones_overview.find((z) => z.zone_id === zoneId);
 
     if (!targetZone) {
@@ -229,30 +268,38 @@ export class DistributionService {
       throw error;
     }
 
+    const latestHistories = await topsisRepository.findHistories(1);
+    const latestSnapshotId = latestHistories[0]?.id || null;
+
     const assignment = await this.repo.createAssignment({
       rider_id: riderId,
       zone_id: zoneId,
       assigned_by: assignedBy,
       assignment_type: "MANUAL",
+      dss_history_id: latestSnapshotId,
+      topsis_rank: targetZone.rank || null,
+      preference_score: targetZone.preference_score || null,
+      evaluation_version: overview.evaluation_version || "DSS-CRITERIA-v1.0",
+      model_version: overview.model_version || "BWM-TOPSIS-v1.0",
     });
 
-    console.log(`   ✍️ [MANUAL PLOT] Rider ${riderId} -> Zona: ${targetZone.zone_name} (Oleh SPV/Admin)`);
+    console.log(`   ✍️ [MANUAL PLOT] Rider ${riderId} -> Zona: ${targetZone.zone_name} (Rank: ${targetZone.rank})`);
 
-    // 1. Emit Real-Time Socket Event (Instant UI update)
+    // 1. Emit Real-Time Socket Event
     eventPublisher.publishRiderAssigned({
       assignmentId: assignment.id,
       riderId,
       zoneName: targetZone.zone_name,
-      topsisRank: 1,
+      topsisRank: targetZone.rank || 1,
       assignmentType: "MANUAL",
     });
 
-    // 2. Push Notification Job to BullMQ Queue (Durable Retry)
+    // 2. Push Notification Job
     await addRiderAssignedNotifJob({
       assignmentId: assignment.id,
       riderId,
       zoneName: targetZone.zone_name,
-      topsisRank: 1,
+      topsisRank: targetZone.rank || 1,
       assignmentType: "MANUAL",
     });
 
@@ -263,6 +310,26 @@ export class DistributionService {
         zone_name: targetZone.zone_name,
       },
     };
+  }
+
+  /**
+   * Fetch recent distribution runs audit history
+   */
+  async getDistributionRuns(limit = 20) {
+    return await this.repo.findDistributionRuns(limit);
+  }
+
+  /**
+   * Fetch single distribution run by ID
+   */
+  async getDistributionRunById(id) {
+    const run = await this.repo.findDistributionRunById(id);
+    if (!run) {
+      const error = new Error(`Riwayat distribusi dengan ID '${id}' tidak ditemukan.`);
+      error.statusCode = 404;
+      throw error;
+    }
+    return run;
   }
 
   /**
@@ -284,4 +351,3 @@ export class DistributionService {
 }
 
 export const distributionService = DistributionService.getInstance();
-

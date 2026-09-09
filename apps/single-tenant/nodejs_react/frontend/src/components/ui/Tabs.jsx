@@ -17,7 +17,7 @@ export function TabsList({ activeValue, onValueChange, className, children, ...p
     <div
       role="tablist"
       className={cn(
-        "inline-flex items-center gap-1 p-1 bg-slate-100/90 rounded-xl border border-slate-200/80 text-xs font-semibold overflow-x-auto max-w-full select-none",
+        "inline-flex items-center gap-1 p-0.5 bg-[#121215] rounded-[6px] border border-[#24242A] text-xs font-semibold overflow-x-auto max-w-full select-none",
         className
       )}
       {...props}
@@ -51,23 +51,23 @@ export function TabsTrigger({
       disabled={disabled}
       onClick={onSelect}
       className={cn(
-        "inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg transition-all min-h-[34px] cursor-pointer whitespace-nowrap",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF5052]",
+        "inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-[4px] transition-all min-h-[28px] cursor-pointer whitespace-nowrap text-xs",
+        "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#EA580C]",
         "disabled:opacity-40 disabled:cursor-not-allowed",
         isActive
-          ? "bg-white text-slate-900 font-bold shadow-xs border border-slate-200/60"
-          : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/50",
+          ? "bg-[#18181B] text-[#FAFAFA] font-bold border border-[#3F3F46] shadow-xs"
+          : "text-zinc-400 hover:text-[#FAFAFA] hover:bg-zinc-800/60 border border-transparent",
         className
       )}
       {...props}
     >
-      {LeftIcon && <LeftIcon className="w-3.5 h-3.5 shrink-0" />}
+      {LeftIcon && <LeftIcon className="w-3.5 h-3.5 shrink-0 text-[#EA580C]" />}
       <span>{children}</span>
     </button>
   );
 }
 
-export function TabsContent({ value, activeValue, className, children, ...props }) {
+export function TabsContent({ value, activeValue, onValueChange, className, children, ...props }) {
   if (value !== activeValue) return null;
 
   return (
@@ -80,3 +80,4 @@ export function TabsContent({ value, activeValue, className, children, ...props 
     </div>
   );
 }
+

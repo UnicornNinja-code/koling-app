@@ -1,26 +1,19 @@
 /*
- *   Copyright (c) 2026 
- *   All rights reserved.
+ * COZIS (Coffee Operational Zone Intelligence System) — User Service
+ * Domain: User Account Administration & Hierarchy Guard (4-Role RBAC)
  */
 
 import bcrypt from "bcrypt";
 import { UserModel } from "../models/userModel.js";
 import { RefreshTokenModel } from "../models/refreshTokenModel.js";
 
-const ROLE_HIERARCHY = {
-    SUPERADMIN: 4,
-    MANAGEMENT: 3,
-    SUPERVISOR: 2,
-    RIDER: 1,
-};
-
 /**
  * Get current user profile by user ID
  */
-const getProfileService = async (userId) => {
+export const getProfileService = async (userId) => {
     const user = await UserModel.findById(userId);
     if (!user) {
-        const error = new Error("User not found");
+        const error = new Error("Pengguna tidak ditemukan.");
         error.statusCode = 404;
         throw error;
     }
@@ -28,80 +21,118 @@ const getProfileService = async (userId) => {
 };
 
 /**
- * Get all users
+ * Get all users with Role-Scoped Filtering:
+ * - SUPERADMIN & MANAGEMENT: Full view of users (supports ?role= filter)
+ * - SUPERVISOR: Restricted to viewing RIDER accounts only (per SSOT fitur.md)
  */
-const getAllUsersService = async () => {
-    const users = await UserModel.findAll();
+export const getAllUsersService = async (currentUser, filters = {}) => {
+    let users = await UserModel.findAll();
+
+    // Supervisor view is strictly restricted to RIDER accounts
+    if (currentUser.role === "SUPERVISOR") {
+        users = users.filter((u) => u.role === "RIDER");
+    } else if (filters.role) {
+        users = users.filter((u) => u.role === filters.role.toUpperCase());
+    }
+
+    if (filters.search) {
+        const searchKeyword = filters.search.toLowerCase();
+        users = users.filter(
+            (u) =>
+                u.name?.toLowerCase().includes(searchKeyword) ||
+                u.email?.toLowerCase().includes(searchKeyword) ||
+                u.username?.toLowerCase().includes(searchKeyword)
+        );
+    }
+
     return { users, count: users.length };
 };
 
 /**
- * Get user by ID
+ * Get user by ID (SUPERADMIN & MANAGEMENT, or SUPERVISOR viewing a Rider)
  */
-const getUserByIdService = async (id) => {
+export const getUserByIdService = async (id, currentUser) => {
     const user = await UserModel.findById(id);
     if (!user) {
-        const error = new Error("User not found");
+        const error = new Error("Pengguna tidak ditemukan.");
         error.statusCode = 404;
         throw error;
     }
+
+    if (currentUser.role === "SUPERVISOR" && user.role !== "RIDER") {
+        const error = new Error("Akses ditolak: Supervisor hanya dapat melihat profil Rider.");
+        error.statusCode = 403;
+        throw error;
+    }
+
     return user;
 };
 
 /**
- * Create a new user account with RBAC Hierarchy check
+ * Create a new user account with strict RBAC Hierarchy Guard
  */
-const createUserService = async ({ username, name, email, password, role }, currentUser) => {
+export const createUserService = async (
+    { username, name, email, password, phone, role },
+    currentUser
+) => {
     if (!username || !name || !email || !password || !role) {
-        const error = new Error("Please provide all required fields: username, name, email, password, and role");
+        const error = new Error(
+            "Semua field wajib diisi: username, nama lengkap, email, password, dan peran (role)."
+        );
         error.statusCode = 400;
         throw error;
     }
 
     const validRoles = ["SUPERADMIN", "MANAGEMENT", "SUPERVISOR", "RIDER"];
-    if (!validRoles.includes(role)) {
-        const error = new Error("Invalid role specified");
+    const targetRole = role.toUpperCase();
+    if (!validRoles.includes(targetRole)) {
+        const error = new Error(`Peran '${role}' tidak valid. Pilihan: ${validRoles.join(", ")}`);
         error.statusCode = 400;
         throw error;
     }
 
-    // Role-based creation rules
+    // 🔒 RBAC Hierarchy Guard Enforcement
     if (currentUser.role === "SUPERADMIN") {
-        // Superadmin can create any role
+        // Superadmin is authorized to create any role
     } else if (currentUser.role === "MANAGEMENT") {
-        // Management can create MANAGEMENT, SUPERVISOR, RIDER (cannot create SUPERADMIN)
-        if (role === "SUPERADMIN") {
-            const error = new Error("Access forbidden: MANAGEMENT cannot create SUPERADMIN accounts");
+        // Management can create MANAGEMENT, SUPERVISOR, or RIDER (CANNOT create SUPERADMIN)
+        if (targetRole === "SUPERADMIN") {
+            const error = new Error(
+                "Akses ditolak (Hierarchy Guard): Management dilarang membuat akun dengan peran SUPERADMIN."
+            );
             error.statusCode = 403;
             throw error;
         }
     } else {
-        // SUPERVISOR, RIDER, etc. cannot create accounts
-        const error = new Error("Access forbidden: insufficient permissions to create user accounts");
+        const error = new Error(
+            "Akses ditolak: Anda tidak memiliki wewenang untuk membuat akun pengguna."
+        );
         error.statusCode = 403;
         throw error;
     }
 
-    const existingUser = await UserModel.findByEmailOrUsername(email);
-    if (existingUser) {
-        const error = new Error("Email is already registered");
+    // Check unique constraints
+    const existingEmail = await UserModel.findByEmailOrUsername(email);
+    if (existingEmail) {
+        const error = new Error("Email ini sudah terdaftar di sistem.");
         error.statusCode = 400;
         throw error;
     }
 
     const existingUsername = await UserModel.findByEmailOrUsername(username);
     if (existingUsername) {
-        const error = new Error("Username is already taken");
+        const error = new Error("Username ini sudah digunakan oleh akun lain.");
         error.statusCode = 400;
         throw error;
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = await UserModel.create({
-        username,
-        name,
-        email,
-        role,
+        username: username.toLowerCase().trim(),
+        name: name.trim(),
+        email: email.toLowerCase().trim(),
+        phone: phone || null,
+        role: targetRole,
         password: hashedPassword,
     });
 
@@ -109,84 +140,95 @@ const createUserService = async ({ username, name, email, password, role }, curr
 };
 
 /**
- * Update user profile / role with IDOR protection & RBAC checks
+ * Update user profile / role with IDOR protection & Hierarchy Guard
  */
-const updateUserService = async (id, { name, email, role }, currentUser) => {
+export const updateUserService = async (id, { name, email, phone, role }, currentUser) => {
     const targetUser = await UserModel.findById(id);
     if (!targetUser) {
-        const error = new Error("User not found");
+        const error = new Error("Pengguna tidak ditemukan.");
         error.statusCode = 404;
         throw error;
     }
 
     const isSelf = String(currentUser.id) === String(id);
+    const targetRole = role ? role.toUpperCase() : undefined;
 
     if (isSelf) {
-        // User can update their own name/email
-        // If attempting to change role, only SUPERADMIN can do it
-        if (role && role !== targetUser.role && currentUser.role !== "SUPERADMIN") {
-            const error = new Error("Only SUPERADMIN can change user role");
+        // Self profile update: cannot escalate own role unless Superadmin
+        if (targetRole && targetRole !== targetUser.role && currentUser.role !== "SUPERADMIN") {
+            const error = new Error("Akses ditolak: Hanya SUPERADMIN yang dapat mengubah peran akun.");
             error.statusCode = 403;
             throw error;
         }
     } else {
-        // Modifying another user's account
+        // Modifying another user account
         if (currentUser.role === "SUPERADMIN") {
-            // Superadmin can update any user and change role
+            // Superadmin has full modification privileges
         } else if (currentUser.role === "MANAGEMENT") {
             // Management cannot modify SUPERADMIN accounts
             if (targetUser.role === "SUPERADMIN") {
-                const error = new Error("Access forbidden: cannot modify SUPERADMIN accounts");
+                const error = new Error(
+                    "Akses ditolak (Hierarchy Guard): Management tidak dapat mengubah akun SUPERADMIN."
+                );
                 error.statusCode = 403;
                 throw error;
             }
-            // Management cannot elevate any user to SUPERADMIN
-            if (role === "SUPERADMIN") {
-                const error = new Error("Access forbidden: cannot assign SUPERADMIN role");
+            // Management cannot elevate any account to SUPERADMIN
+            if (targetRole === "SUPERADMIN") {
+                const error = new Error(
+                    "Akses ditolak (Hierarchy Guard): Management tidak dapat menetapkan peran SUPERADMIN."
+                );
                 error.statusCode = 403;
                 throw error;
             }
         } else {
-            // SUPERVISOR or RIDER cannot modify other users (prevents IDOR)
-            const error = new Error("Access forbidden: you can only update your own profile");
+            const error = new Error(
+                "Akses ditolak: Anda hanya memiliki izin untuk memperbarui profil Anda sendiri."
+            );
             error.statusCode = 403;
             throw error;
         }
     }
 
-    // If changing email, check uniqueness if different from current
+    // Email uniqueness check if changed
     if (email && email.toLowerCase() !== targetUser.email.toLowerCase()) {
         const existingEmail = await UserModel.findByEmailOrUsername(email);
         if (existingEmail && String(existingEmail.id) !== String(id)) {
-            const error = new Error("Email is already registered");
+            const error = new Error("Email baru sudah digunakan oleh akun lain.");
             error.statusCode = 400;
             throw error;
         }
     }
 
-    const updatedUser = await UserModel.update(id, { name, email, role: role || undefined });
+    const updatedUser = await UserModel.update(id, {
+        name: name ? name.trim() : targetUser.name,
+        email: email ? email.toLowerCase().trim() : targetUser.email,
+        phone: phone !== undefined ? phone : targetUser.phone,
+        role: targetRole || targetUser.role,
+    });
+
     return updatedUser;
 };
 
 /**
- * Activate or Deactivate user account with RBAC Hierarchy check
+ * Toggle User Active Status with Hierarchy Guard
  */
-const setUserStatusService = async (id, isActive, currentUser) => {
+export const setUserStatusService = async (id, isActive, currentUser) => {
     if (typeof isActive !== "boolean") {
-        const error = new Error("Parameter 'is_active' boolean value is required");
+        const error = new Error("Parameter 'is_active' bertipe boolean (true/false) diperlukan.");
         error.statusCode = 400;
         throw error;
     }
 
     if (String(id) === String(currentUser.id)) {
-        const error = new Error("Cannot activate or deactivate your own account");
+        const error = new Error("Anda tidak dapat menonaktifkan akun Anda sendiri.");
         error.statusCode = 400;
         throw error;
     }
 
     const targetUser = await UserModel.findById(id);
     if (!targetUser) {
-        const error = new Error("User not found");
+        const error = new Error("Pengguna tidak ditemukan.");
         error.statusCode = 404;
         throw error;
     }
@@ -195,12 +237,14 @@ const setUserStatusService = async (id, isActive, currentUser) => {
         // Allowed
     } else if (currentUser.role === "MANAGEMENT") {
         if (targetUser.role === "SUPERADMIN") {
-            const error = new Error("Access forbidden: cannot modify SUPERADMIN accounts");
+            const error = new Error(
+                "Akses ditolak (Hierarchy Guard): Management dilarang mengubah status akun SUPERADMIN."
+            );
             error.statusCode = 403;
             throw error;
         }
     } else {
-        const error = new Error("Access forbidden: insufficient permissions to manage user status");
+        const error = new Error("Akses ditolak: Anda tidak memiliki wewenang mengelola status pengguna.");
         error.statusCode = 403;
         throw error;
     }
@@ -214,23 +258,23 @@ const setUserStatusService = async (id, isActive, currentUser) => {
 
     return {
         user: updatedUser,
-        message: `User account successfully ${isActive ? "activated" : "deactivated"}`,
+        message: `Akun pengguna berhasil ${isActive ? "diaktifkan" : "dinonaktifkan"}.`,
     };
 };
 
 /**
- * Delete user by ID with RBAC Hierarchy check
+ * Delete User Account with Hierarchy Guard
  */
-const deleteUserService = async (id, currentUser) => {
+export const deleteUserService = async (id, currentUser) => {
     if (String(id) === String(currentUser.id)) {
-        const error = new Error("Cannot delete your own account");
+        const error = new Error("Anda tidak dapat menghapus akun Anda sendiri.");
         error.statusCode = 400;
         throw error;
     }
 
     const targetUser = await UserModel.findById(id);
     if (!targetUser) {
-        const error = new Error("User not found");
+        const error = new Error("Pengguna tidak ditemukan.");
         error.statusCode = 404;
         throw error;
     }
@@ -239,29 +283,30 @@ const deleteUserService = async (id, currentUser) => {
         // Allowed
     } else if (currentUser.role === "MANAGEMENT") {
         if (targetUser.role === "SUPERADMIN") {
-            const error = new Error("Access forbidden: cannot delete SUPERADMIN accounts");
+            const error = new Error(
+                "Akses ditolak (Hierarchy Guard): Management dilarang menghapus akun SUPERADMIN."
+            );
             error.statusCode = 403;
             throw error;
         }
     } else {
-        const error = new Error("Access forbidden: insufficient permissions to delete user accounts");
+        const error = new Error("Akses ditolak: Anda tidak memiliki wewenang menghapus akun pengguna.");
         error.statusCode = 403;
         throw error;
     }
 
-    // Revoke all refresh tokens for deleted user
     await RefreshTokenModel.revokeAllForUser(id);
-
     const deletedUser = await UserModel.delete(id);
-    return { message: "User deleted successfully", user: deletedUser };
+
+    return { message: "Akun pengguna berhasil dihapus dari sistem.", user: deletedUser };
 };
 
 /**
- * Change user password with current password validation
+ * Change user password with current password verification
  */
-const changePasswordService = async (userId, { currentPassword, newPassword }) => {
+export const changePasswordService = async (userId, { currentPassword, newPassword }) => {
     if (!currentPassword || !newPassword) {
-        const error = new Error("Kata sandi lama dan kata sandi baru wajib diisi.");
+        const error = new Error("Kata sandi saat ini dan kata sandi baru wajib diisi.");
         error.statusCode = 400;
         throw error;
     }
@@ -272,28 +317,17 @@ const changePasswordService = async (userId, { currentPassword, newPassword }) =
     }
     const user = await UserModel.findByIdWithPassword(userId);
     if (!user) {
-        const error = new Error("User tidak ditemukan");
+        const error = new Error("Pengguna tidak ditemukan.");
         error.statusCode = 404;
         throw error;
     }
     const isMatch = await bcrypt.compare(currentPassword, user.password);
     if (!isMatch) {
-        const error = new Error("Kata sandi saat ini (lama) tidak sesuai.");
+        const error = new Error("Kata sandi saat ini tidak sesuai.");
         error.statusCode = 400;
         throw error;
     }
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     const updatedUser = await UserModel.updatePassword(userId, hashedPassword);
     return updatedUser;
-};
-
-export {
-    getProfileService,
-    getAllUsersService,
-    getUserByIdService,
-    createUserService,
-    updateUserService,
-    setUserStatusService,
-    deleteUserService,
-    changePasswordService
 };

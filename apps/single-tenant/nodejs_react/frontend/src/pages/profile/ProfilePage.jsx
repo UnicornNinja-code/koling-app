@@ -113,15 +113,15 @@ export function ProfilePage() {
         <div className="lg:col-span-1 space-y-6">
           <Card>
             <CardContent className="p-6 text-center space-y-4">
-              <div className="w-20 h-20 rounded-2xl bg-[#FF5052]/10 border-2 border-[#FF5052]/20 text-[#FF5052] flex items-center justify-center font-black text-2xl mx-auto shadow-xs">
+              <div className="w-20 h-20 rounded-[12px] bg-primary-50 border-2 border-primary-200 text-primary-600 flex items-center justify-center font-bold text-2xl mx-auto shadow-none">
                 {profileUser?.name?.[0] || profileUser?.username?.[0] || "U"}
               </div>
 
               <div>
-                <h3 className="font-heading font-extrabold text-base text-slate-900 leading-tight">
+                <h3 className="font-heading font-bold text-base text-neutral-900 leading-tight">
                   {profileUser?.name || profileUser?.username || "Pengguna"}
                 </h3>
-                <p className="text-xs text-slate-500 font-mono mt-0.5">@{profileUser?.username}</p>
+                <p className="text-xs text-neutral-500 font-mono mt-0.5">@{profileUser?.username}</p>
               </div>
 
               <div className="pt-2 flex justify-center">

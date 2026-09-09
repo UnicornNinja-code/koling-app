@@ -47,12 +47,16 @@ export class POIDistanceService {
     let originLat = parseFloat(customLat);
     let originLon = parseFloat(customLon);
     let originType = "RIDER_LIVE_LOCATION";
+    let calculationMode = "OPERATIONAL";
+    let dataQuality = "VALID";
 
     if (isNaN(originLat) || isNaN(originLon)) {
       const hub = await this.getHubCoordinates();
       originLat = hub.latitude;
       originLon = hub.longitude;
-      originType = "HUB_DEFAULT_LOCATION";
+      originType = "DEFAULT_HUB";
+      calculationMode = "BASELINE";
+      dataQuality = "BASELINE";
     }
 
     const result = await this.repo.getDistanceToZoneCentroid(zoneId, originLat, originLon);
@@ -63,12 +67,16 @@ export class POIDistanceService {
       skor_c5: result.distance_km, // C5 Cost Criteria = Distance in KM to Zone Centroid
       distance_meters: result.distance_meters,
       distance_km: result.distance_km,
+      calculation_mode: calculationMode,
+      data_quality: dataQuality,
+      source: originType,
       centroid: {
         latitude: result.centroid_lat,
         longitude: result.centroid_lon,
       },
       origin: {
         type: originType,
+        source: originType,
         latitude: originLat,
         longitude: originLon,
       },
@@ -82,12 +90,16 @@ export class POIDistanceService {
     let originLat = parseFloat(customLat);
     let originLon = parseFloat(customLon);
     let originType = "RIDER_LIVE_LOCATION";
+    let calculationMode = "OPERATIONAL";
+    let dataQuality = "VALID";
 
     if (isNaN(originLat) || isNaN(originLon)) {
       const hub = await this.getHubCoordinates();
       originLat = hub.latitude;
       originLon = hub.longitude;
-      originType = "HUB_DEFAULT_LOCATION";
+      originType = "DEFAULT_HUB";
+      calculationMode = "BASELINE";
+      dataQuality = "BASELINE";
     }
 
     const { pool } = await import("../../config/database.js");
@@ -106,8 +118,12 @@ export class POIDistanceService {
       skor_c5: distanceKm,
       distance_meters: distanceMeters,
       distance_km: distanceKm,
+      calculation_mode: calculationMode,
+      data_quality: dataQuality,
+      source: originType,
       origin: {
         type: originType,
+        source: originType,
         latitude: originLat,
         longitude: originLon,
       },

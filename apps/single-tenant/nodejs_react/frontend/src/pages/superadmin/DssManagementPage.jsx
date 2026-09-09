@@ -1,598 +1,1133 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import React, { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "../../components/layout/AppLayout.jsx";
 import { PageHeader } from "../../components/ui/PageHeader.jsx";
 import { StatusBadge } from "../../components/ui/StatusBadge.jsx";
 import { Button } from "../../components/common/Button.jsx";
+import { Input } from "../../components/ui/Input.jsx";
+import { Drawer } from "../../components/ui/Drawer.jsx";
+import {
+  TableContainer,
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+  TableEmpty,
+} from "../../components/ui/Table.jsx";
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "../../components/ui/Tabs.jsx";
+import { TableSkeleton, PanelSkeleton } from "../../components/ui/LoadingSkeleton.jsx";
+import { EmptyState } from "../../components/ui/EmptyState.jsx";
+import { ErrorFallbackBanner } from "../../components/ui/ErrorFallbackBanner.jsx";
 import { dssService } from "../../services/dssService.js";
-import { zoneService } from "../../services/zoneService.js";
+import { poiService } from "../../services/poiService.js";
+import { weatherService } from "../../services/weatherService.js";
+import { analyticsService } from "../../services/analyticsService.js";
+import { queryKeys } from "../../lib/queryKeys.js";
+import { useAuth } from "../../context/AuthContext.jsx";
 import {
   BrainCircuit,
   Award,
-  MapPin,
-  Star,
-  Info,
-  AlertTriangle,
   Clock,
-  ShieldCheck,
-  History,
-  CheckSquare,
-  Square,
+  CloudSun,
+  BarChart3,
   Sliders,
-  FileSpreadsheet,
+  CheckCircle2,
+  AlertTriangle,
+  RefreshCw,
+  Search,
+  Save,
+  Info,
+  ShieldCheck,
   ChevronRight,
-  Database
+  TrendingUp,
+  MapPin,
+  Flame,
+  Wind,
+  Droplets,
+  Layers,
+  Sparkles,
 } from "lucide-react";
 
 export function DssManagementPage() {
-  const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("evaluation"); // 'evaluation' | 'snapshots'
-  const [explainTab, setExplainTab] = useState("rankings"); // 'rankings' | 'raw_matrix' | 'bwm_weights' | 'traceability'
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
 
-  // Model B Multi-Zone Selection State
-  const [selectedZoneIds, setSelectedZoneIds] = useState([]);
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState("sore");
-  const [selectedBwmConfigId, setSelectedBwmConfigId] = useState("");
+  // Active Workspace Tab
+  const [activeTab, setActiveTab] = useState("recommendations");
 
-  // Hybrid DSS Result State
-  const [hybridResult, setHybridResult] = useState(null);
-  const [evalError, setEvalError] = useState(null);
+  // --- TAB 1: DSS RECOMMENDATION STATES ---
+  const [selectedZoneDetail, setSelectedZoneDetail] = useState(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-  // Snapshot Inspection State
-  const [selectedSnapshotId, setSelectedSnapshotId] = useState(null);
+  // --- TAB 2: C3 CROWD SCORE STATES ---
+  const [c3Search, setC3Search] = useState("");
+  const [editedScores, setEditedScores] = useState({});
+  const [c3Feedback, setC3Feedback] = useState(null);
 
-  // Fetch Active Operational Zones
-  const { data: zonesRes, isLoading: isLoadingZones } = useQuery({
-    queryKey: ["zones"],
-    queryFn: zoneService.getZones,
+  // --- TAB 4: PLAN VS ACTUAL STATES ---
+  const [selectedDate, setSelectedDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
+
+  // ============================================================================
+  // 1. QUERY: DSS RECOMMENDATIONS (SSOT)
+  // ============================================================================
+  const {
+    data: dssRes,
+    isLoading: isLoadingDss,
+    isError: isErrorDss,
+    error: dssError,
+    refetch: refetchDss,
+  } = useQuery({
+    queryKey: queryKeys.dss.recommendations(),
+    queryFn: () => dssService.getTopsisRecommendations(),
   });
 
-  const zones = zonesRes?.zones || zonesRes?.data || [];
-  const activeZones = zones.filter((z) => z.status === "ACTIVE");
+  const dssData = dssRes || {};
+  const dssRankings = dssData.rankings || [];
+  const dssWarnings = dssData.warnings || [];
 
-  // Default select all active zones on initial load
-  useEffect(() => {
-    if (activeZones.length > 0 && selectedZoneIds.length === 0) {
-      setSelectedZoneIds(activeZones.map((z) => z.id));
-    }
-  }, [activeZones, selectedZoneIds]);
-
-  // Fetch Active BWM Configurations
-  const { data: bwmConfigRes } = useQuery({
-    queryKey: ["activeBwmConfig"],
-    queryFn: dssService.getActiveDssConfig,
+  // ============================================================================
+  // 2. QUERY: C3 CROWD SCORES (SSOT)
+  // ============================================================================
+  const {
+    data: c3Res,
+    isLoading: isLoadingC3,
+    isError: isErrorC3,
+    error: c3Error,
+    refetch: refetchC3,
+  } = useQuery({
+    queryKey: queryKeys.dss.c3CrowdScores(),
+    queryFn: () => poiService.getCrowdScores(),
   });
 
-  // Fetch Evaluation Snapshots History
-  const { data: snapshotsRes, refetch: refetchSnapshots } = useQuery({
-    queryKey: ["dssSnapshots"],
-    queryFn: () => dssService.getDssSnapshots({ limit: 20 }),
-  });
+  const c3Categories = c3Res?.categories || c3Res?.data || (Array.isArray(c3Res) ? c3Res : []);
 
-  const snapshotsList = snapshotsRes?.data || [];
-
-  // Mutation for Hybrid BWM-TOPSIS Zone Evaluation
-  const evaluateHybridMutation = useMutation({
-    mutationFn: dssService.evaluateHybridBwmTopsis,
+  // Mutation for Single Category C3 Update
+  const updateSingleC3Mutation = useMutation({
+    mutationFn: ({ id, payload }) => poiService.updateSingleCrowdScores(id, payload),
     onSuccess: (res) => {
-      setHybridResult(res?.data || res);
-      setEvalError(null);
-      refetchSnapshots();
+      queryClient.invalidateQueries({ queryKey: queryKeys.dss.c3CrowdScores() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dss.recommendations() });
+      setC3Feedback({
+        type: "success",
+        message: res?.msg || "Skor keramaian kategori berhasil diperbarui.",
+      });
     },
     onError: (err) => {
-      const errRes = err?.response?.data;
-      setEvalError(errRes?.msg || err?.message || "Evaluasi Hybrid BWM-TOPSIS gagal.");
+      setC3Feedback({
+        type: "error",
+        message: err?.response?.data?.msg || err?.message || "Gagal memperbarui skor.",
+      });
     },
   });
 
-  const handleRunHybridEvaluation = () => {
-    if (selectedZoneIds.length === 0) {
-      alert("Harap pilih setidaknya 1 Zona Operasional untuk dievaluasi!");
+  // Mutation for Bulk C3 Update
+  const updateBulkC3Mutation = useMutation({
+    mutationFn: (payload) => poiService.updateBulkCrowdScores(payload),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.dss.c3CrowdScores() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dss.recommendations() });
+      setEditedScores({});
+      setC3Feedback({
+        type: "success",
+        message: res?.msg || "Semua skor keramaian berhasil diperbarui secara massal.",
+      });
+    },
+    onError: (err) => {
+      setC3Feedback({
+        type: "error",
+        message: err?.response?.data?.msg || err?.message || "Gagal memperbarui skor massal.",
+      });
+    },
+  });
+
+  // ============================================================================
+  // 3. QUERY: WEATHER INTELLIGENCE (SSOT)
+  // ============================================================================
+  const {
+    data: weatherRes,
+    isLoading: isLoadingWeather,
+    isError: isErrorWeather,
+    error: weatherError,
+    refetch: refetchWeather,
+  } = useQuery({
+    queryKey: queryKeys.weather.byHub("Sidoarjo"),
+    queryFn: () => weatherService.getHubWeatherInfo("Sidoarjo"),
+  });
+
+  const weatherData = weatherRes?.data || weatherRes || {};
+
+  const syncWeatherMutation = useMutation({
+    mutationFn: () => weatherService.syncWeather(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.weather.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dss.recommendations() });
+    },
+  });
+
+  // ============================================================================
+  // 4. QUERY: PLAN VS ACTUAL ANALYTICS (SSOT)
+  // ============================================================================
+  const {
+    data: planVsActualRes,
+    isLoading: isLoadingPvA,
+    isError: isErrorPvA,
+    error: pvaError,
+    refetch: refetchPvA,
+  } = useQuery({
+    queryKey: queryKeys.analytics.dssPerformance({ date: selectedDate }),
+    queryFn: () => analyticsService.getDssPerformance({ date: selectedDate }),
+  });
+
+  const pvaData = planVsActualRes?.data || planVsActualRes || {};
+  const pvaRanks = pvaData.ranks_breakdown || [];
+  const pvaInsights = pvaData.insights || {};
+
+  // ============================================================================
+  // HANDLERS
+  // ============================================================================
+  const handleOpenDetail = (zoneItem) => {
+    setSelectedZoneDetail(zoneItem);
+    setIsDrawerOpen(true);
+  };
+
+  const handleScoreChange = (categoryId, slot, value) => {
+    const numericVal = Math.min(5, Math.max(1, parseInt(value, 10) || 1));
+    setEditedScores((prev) => ({
+      ...prev,
+      [categoryId]: {
+        ...(prev[categoryId] || {}),
+        [slot]: numericVal,
+      },
+    }));
+  };
+
+  const handleSaveSingleRow = (cat) => {
+    const currentEdits = editedScores[cat.id] || {};
+    const payload = {
+      score_pagi: currentEdits.score_pagi ?? cat.scores?.pagi ?? cat.score_pagi ?? 1,
+      score_siang: currentEdits.score_siang ?? cat.scores?.siang ?? cat.score_siang ?? 1,
+      score_sore: currentEdits.score_sore ?? cat.scores?.sore ?? cat.score_sore ?? 1,
+      score_malam: currentEdits.score_malam ?? cat.scores?.malam ?? cat.score_malam ?? 1,
+    };
+    updateSingleC3Mutation.mutate({ id: cat.id, payload });
+  };
+
+  const handleSaveBulk = () => {
+    const scoresArray = Object.entries(editedScores).map(([id, scores]) => {
+      const cat = c3Categories.find((c) => c.id === id) || {};
+      return {
+        id,
+        score_pagi: scores.score_pagi ?? cat.scores?.pagi ?? cat.score_pagi ?? 1,
+        score_siang: scores.score_siang ?? cat.scores?.siang ?? cat.score_siang ?? 1,
+        score_sore: scores.score_sore ?? cat.scores?.sore ?? cat.score_sore ?? 1,
+        score_malam: scores.score_malam ?? cat.scores?.malam ?? cat.score_malam ?? 1,
+      };
+    });
+
+    if (scoresArray.length === 0) {
+      alert("Belum ada perubahan skor keramaian yang dilakukan.");
       return;
     }
-    setEvalError(null);
-    evaluateHybridMutation.mutate({
-      zone_ids: selectedZoneIds,
-      time_slot: selectedTimeSlot,
-      bwm_config_id: selectedBwmConfigId || null,
-    });
+
+    updateBulkC3Mutation.mutate({ scores: scoresArray });
   };
 
-  const toggleSelectZone = (id) => {
-    setSelectedZoneIds((prev) =>
-      prev.includes(id) ? prev.filter((zId) => zId !== id) : [...prev, id]
+  const filteredCategories = c3Categories.filter((cat) => {
+    if (!c3Search.trim()) return true;
+    const query = c3Search.toLowerCase();
+    return (
+      cat.name?.toLowerCase().includes(query) ||
+      cat.id?.toLowerCase().includes(query)
     );
-  };
-
-  const selectAllActiveZones = () => {
-    setSelectedZoneIds(activeZones.map((z) => z.id));
-  };
-
-  const clearZoneSelection = () => {
-    setSelectedZoneIds([]);
-  };
-
-  // Inspect past snapshot
-  const handleInspectSnapshot = async (id) => {
-    setSelectedSnapshotId(id);
-    try {
-      const res = await dssService.getDssSnapshotById(id);
-      const data = res?.data?.snapshot_data || res?.snapshot_data || res?.data;
-      setActiveTab("evaluation");
-      setHybridResult(data);
-    } catch (err) {
-      alert("Gagal memuat snapshot audit.");
-    }
-  };
-
-  const topRanking = hybridResult?.topsis_summary?.rankings?.[0] || null;
+  });
 
   return (
-    <AppLayout title="Engine SPK, Audit & Explainability" subtitle="Optimasi Pengambilan Keputusan Alokasi Zona Operasional">
-      <PageHeader
-        title="Sistem Pendukung Keputusan (Hybrid BWM-TOPSIS Engine)"
-        description="Pemeringkatan zona operasional berbasis perbandingan multi-kriteria C1–C6, Best-Worst Method (BWM), dan TOPSIS (Model B — Model Evaluasi Zona)."
-      />
+    <AppLayout
+      title="Intelligence Workspace"
+      subtitle="DSS Decision Engine, Weather Intelligence, and Plan-vs-Actual Validation"
+    >
+      <div className="space-y-4">
+        {/* Workspace Page Header */}
+        <PageHeader
+          title="Intelligence & Decision Workspace"
+          description="Prescriptive BWM-TOPSIS recommendation engine, C3 time-based crowd configuration, weather microclimate context, and empirical plan-vs-actual validation."
+        />
 
-      {/* Main Mode Navigation Tabs (Clean & Responsive) */}
-      <div className="flex items-center gap-2 mb-6 border-b border-slate-200 pb-3">
-        <button
-          onClick={() => setActiveTab("evaluation")}
-          className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition-all flex items-center gap-2 ${
-            activeTab === "evaluation"
-              ? "bg-[#FF5052] text-white font-bold shadow-xs"
-              : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-          }`}
-        >
-          <Award className="w-4 h-4" /> Evaluasi & Explainability DSS
-        </button>
-        <button
-          onClick={() => setActiveTab("snapshots")}
-          className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition-all flex items-center gap-2 ${
-            activeTab === "snapshots"
-              ? "bg-[#FF5052] text-white font-bold shadow-xs"
-              : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-          }`}
-        >
-          <History className="w-4 h-4" /> Audit Snapshot History ({snapshotsList.length})
-        </button>
-      </div>
+        {/* Primary Tabs Navigation */}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="w-full justify-start overflow-x-auto">
+            <TabsTrigger
+              value="recommendations"
+              leftIcon={BrainCircuit}
+            >
+              DSS Recommendations
+            </TabsTrigger>
+            <TabsTrigger
+              value="c3_config"
+              leftIcon={Sliders}
+            >
+              C3 Crowd Score Config
+            </TabsTrigger>
+            <TabsTrigger
+              value="weather"
+              leftIcon={CloudSun}
+            >
+              Weather Intelligence
+            </TabsTrigger>
+            <TabsTrigger
+              value="plan_vs_actual"
+              leftIcon={BarChart3}
+            >
+              Plan vs Actual Analytics
+            </TabsTrigger>
+          </TabsList>
 
-      {activeTab === "evaluation" && (
-        <div className="space-y-6">
-          {/* Phase 4A & 4B: Model B Zone Selection & Evaluation Configuration Panel */}
-          <div className="bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100">
-              <div>
-                <h3 className="text-base font-heading font-extrabold text-slate-900 flex items-center gap-2">
-                  <Sliders className="w-5 h-5 text-[#FF5052]" />
-                  Konfigurasi Evaluasi Zona Operasional (Model B)
-                </h3>
-                <p className="text-xs text-slate-500 mt-1 font-normal leading-relaxed">
-                  Pilih beberapa zona operasional yang akan dibandingkan, tentukan slot waktu operasional dan profil bobot pakar BWM.
-                </p>
-              </div>
-
-              {/* Evaluation Action Controls */}
-              <div className="flex flex-wrap items-center gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 mb-1 uppercase">Slot Waktu</label>
-                  <select
-                    value={selectedTimeSlot}
-                    onChange={(e) => setSelectedTimeSlot(e.target.value)}
-                    className="px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 bg-white min-h-[44px] focus:outline-none focus:border-[#FF5052]"
-                  >
-                    <option value="pagi">Pagi (06:00 - 11:00)</option>
-                    <option value="siang">Siang (11:00 - 15:00)</option>
-                    <option value="sore">Sore (15:00 - 18:30)</option>
-                    <option value="malam">Malam (18:30 - 22:00)</option>
-                  </select>
-                </div>
-
-                <Button
-                  onClick={handleRunHybridEvaluation}
-                  disabled={evaluateHybridMutation.isPending || selectedZoneIds.length === 0}
-                  variant="primary"
-                  size="md"
-                  className="mt-5 px-5 py-2.5 font-bold shrink-0"
-                >
-                  {evaluateHybridMutation.isPending ? (
-                    <>
-                      <Clock className="w-4 h-4 animate-spin mr-1.5" /> Mengevaluasi...
-                    </>
-                  ) : (
-                    <>
-                      <Award className="w-4 h-4 mr-1.5" /> Evaluasi Zona Terpilih (Hybrid BWM-TOPSIS)
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-
-            {/* Model B Zone Multi-Select Grid */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wider">
-                  <MapPin className="w-4 h-4 text-[#FF5052]" /> Pilih Zona untuk Dibandingkan ({selectedZoneIds.length} dari {activeZones.length} dipilih)
-                </span>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={selectAllActiveZones}
-                    className="text-[11px] font-semibold text-[#FF5052] hover:underline"
-                  >
-                    Pilih Semua Aktif
-                  </button>
-                  <span className="text-slate-300">|</span>
-                  <button
-                    onClick={clearZoneSelection}
-                    className="text-[11px] font-semibold text-slate-500 hover:text-slate-700 hover:underline"
-                  >
-                    Hapus Pilihan
-                  </button>
-                </div>
-              </div>
-
-              {isLoadingZones ? (
-                <div className="p-4 bg-slate-50 text-xs text-slate-500 rounded-xl">Memuat zona operasional...</div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                  {zones.map((z) => {
-                    const isSelected = selectedZoneIds.includes(z.id);
-                    const isRestricted = z.status === "RESTRICTED" || z.status === "INACTIVE";
-                    return (
-                      <div
-                        key={z.id}
-                        onClick={() => !isRestricted && toggleSelectZone(z.id)}
-                        className={`p-3.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
-                          isRestricted
-                            ? "bg-slate-100 border-slate-200 opacity-60 cursor-not-allowed"
-                            : isSelected
-                            ? "bg-[#FF5052]/5 border-[#FF5052]/40 shadow-xs"
-                            : "bg-white border-slate-200 hover:border-slate-300"
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          {isSelected ? (
-                            <CheckSquare className="w-5 h-5 text-[#FF5052] shrink-0" />
-                          ) : (
-                            <Square className="w-5 h-5 text-slate-400 shrink-0" />
-                          )}
-                          <div>
-                            <div className="text-xs font-bold text-slate-900">{z.name}</div>
-                            <div className="text-[10px] text-slate-500 flex items-center gap-1.5 mt-0.5">
-                              <span>Kapasitas: {z.max_capacity || 5} Rider</span>
-                              <span>•</span>
-                              <StatusBadge variant={z.status === "ACTIVE" ? "success" : "danger"}>
-                                {z.status}
-                              </StatusBadge>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Error Message Display */}
-          {evalError && (
-            <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs space-y-1">
-              <div className="flex items-center gap-2 font-bold text-rose-900">
-                <AlertTriangle className="w-4 h-4 text-rose-600" />
-                Evaluasi Zona Gagal
-              </div>
-              <p>{evalError}</p>
-            </div>
-          )}
-
-          {/* Phase 4C & 4D: Hybrid BWM-TOPSIS Leaderboard & Explainability Visualizer */}
-          {hybridResult && (
-            <div className="space-y-6">
-              {/* Highlight Banner Top Rank #1 */}
-              {topRanking && (
-                <div className="bg-white p-5 rounded-2xl border border-amber-200 shadow-xs space-y-4 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-heading font-extrabold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
-                      <Star className="w-4 h-4 fill-amber-500 text-amber-600" /> REKOMENDASI TERINGGI HASIL HYBRID BWM-TOPSIS
-                    </span>
-                    <StatusBadge variant="warning">Rank #1 TOPSIS</StatusBadge>
-                  </div>
-
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          {/* =================================================================== */}
+          {/* TAB 1: DSS RECOMMENDATIONS                                         */}
+          {/* =================================================================== */}
+          <TabsContent value="recommendations" className="space-y-4">
+            {isLoadingDss ? (
+              <PanelSkeleton height="h-40" />
+            ) : isErrorDss ? (
+              <ErrorFallbackBanner
+                title="Gagal memuat rekomendasi DSS"
+                message={dssError?.response?.data?.msg || dssError?.message}
+                onRetry={refetchDss}
+              />
+            ) : (
+              <>
+                {/* Operational Evaluation Metadata Banner */}
+                <div className="bg-white border border-[#E5E5E5] rounded-[6px] p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div className="flex flex-wrap items-center gap-4">
                     <div>
-                      <h4 className="text-xl font-heading font-extrabold text-slate-900">{topRanking.zone_name}</h4>
-                      <p className="text-xs text-slate-500 mt-0.5">ID: {topRanking.zone_id}</p>
-                      {hybridResult.snapshot_id && (
-                        <div className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
-                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>Snapshot Audit ID: <code className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">{hybridResult.snapshot_id}</code></span>
-                        </div>
-                      )}
+                      <span className="text-[#737373] text-[10px] uppercase font-bold block">
+                        Model Version
+                      </span>
+                      <span className="font-mono font-semibold text-[#111111]">
+                        {dssData.model_version || "BWM-TOPSIS-v1.0"}
+                      </span>
                     </div>
 
-                    <div className="text-left md:text-right bg-slate-50 md:bg-transparent p-3 md:p-0 rounded-xl border md:border-none border-slate-200 flex flex-col md:items-end">
-                      <span className="text-xs text-slate-500 font-semibold">Skor Preferensi Relatif (Cᵢ):</span>
-                      <div className="text-3xl font-heading font-extrabold text-[#FF5052]">{topRanking.preference_score.toFixed(4)}</div>
-                      <div className="text-[10px] text-slate-500 mt-0.5">D⁺ = {topRanking.d_pos.toFixed(4)} | D⁻ = {topRanking.d_neg.toFixed(4)}</div>
-                      <button
-                        onClick={() => navigate("/distribution", { state: { selected_zone_id: topRanking.zone_id } })}
-                        className="mt-2.5 px-4 py-2 bg-[#FF5052] hover:bg-[#E03E40] text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5"
-                      >
-                        <span>Plot / Gunakan Zona Ini</span>
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
+                    <div className="h-6 w-px bg-[#E5E5E5] hidden sm:block" />
+
+                    <div>
+                      <span className="text-[#737373] text-[10px] uppercase font-bold block">
+                        Evaluation Version
+                      </span>
+                      <span className="font-mono font-semibold text-[#111111]">
+                        {dssData.evaluation_version || "DSS-CRITERIA-v1.0"}
+                      </span>
+                    </div>
+
+                    <div className="h-6 w-px bg-[#E5E5E5] hidden sm:block" />
+
+                    <div>
+                      <span className="text-[#737373] text-[10px] uppercase font-bold block">
+                        Evaluated Time Slot
+                      </span>
+                      <span className="font-semibold text-[#111111] uppercase">
+                        {dssData.time_slot || "SORE"}
+                      </span>
+                    </div>
+
+                    <div className="h-6 w-px bg-[#E5E5E5] hidden sm:block" />
+
+                    <div>
+                      <span className="text-[#737373] text-[10px] uppercase font-bold block">
+                        Weight Source
+                      </span>
+                      <span className="font-semibold text-[#111111]">
+                        {dssData.weight_source || "Active BWM DB Config"}
+                      </span>
                     </div>
                   </div>
 
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 leading-relaxed flex items-center gap-2">
-                    <Info className="w-4 h-4 text-blue-600 shrink-0" />
-                    <span>
-                      <strong>Interpretasi Model B:</strong> Dari {hybridResult.total_evaluated_zones} zona yang dipilih untuk dibandingkan, <strong>{topRanking.zone_name}</strong> memiliki tingkat preferensi relatif tertinggi berdasarkan bobot BWM dan kriteria C1–C6 pada slot waktu <strong>{hybridResult.time_slot.toUpperCase()}</strong>.
-                    </span>
+                  <div className="flex items-center gap-2">
+                    <StatusBadge
+                      variant={dssData.data_status === "VALID" ? "success" : "warning"}
+                    >
+                      {dssData.data_status === "VALID" ? "DATA VALID" : "DATA DEGRADED"}
+                    </StatusBadge>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => refetchDss()}
+                      className="h-7 px-2.5 text-xs"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5 mr-1" />
+                      Refresh
+                    </Button>
                   </div>
                 </div>
-              )}
 
-              {/* Explainability Tab Navigation Bar */}
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-                <div className="flex border-b border-slate-200 bg-slate-50/50 p-2 gap-2 overflow-x-auto">
-                  <button
-                    onClick={() => setExplainTab("rankings")}
-                    className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition-all flex items-center gap-2 whitespace-nowrap ${
-                      explainTab === "rankings" ? "bg-white text-[#FF5052] shadow-xs border border-slate-200 font-bold" : "text-slate-600 hover:bg-slate-100"
-                    }`}
-                  >
-                    <Award className="w-4 h-4" /> 1. Leaderboard Ranking (Cᵢ)
-                  </button>
-                  <button
-                    onClick={() => setExplainTab("raw_matrix")}
-                    className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition-all flex items-center gap-2 whitespace-nowrap ${
-                      explainTab === "raw_matrix" ? "bg-white text-[#FF5052] shadow-xs border border-slate-200 font-bold" : "text-slate-600 hover:bg-slate-100"
-                    }`}
-                  >
-                    <FileSpreadsheet className="w-4 h-4" /> 2. Matriks Mentah (X)
-                  </button>
-                  <button
-                    onClick={() => setExplainTab("bwm_weights")}
-                    className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition-all flex items-center gap-2 whitespace-nowrap ${
-                      explainTab === "bwm_weights" ? "bg-white text-[#FF5052] shadow-xs border border-slate-200 font-bold" : "text-slate-600 hover:bg-slate-100"
-                    }`}
-                  >
-                    <BrainCircuit className="w-4 h-4" /> 3. Profil Bobot BWM (W*)
-                  </button>
-                  <button
-                    onClick={() => setExplainTab("traceability")}
-                    className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition-all flex items-center gap-2 whitespace-nowrap ${
-                      explainTab === "traceability" ? "bg-white text-[#FF5052] shadow-xs border border-slate-200 font-bold" : "text-slate-600 hover:bg-slate-100"
-                    }`}
-                  >
-                    <Database className="w-4 h-4" /> 4. Audit Traceability (X → R → V → Cᵢ)
-                  </button>
-                </div>
+                {/* Warnings Banner */}
+                {dssWarnings.length > 0 && (
+                  <div className="bg-[#FFFBEB] border border-[#FDE68A] rounded-[6px] p-3 text-xs text-[#B45309] space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold">
+                      <AlertTriangle className="w-4 h-4 text-[#D97706]" />
+                      <span>Catatan / Peringatan Kualitas Data DSS:</span>
+                    </div>
+                    <ul className="list-disc list-inside space-y-0.5 text-[11px] pl-1 text-[#92400E]">
+                      {dssWarnings.map((w, idx) => (
+                        <li key={idx}>{w}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
-                <div className="p-5 md:p-6">
-                  {/* TAB 1: LEADERBOARD RANKING */}
-                  {explainTab === "rankings" && (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-heading font-extrabold text-slate-900">Perangkingan Akhir TOPSIS (Descending Preference Score Cᵢ)</h4>
-                        <span className="text-xs text-slate-500">Versi Model: <code className="bg-slate-100 px-2 py-0.5 rounded font-mono">{hybridResult.evaluation_version}</code></span>
-                      </div>
+                {/* Ranking First Presentation */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-[#737373]">
+                      Peringkat Rekomendasi Zona Operasional ({dssRankings.length} Zona Terdaftar)
+                    </h3>
+                  </div>
 
-                      <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
-                        {hybridResult.topsis_summary.rankings.map((rk) => (
-                          <div key={rk.zone_id} className="p-4 bg-white hover:bg-slate-50/80 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <div className="flex items-center gap-4">
-                              <div className={`w-9 h-9 rounded-full flex items-center justify-center font-heading font-extrabold text-sm ${
-                                rk.rank === 1 ? "bg-amber-100 text-amber-800 border border-amber-300" :
-                                rk.rank === 2 ? "bg-slate-200 text-slate-700" : "bg-slate-100 text-slate-600"
-                              }`}>
-                                #{rk.rank}
+                  {dssRankings.length === 0 ? (
+                    <EmptyState
+                      title="Tidak ada hasil evaluasi"
+                      description="Belum ada data evaluasi rekomendasi TOPSIS yang dihasilkan."
+                    />
+                  ) : (
+                    <div className="grid grid-cols-1 gap-2.5">
+                      {dssRankings.map((rankItem) => {
+                        const pref = parseFloat(rankItem.preference_score) || 0;
+                        const isTop = rankItem.rank === 1;
+
+                        return (
+                          <div
+                            key={rankItem.zone_id || rankItem.rank}
+                            className={`bg-white border rounded-[6px] p-3.5 transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 ${
+                              isTop
+                                ? "border-[#2563EB] ring-1 ring-[#2563EB]/20"
+                                : "border-[#E5E5E5] hover:border-[#D4D4D4]"
+                            }`}
+                          >
+                            {/* Left: Rank & Zone Name */}
+                            <div className="flex items-start gap-3 min-w-[220px]">
+                              <div
+                                className={`w-8 h-8 rounded-[4px] flex items-center justify-center font-mono font-bold text-xs shrink-0 ${
+                                  isTop
+                                    ? "bg-[#2563EB] text-white"
+                                    : "bg-[#F5F5F5] text-[#525252] border border-[#E5E5E5]"
+                                }`}
+                              >
+                                #{rankItem.rank}
                               </div>
-                              <div>
-                                <div className="text-sm font-bold text-slate-900">{rk.zone_name}</div>
-                                <div className="text-xs text-slate-500 mt-0.5">
-                                  Distance Positif (D⁺): <strong>{rk.d_pos.toFixed(4)}</strong> | Distance Negatif (D⁻): <strong>{rk.d_neg.toFixed(4)}</strong>
+                              <div className="space-y-0.5">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-bold text-sm text-[#111111]">
+                                    {rankItem.zone_name}
+                                  </span>
+                                  {isTop && (
+                                    <StatusBadge variant="primary" size="sm">
+                                      RECOMMENDED #1
+                                    </StatusBadge>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 text-[11px] text-[#737373]">
+                                  <span>ID: {rankItem.zone_id?.slice(0, 8)}...</span>
+                                  <span>•</span>
+                                  <StatusBadge
+                                    variant={
+                                      rankItem.data_quality === "VALID" ? "success" : "warning"
+                                    }
+                                    size="sm"
+                                  >
+                                    {rankItem.data_quality || "VALID"}
+                                  </StatusBadge>
                                 </div>
                               </div>
                             </div>
 
-                            <div className="text-right self-end sm:self-auto">
-                              <div className="text-xs text-slate-500 font-semibold">Skor Preferensi (Cᵢ)</div>
-                              <div className="text-xl font-heading font-extrabold text-slate-900">{rk.preference_score.toFixed(4)}</div>
+                            {/* Middle: Preference Score Bar & Reasoning */}
+                            <div className="flex-1 max-w-md space-y-1.5">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="font-semibold text-[#525252]">
+                                  TOPSIS Preference Score (C<sub>i</sub>)
+                                </span>
+                                <span className="font-mono font-bold text-[#111111]">
+                                  {pref.toFixed(4)} ({(pref * 100).toFixed(1)}%)
+                                </span>
+                              </div>
+                              <div className="w-full bg-[#F5F5F5] h-2 rounded-[2px] overflow-hidden border border-[#E5E5E5]">
+                                <div
+                                  className={`h-full transition-all ${
+                                    isTop ? "bg-[#2563EB]" : "bg-[#525252]"
+                                  }`}
+                                  style={{ width: `${Math.min(100, Math.max(0, pref * 100))}%` }}
+                                />
+                              </div>
+                              {rankItem.reasoning?.summary && (
+                                <p className="text-[11px] text-[#737373] line-clamp-1 italic">
+                                  {rankItem.reasoning.summary}
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Right: Inspection CTA */}
+                            <div className="flex items-center gap-2 self-end md:self-center">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleOpenDetail(rankItem)}
+                                className="text-xs h-7 px-2.5"
+                              >
+                                Inspeksi Kriteria
+                                <ChevronRight className="w-3.5 h-3.5 ml-1" />
+                              </Button>
                             </div>
                           </div>
-                        ))}
-                      </div>
-
-                      {/* Excluded Zones Feedback */}
-                      {hybridResult.excluded_zones && hybridResult.excluded_zones.length > 0 && (
-                        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
-                          <span className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
-                            <AlertTriangle className="w-4 h-4 text-amber-600" /> Zona Dieksklusi dari Evaluasi TOPSIS:
-                          </span>
-                          <ul className="text-xs text-amber-800 space-y-1 pl-2">
-                            {hybridResult.excluded_zones.map((ex) => (
-                              <li key={ex.zone_id}>
-                                • <strong>{ex.zone_name}</strong>: {ex.reason}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* TAB 2: RAW MATRIX X */}
-                  {explainTab === "raw_matrix" && (
-                    <div className="space-y-4">
-                      <h4 className="text-sm font-heading font-extrabold text-slate-900">Matriks Keputusan Mentah (X m×6) Nilai Aktual C1–C6</h4>
-                      <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                        <table className="w-full text-xs text-left text-slate-700">
-                          <thead className="bg-slate-100 text-slate-800 uppercase text-[10px] font-bold border-b border-slate-200">
-                            <tr>
-                              <th className="p-3">Nama Zona Operasional</th>
-                              <th className="p-3 text-center bg-emerald-50 text-emerald-900">C1 Densitas POI (Max)</th>
-                              <th className="p-3 text-center bg-emerald-50 text-emerald-900">C2 Diversitas (Max)</th>
-                              <th className="p-3 text-center bg-emerald-50 text-emerald-900">C3 Keramaian (Max)</th>
-                              <th className="p-3 text-center bg-rose-50 text-rose-900">C4 Hujan % (Min)</th>
-                              <th className="p-3 text-center bg-rose-50 text-rose-900">C5 Jarak KM (Min)</th>
-                              <th className="p-3 text-center bg-rose-50 text-rose-900">C6 Persaingan (Min)</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {hybridResult.topsis_summary.rankings.map((rk) => {
-                              const raw = rk.traceability.raw_criteria;
-                              return (
-                                <tr key={rk.zone_id} className="hover:bg-slate-50">
-                                  <td className="p-3 font-bold text-slate-900">{rk.zone_name}</td>
-                                  <td className="p-3 text-center font-mono font-semibold">{raw.C1?.raw_value ?? "-"} POI</td>
-                                  <td className="p-3 text-center font-mono font-semibold">{raw.C2?.raw_value ?? "-"} Kat</td>
-                                  <td className="p-3 text-center font-mono font-semibold">{raw.C3?.raw_value ?? "-"} Poin</td>
-                                  <td className="p-3 text-center font-mono font-semibold text-rose-700">{raw.C4?.raw_value ?? 0}%</td>
-                                  <td className="p-3 text-center font-mono font-semibold text-rose-700">{raw.C5?.raw_value?.toFixed(2) ?? "-"} KM</td>
-                                  <td className="p-3 text-center font-mono font-semibold text-rose-700">{raw.C6?.raw_value ?? "-"} Indeks</td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* TAB 3: BWM WEIGHTS W* */}
-                  {explainTab === "bwm_weights" && (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-heading font-extrabold text-slate-900">Profil Bobot Kriteria BWM Optimal (W*)</h4>
-                        <StatusBadge variant={hybridResult.bwm_config.is_consistent ? "success" : "danger"}>
-                          CR = {hybridResult.bwm_config.consistency_ratio.toFixed(4)} ({hybridResult.bwm_config.is_consistent ? "KONSISTEN" : "TIDAK KONSISTEN"})
-                        </StatusBadge>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {hybridResult.criteria_specs.map((cs) => {
-                          const pct = (cs.weight * 100).toFixed(2);
-                          return (
-                            <div key={cs.code} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs font-bold text-slate-800">
-                                  [{cs.code}] {cs.name} ({cs.type})
-                                </span>
-                                <span className="text-sm font-heading font-extrabold text-[#FF5052]">{pct}%</span>
-                              </div>
-                              <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                                <div className="bg-[#FF5052] h-full rounded-full" style={{ width: `${pct}%` }} />
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* TAB 4: MATHEMATICAL TRACEABILITY */}
-                  {explainTab === "traceability" && (
-                    <div className="space-y-4">
-                      <h4 className="text-sm font-heading font-extrabold text-slate-900">Penelusuran Tahapan Komputasi Vektor (X → R → V → Cᵢ)</h4>
-                      <p className="text-xs text-slate-500">Rincian nilai normalisasi Euclidean R dan matriks terbobot V dengan presisi 64-bit IEEE float penuh.</p>
-
-                      <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                        <table className="w-full text-xs text-left text-slate-700">
-                          <thead className="bg-slate-100 text-slate-800 uppercase text-[10px] font-bold border-b border-slate-200">
-                            <tr>
-                              <th className="p-3">Zona Operasional</th>
-                              <th className="p-3 text-center">R (C1..C6) Normalisasi</th>
-                              <th className="p-3 text-center">V (C1..C6) Terbobot</th>
-                              <th className="p-3 text-center">D⁺ (Jarak Ideal)</th>
-                              <th className="p-3 text-center">D⁻ (Jarak Negatif)</th>
-                              <th className="p-3 text-center font-bold text-[#FF5052]">Ci Score</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {hybridResult.topsis_summary.rankings.map((rk) => (
-                              <tr key={rk.zone_id} className="hover:bg-slate-50">
-                                <td className="p-3 font-bold text-slate-900">{rk.zone_name}</td>
-                                <td className="p-3 text-center font-mono text-[11px]">
-                                  {Object.values(rk.traceability.normalized_r).map((n) => n.toFixed(3)).join(", ")}
-                                </td>
-                                <td className="p-3 text-center font-mono text-[11px]">
-                                  {Object.values(rk.traceability.weighted_v).map((v) => v.toFixed(3)).join(", ")}
-                                </td>
-                                <td className="p-3 text-center font-mono text-xs">{rk.d_pos.toFixed(4)}</td>
-                                <td className="p-3 text-center font-mono text-xs">{rk.d_neg.toFixed(4)}</td>
-                                <td className="p-3 text-center font-mono font-bold text-[#FF5052] text-sm">{rk.preference_score.toFixed(4)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+              </>
+            )}
+          </TabsContent>
 
-      {/* Phase 4E: Evaluation Snapshot History Mode */}
-      {activeTab === "snapshots" && (
-        <div className="bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
-          <div>
-            <h3 className="text-base font-heading font-extrabold text-slate-900 flex items-center gap-2">
-              <History className="w-5 h-5 text-[#FF5052]" />
-              Riwayat Snapshot Audit Evaluasi DSS
-            </h3>
-            <p className="text-xs text-slate-500 mt-1 font-normal">
-              Daftar rekam jejak evaluasi masa lalu yang tersimpan di PostgreSQL untuk auditabilitas dan reproduksibilitas skripsi.
-            </p>
-          </div>
-
-          <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
-            {snapshotsList.length === 0 ? (
-              <div className="p-6 text-center text-xs text-slate-500">Belum ada riwayat snapshot evaluasi tersimpan.</div>
+          {/* =================================================================== */}
+          {/* TAB 2: C3 CROWD SCORE CONFIGURATION                               */}
+          {/* =================================================================== */}
+          <TabsContent value="c3_config" className="space-y-4">
+            {isLoadingC3 ? (
+              <TableSkeleton rows={6} cols={7} />
+            ) : isErrorC3 ? (
+              <ErrorFallbackBanner
+                title="Gagal memuat matriks skor keramaian C3"
+                message={c3Error?.response?.data?.msg || c3Error?.message}
+                onRetry={refetchC3}
+              />
             ) : (
-              snapshotsList.map((snp) => (
-                <div key={snp.id} className="p-4 bg-white hover:bg-slate-50 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="space-y-1">
-                    <div className="text-xs font-bold text-slate-900 flex items-center gap-2">
-                      <span>Snapshot ID: <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono">{snp.id}</code></span>
-                      <StatusBadge variant={snp.status === "COMPLETED" ? "success" : "warning"}>
-                        {snp.status}
-                      </StatusBadge>
+              <div className="space-y-3">
+                {/* Feedback Notification */}
+                {c3Feedback && (
+                  <div
+                    className={`p-3 rounded-[6px] text-xs flex items-center justify-between border ${
+                      c3Feedback.type === "success"
+                        ? "bg-[#F0FDF4] border-[#BBF7D0] text-[#166534]"
+                        : "bg-[#FEF2F2] border-[#FECACA] text-[#991B1B]"
+                    }`}
+                  >
+                    <span>{c3Feedback.message}</span>
+                    <button
+                      type="button"
+                      onClick={() => setC3Feedback(null)}
+                      className="font-bold underline ml-3"
+                    >
+                      Tutup
+                    </button>
+                  </div>
+                )}
+
+                {/* Search & Bulk Save Toolbar */}
+                <div className="bg-white border border-[#E5E5E5] rounded-[6px] p-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div className="relative w-full sm:w-72">
+                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#A3A3A3]" />
+                    <Input
+                      type="text"
+                      placeholder="Cari kategori POI..."
+                      value={c3Search}
+                      onChange={(e) => setC3Search(e.target.value)}
+                      className="pl-8 h-8 text-xs"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => refetchC3()}
+                      className="h-8 text-xs"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5 mr-1" />
+                      Reset
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={handleSaveBulk}
+                      disabled={
+                        Object.keys(editedScores).length === 0 ||
+                        updateBulkC3Mutation.isPending
+                      }
+                      className="h-8 text-xs"
+                    >
+                      <Save className="w-3.5 h-3.5 mr-1" />
+                      {updateBulkC3Mutation.isPending
+                        ? "Menyimpan..."
+                        : `Simpan Semua (${Object.keys(editedScores).length})`}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* C3 Compact Table */}
+                <TableContainer>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-12 text-center">#</TableHead>
+                        <TableHead>Kategori POI (58 Master)</TableHead>
+                        <TableHead className="w-24 text-center">Pagi (06-11)</TableHead>
+                        <TableHead className="w-24 text-center">Siang (11-15)</TableHead>
+                        <TableHead className="w-24 text-center">Sore (15-18)</TableHead>
+                        <TableHead className="w-24 text-center">Malam (18-22)</TableHead>
+                        <TableHead className="w-24 text-right">Aksi</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredCategories.length === 0 ? (
+                        <TableEmpty
+                          colSpan={7}
+                          message="Tidak ada kategori POI yang sesuai kriteria pencarian."
+                        />
+                      ) : (
+                        filteredCategories.map((cat, idx) => {
+                          const currentEdits = editedScores[cat.id] || {};
+                          const scorePagi = currentEdits.score_pagi ?? cat.scores?.pagi ?? cat.score_pagi ?? 1;
+                          const scoreSiang = currentEdits.score_siang ?? cat.scores?.siang ?? cat.score_siang ?? 1;
+                          const scoreSore = currentEdits.score_sore ?? cat.scores?.sore ?? cat.score_sore ?? 1;
+                          const scoreMalam = currentEdits.score_malam ?? cat.scores?.malam ?? cat.score_malam ?? 1;
+                          const isEdited = Boolean(editedScores[cat.id]);
+
+                          return (
+                            <TableRow key={cat.id || idx}>
+                              <TableCell className="text-center font-mono text-[#737373]">
+                                {idx + 1}
+                              </TableCell>
+                              <TableCell className="font-medium text-[#111111]">
+                                <div className="flex items-center gap-2">
+                                  <span>{cat.name}</span>
+                                  {isEdited && (
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[#2563EB]" />
+                                  )}
+                                </div>
+                              </TableCell>
+
+                              {/* Pagi */}
+                              <TableCell className="text-center">
+                                <select
+                                  value={scorePagi}
+                                  onChange={(e) =>
+                                    handleScoreChange(cat.id, "score_pagi", e.target.value)
+                                  }
+                                  className="h-7 px-1 text-xs border border-[#E5E5E5] rounded-[4px] bg-white font-mono font-bold text-center focus:outline-none focus:border-[#2563EB]"
+                                >
+                                  {[1, 2, 3, 4, 5].map((s) => (
+                                    <option key={s} value={s}>
+                                      {s}
+                                    </option>
+                                  ))}
+                                </select>
+                              </TableCell>
+
+                              {/* Siang */}
+                              <TableCell className="text-center">
+                                <select
+                                  value={scoreSiang}
+                                  onChange={(e) =>
+                                    handleScoreChange(cat.id, "score_siang", e.target.value)
+                                  }
+                                  className="h-7 px-1 text-xs border border-[#E5E5E5] rounded-[4px] bg-white font-mono font-bold text-center focus:outline-none focus:border-[#2563EB]"
+                                >
+                                  {[1, 2, 3, 4, 5].map((s) => (
+                                    <option key={s} value={s}>
+                                      {s}
+                                    </option>
+                                  ))}
+                                </select>
+                              </TableCell>
+
+                              {/* Sore */}
+                              <TableCell className="text-center">
+                                <select
+                                  value={scoreSore}
+                                  onChange={(e) =>
+                                    handleScoreChange(cat.id, "score_sore", e.target.value)
+                                  }
+                                  className="h-7 px-1 text-xs border border-[#E5E5E5] rounded-[4px] bg-white font-mono font-bold text-center focus:outline-none focus:border-[#2563EB]"
+                                >
+                                  {[1, 2, 3, 4, 5].map((s) => (
+                                    <option key={s} value={s}>
+                                      {s}
+                                    </option>
+                                  ))}
+                                </select>
+                              </TableCell>
+
+                              {/* Malam */}
+                              <TableCell className="text-center">
+                                <select
+                                  value={scoreMalam}
+                                  onChange={(e) =>
+                                    handleScoreChange(cat.id, "score_malam", e.target.value)
+                                  }
+                                  className="h-7 px-1 text-xs border border-[#E5E5E5] rounded-[4px] bg-white font-mono font-bold text-center focus:outline-none focus:border-[#2563EB]"
+                                >
+                                  {[1, 2, 3, 4, 5].map((s) => (
+                                    <option key={s} value={s}>
+                                      {s}
+                                    </option>
+                                  ))}
+                                </select>
+                              </TableCell>
+
+                              {/* Row Action */}
+                              <TableCell className="text-right">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleSaveSingleRow(cat)}
+                                  disabled={updateSingleC3Mutation.isPending}
+                                  className="h-7 px-2 text-[11px]"
+                                >
+                                  Simpan
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </div>
+            )}
+          </TabsContent>
+
+          {/* =================================================================== */}
+          {/* TAB 3: WEATHER INTELLIGENCE                                       */}
+          {/* =================================================================== */}
+          <TabsContent value="weather" className="space-y-4">
+            {isLoadingWeather ? (
+              <PanelSkeleton height="h-44" />
+            ) : isErrorWeather ? (
+              <ErrorFallbackBanner
+                title="Gagal memuat status cuaca Hub Sidoarjo"
+                message={weatherError?.response?.data?.msg || weatherError?.message}
+                onRetry={refetchWeather}
+              />
+            ) : (
+              <div className="space-y-4">
+                {/* Weather Context Operational Card */}
+                <div className="bg-white border border-[#E5E5E5] rounded-[6px] p-5 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E5E5E5] pb-3">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <CloudSun className="w-5 h-5 text-[#2563EB]" />
+                        <h3 className="font-bold text-sm text-[#111111]">
+                          Pusat Operasional: Hub {weatherData.hub_city_name || weatherData.city || "SIDOARJO"}
+                        </h3>
+                      </div>
+                      <p className="text-[11px] text-[#737373]">
+                        Kondisi mikroklimat cuaca aktual yang memengaruhi penalti kriteria C4 pada DSS TOPSIS.
+                      </p>
                     </div>
-                    <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-3">
-                      <span>Waktu: {new Date(snp.created_at).toLocaleString("id-ID")}</span>
-                      <span>•</span>
-                      <span>Slot: <strong>{snp.time_slot.toUpperCase()}</strong></span>
-                      <span>•</span>
-                      <span>Zona Evaluasi: <strong>{snp.total_evaluated_zones} Zona</strong></span>
-                      <span>•</span>
-                      <span>Rank #1: <strong>{snp.top_ranking_zone}</strong></span>
+
+                    <div className="flex items-center gap-2">
+                      <StatusBadge
+                        variant={weatherData.freshness === "FRESH" || !weatherData.freshness ? "success" : "neutral"}
+                      >
+                        {weatherData.freshness || "FRESH"}
+                      </StatusBadge>
+                      <StatusBadge
+                        variant={weatherData.quality === "VALID" || !weatherData.quality ? "success" : "warning"}
+                      >
+                        {weatherData.quality || "VALID"}
+                      </StatusBadge>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => syncWeatherMutation.mutate()}
+                        disabled={syncWeatherMutation.isPending}
+                        className="h-7 text-xs"
+                      >
+                        <RefreshCw
+                          className={`w-3.5 h-3.5 mr-1 ${
+                            syncWeatherMutation.isPending ? "animate-spin" : ""
+                          }`}
+                        />
+                        Sync Weather
+                      </Button>
                     </div>
                   </div>
 
-                  <Button
-                    onClick={() => handleInspectSnapshot(snp.id)}
-                    variant="outline"
-                    size="sm"
-                    className="text-xs font-bold text-[#FF5052] border-[#FF5052]/30 hover:bg-[#FF5052]/5 self-start sm:self-auto"
-                  >
-                    Buka Snapshot Audit <ChevronRight className="w-4 h-4 ml-1" />
-                  </Button>
+                  {/* Weather Metrics Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="bg-[#FAFAFA] p-3 rounded-[4px] border border-[#E5E5E5] space-y-1">
+                      <span className="text-[10px] uppercase font-bold text-[#737373]">
+                        Kondisi Cuaca
+                      </span>
+                      <div className="font-bold text-sm text-[#111111]">
+                        {weatherData.hub_overview?.weather_condition ||
+                          weatherData.condition ||
+                          "Cerah Berawan"}
+                      </div>
+                      <span className="text-[10px] text-[#737373] block">
+                        Status Open-Meteo
+                      </span>
+                    </div>
+
+                    <div className="bg-[#FAFAFA] p-3 rounded-[4px] border border-[#E5E5E5] space-y-1">
+                      <span className="text-[10px] uppercase font-bold text-[#737373]">
+                        Peluang Hujan (C4)
+                      </span>
+                      <div className="font-bold text-sm text-[#111111] flex items-center gap-1">
+                        <Droplets className="w-3.5 h-3.5 text-[#2563EB]" />
+                        {weatherData.hub_overview?.max_rain_probability_percent !== undefined
+                          ? `${weatherData.hub_overview.max_rain_probability_percent}%`
+                          : weatherData.precipitation_probability !== undefined
+                          ? `${weatherData.precipitation_probability}%`
+                          : "0%"}
+                      </div>
+                      <span className="text-[10px] text-[#737373] block">
+                        Presipitasi Lapangan
+                      </span>
+                    </div>
+
+                    <div className="bg-[#FAFAFA] p-3 rounded-[4px] border border-[#E5E5E5] space-y-1">
+                      <span className="text-[10px] uppercase font-bold text-[#737373]">
+                        Temperatur Rata-rata
+                      </span>
+                      <div className="font-bold text-sm text-[#111111]">
+                        {weatherData.hub_overview?.avg_temperature_c !== undefined
+                          ? `${weatherData.hub_overview.avg_temperature_c}°C`
+                          : weatherData.temperature !== undefined
+                          ? `${weatherData.temperature}°C`
+                          : "N/A"}
+                      </div>
+                      <span className="text-[10px] text-[#737373] block">
+                        Suhu Lingkungan
+                      </span>
+                    </div>
+
+                    <div className="bg-[#FAFAFA] p-3 rounded-[4px] border border-[#E5E5E5] space-y-1">
+                      <span className="text-[10px] uppercase font-bold text-[#737373]">
+                        Slot Operasional
+                      </span>
+                      <div className="font-bold text-sm text-[#111111] uppercase flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-[#737373]" />
+                        {weatherData.hub_overview?.active_time_slot || "OPERASIONAL"}
+                      </div>
+                      <span className="text-[10px] text-[#737373] block">
+                        {weatherData.hub_overview?.operational_hours || "06:00 - 21:00"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Provenance Footer */}
+                  <div className="bg-[#F5F5F5] rounded-[4px] p-2.5 text-[11px] text-[#525252] flex items-center justify-between">
+                    <span>
+                      Sumber Data:{" "}
+                      <strong>{weatherData.source || "Open-Meteo REST API & PostgreSQL Cache"}</strong>
+                    </span>
+                    <span>
+                      Total Zona Terpantau:{" "}
+                      <strong>{weatherData.total_zones || weatherData.zones_weather_list?.length || 2} Zona</strong>
+                    </span>
+                  </div>
                 </div>
-              ))
+              </div>
             )}
-          </div>
-        </div>
-      )}
+          </TabsContent>
+
+          {/* =================================================================== */}
+          {/* TAB 4: PLAN VS ACTUAL ANALYTICS                                   */}
+          {/* =================================================================== */}
+          <TabsContent value="plan_vs_actual" className="space-y-4">
+            {isLoadingPvA ? (
+              <TableSkeleton rows={5} cols={8} />
+            ) : isErrorPvA ? (
+              <ErrorFallbackBanner
+                title="Gagal memuat efektivitas DSS Plan-vs-Actual"
+                message={pvaError?.response?.data?.msg || pvaError?.message}
+                onRetry={refetchPvA}
+              />
+            ) : (
+              <div className="space-y-3">
+                {/* Date Filter Toolbar */}
+                <div className="bg-white border border-[#E5E5E5] rounded-[6px] p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-[#737373]">Tanggal Evaluasi:</span>
+                    <Input
+                      type="date"
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      className="h-8 text-xs w-40"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <StatusBadge
+                      variant={
+                        pvaInsights.rank_order_alignment === "STRONG_ALIGNMENT"
+                          ? "success"
+                          : pvaInsights.rank_order_alignment === "MODERATE_OR_MIXED_ALIGNMENT"
+                          ? "primary"
+                          : "neutral"
+                      }
+                    >
+                      {pvaInsights.rank_order_alignment || "INSUFFICIENT_DATA"}
+                    </StatusBadge>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => refetchPvA()}
+                      className="h-8 text-xs"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5 mr-1" />
+                      Refresh Analisis
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Insight Summary Alert */}
+                {pvaInsights.summary && (
+                  <div className="bg-[#EFF6FF] border border-[#BFDBFE] rounded-[6px] p-3 text-xs text-[#1E40AF] flex items-start gap-2">
+                    <TrendingUp className="w-4 h-4 text-[#2563EB] shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold block">Hasil Validasi Empiris Lapangan:</span>
+                      <p className="text-[11px] text-[#1E3A8A] mt-0.5 leading-relaxed">
+                        {pvaInsights.summary}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Plan vs Actual Comparison Table */}
+                <TableContainer>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-16 text-center">TOPSIS Rank</TableHead>
+                        <TableHead>Nama Zona</TableHead>
+                        <TableHead className="text-right">Skor Prediksi (C<sub>i</sub>)</TableHead>
+                        <TableHead className="text-right">Omzet Aktual</TableHead>
+                        <TableHead className="text-right">Omzet / Rider</TableHead>
+                        <TableHead className="text-center">Kepatuhan Geofence</TableHead>
+                        <TableHead className="text-center">Durasi Operasi</TableHead>
+                        <TableHead className="text-center">Rank Realisasi</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {pvaRanks.length === 0 ? (
+                        <TableEmpty
+                          colSpan={8}
+                          message="Belum ada data penugasan atau log penjualan pada tanggal ini."
+                        />
+                      ) : (
+                        pvaRanks.map((item, idx) => {
+                          const isRankOne = item.topsis_rank === 1;
+                          const actual = item.actual_execution || {};
+                          const dssPred = item.dss_prediction || {};
+
+                          return (
+                            <TableRow key={item.zone_id || idx}>
+                              <TableCell className="text-center font-mono font-bold text-xs">
+                                <span
+                                  className={`inline-block w-6 h-6 rounded-[3px] text-center leading-6 ${
+                                    isRankOne
+                                      ? "bg-[#2563EB] text-white"
+                                      : "bg-[#F5F5F5] text-[#525252] border border-[#E5E5E5]"
+                                  }`}
+                                >
+                                  #{item.topsis_rank}
+                                </span>
+                              </TableCell>
+                              <TableCell className="font-bold text-[#111111]">
+                                {item.zone_name}
+                              </TableCell>
+                              <TableCell className="text-right font-mono font-semibold text-[#525252]">
+                                {dssPred.preference_score_formatted ||
+                                  (dssPred.preference_score !== undefined
+                                    ? `${(dssPred.preference_score * 100).toFixed(2)}%`
+                                    : "N/A")}
+                              </TableCell>
+                              <TableCell className="text-right font-mono font-bold text-[#16A34A]">
+                                {actual.formatted_revenue ||
+                                  (actual.actual_revenue !== undefined
+                                    ? `Rp ${Math.round(actual.actual_revenue).toLocaleString("id-ID")}`
+                                    : "N/A")}
+                              </TableCell>
+                              <TableCell className="text-right font-mono text-[#525252]">
+                                {actual.formatted_revenue_per_rider || "N/A"}
+                              </TableCell>
+                              <TableCell className="text-center font-mono">
+                                <StatusBadge
+                                  variant={
+                                    actual.actual_compliance_rate_pct !== "N/A"
+                                      ? "success"
+                                      : "neutral"
+                                  }
+                                  size="sm"
+                                >
+                                  {actual.actual_compliance_rate_pct || "N/A"}
+                                </StatusBadge>
+                              </TableCell>
+                              <TableCell className="text-center font-mono text-xs text-[#525252]">
+                                {actual.avg_operating_duration_minutes !== undefined
+                                  ? `${actual.avg_operating_duration_minutes} min`
+                                  : "N/A"}
+                              </TableCell>
+                              <TableCell className="text-center font-mono font-bold text-xs">
+                                #{actual.realized_revenue_rank || idx + 1}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+
+        {/* =================================================================== */}
+        {/* CRITERIA & PROVENANCE INSPECTION DRAWER (TAB 1)                     */}
+        {/* =================================================================== */}
+        <Drawer
+          isOpen={isDrawerOpen}
+          onClose={() => setIsDrawerOpen(false)}
+          title={`Inspeksi Kriteria DSS: ${selectedZoneDetail?.zone_name || "Zona"}`}
+          description={`Peringkat #${selectedZoneDetail?.rank || 1} • Skor Preferensi TOPSIS: ${(parseFloat(selectedZoneDetail?.preference_score || 0) * 100).toFixed(2)}%`}
+          position="right"
+        >
+          {selectedZoneDetail && (
+            <div className="space-y-4">
+              {/* TOPSIS Distance Vector Details */}
+              <div className="bg-[#F5F5F5] p-3 rounded-[6px] border border-[#E5E5E5] space-y-1.5 text-xs">
+                <span className="font-bold text-[10px] uppercase text-[#737373] block">
+                  Metrik Jarak Euklidian TOPSIS
+                </span>
+                <div className="grid grid-cols-2 gap-2 font-mono">
+                  <div>
+                    <span className="text-[#737373] text-[10px] block">D+ (Jarak Solusi Ideal Positif):</span>
+                    <span className="font-bold text-[#111111]">
+                      {selectedZoneDetail.d_plus !== undefined
+                        ? selectedZoneDetail.d_plus.toFixed(4)
+                        : "N/A"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[#737373] text-[10px] block">D- (Jarak Solusi Ideal Negatif):</span>
+                    <span className="font-bold text-[#111111]">
+                      {selectedZoneDetail.d_minus !== undefined
+                        ? selectedZoneDetail.d_minus.toFixed(4)
+                        : "N/A"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Reasoning Summary */}
+              {selectedZoneDetail.reasoning && (
+                <div className="space-y-2">
+                  <span className="font-bold text-xs text-[#111111] block">
+                    Penjelasan Preskriptif (Deterministic Explainability)
+                  </span>
+                  <div className="p-3 bg-white border border-[#E5E5E5] rounded-[6px] space-y-2 text-xs">
+                    {selectedZoneDetail.reasoning.strong_factors?.length > 0 && (
+                      <div>
+                        <span className="text-[10px] font-bold text-[#16A34A] uppercase block">
+                          Faktor Keunggulan Komparatif:
+                        </span>
+                        <ul className="list-disc list-inside text-[11px] text-[#15803D] pl-1">
+                          {selectedZoneDetail.reasoning.strong_factors.map((f, i) => (
+                            <li key={i}>{f}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {selectedZoneDetail.reasoning.weak_factors?.length > 0 && (
+                      <div>
+                        <span className="text-[10px] font-bold text-[#D97706] uppercase block">
+                          Faktor Hambatan / Biaya:
+                        </span>
+                        <ul className="list-disc list-inside text-[11px] text-[#B45309] pl-1">
+                          {selectedZoneDetail.reasoning.weak_factors.map((f, i) => (
+                            <li key={i}>{f}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Raw Criteria & Provenance Table */}
+              <div className="space-y-2">
+                <span className="font-bold text-xs text-[#111111] block">
+                  Nilai Mentah Kriteria (C1-C6) & Provenance Data
+                </span>
+                <TableContainer>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Kode</TableHead>
+                        <TableHead>Kriteria</TableHead>
+                        <TableHead className="text-right">Nilai Mentah</TableHead>
+                        <TableHead>Sumber Data</TableHead>
+                        <TableHead className="text-center">Kualitas</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {[
+                        { code: "C1", name: "Densitas POI", type: "BENEFIT", unit: "poi" },
+                        { code: "C2", name: "Diversitas POI", type: "BENEFIT", unit: "kategori" },
+                        { code: "C3", name: "Keramaian Waktu", type: "BENEFIT", unit: "skor" },
+                        { code: "C4", name: "Risiko Cuaca", type: "COST", unit: "%" },
+                        { code: "C5", name: "Jarak Hub", type: "COST", unit: "km" },
+                        { code: "C6", name: "Kompetitor", type: "COST", unit: "pesaing" },
+                      ].map((crit) => {
+                        const rawVal = selectedZoneDetail.raw_scores?.[crit.code];
+                        const prov = selectedZoneDetail.provenance?.[crit.code] || {};
+
+                        return (
+                          <TableRow key={crit.code}>
+                            <TableCell className="font-mono font-bold text-[#2563EB]">
+                              {crit.code}
+                            </TableCell>
+                            <TableCell className="font-medium text-[#111111]">
+                              {crit.name}
+                            </TableCell>
+                            <TableCell className="text-right font-mono font-bold">
+                              {rawVal !== undefined ? rawVal : "N/A"} {crit.unit}
+                            </TableCell>
+                            <TableCell className="text-[11px] text-[#737373]">
+                              {prov.source || "Database SSOT"}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <StatusBadge
+                                variant={prov.quality === "VALID" ? "success" : "warning"}
+                                size="sm"
+                              >
+                                {prov.quality || "VALID"}
+                              </StatusBadge>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </div>
+            </div>
+          )}
+        </Drawer>
+      </div>
     </AppLayout>
   );
 }

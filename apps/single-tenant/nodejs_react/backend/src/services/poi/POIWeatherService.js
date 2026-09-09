@@ -48,85 +48,40 @@ export class POIWeatherService {
       const now = new Date();
 
       for (const item of batchData) {
-        // 1. Level 1 Memory Cache
-        this.memoryCache.set(item.zone_id, {
-          hourly: item.hourly,
-          fetchedAt: now,
-        });
-
-        // 2. Redis Key-Value Store (TTL 3600s / 1 Hour)
-        const cacheKey = `weather:zone:${item.zone_id}`;
-        try {
-          if (redisClient && (redisClient.isOpen || redisClient.isReady)) {
-            await redisClient.set(cacheKey, JSON.stringify(item.hourly), {
-              EX: 3600,
-            });
-          }
-        } catch (redisErr) {
-          console.warn(`⚠️ Warning: Gagal menyimpan Redis cache '${cacheKey}':`, redisErr.message);
-        }
-
-        // 3. Level 2 PostgreSQL DB Cache
+        // Evaluate C4 score and save directly to PostgreSQL with 30-minute freshness
         const evaluated = this.evaluator.evaluateC4Score(item.hourly, now);
         evaluated.hourly = item.hourly;
 
-        await this.repo.saveCachedWeather(item.zone_id, evaluated);
+        await this.repo.saveCachedWeather(item.zone_id, evaluated, 30);
       }
 
-      console.log(`✅ Weather Batch Sync Berhasil: Data cuaca ${batchData.length} zona diperbarui di Redis & PostgreSQL via 1 Open-Meteo HTTP Request.`);
+      console.log(`✅ Weather Batch Sync Berhasil: Data cuaca ${batchData.length} zona diperbarui di PostgreSQL via 1 Open-Meteo HTTP Request.`);
       return batchData;
     } catch (err) {
-      console.warn("⚠️ Warning: Open-Meteo API Sync gagal, menggunakan data cache jika tersedia:", err.message);
+      console.warn("⚠️ Warning: Open-Meteo API Sync gagal, menggunakan data cache DB jika tersedia:", err.message);
       return [];
     }
   }
 
   /**
-   * Fetch hourly weather forecast for a specific zone with multi-tier caching (Redis -> Memory -> DB)
+   * Fetch hourly weather forecast for a specific zone with DB-level freshness (expires_at)
    */
   async getHourlyForecastForZone(zoneId) {
-    const cacheKey = `weather:zone:${zoneId}`;
-
-    // 1. Check Redis Key-Value Cache
-    try {
-      if (redisClient && (redisClient.isOpen || redisClient.isReady)) {
-        const redisVal = await redisClient.get(cacheKey);
-        if (redisVal) {
-          return JSON.parse(redisVal);
-        }
-      }
-    } catch (err) {
-      console.warn("⚠️ Warning: Gagal membaca Redis weather cache:", err.message);
+    // 1. Check PostgreSQL Database Cache (30-minute TTL)
+    const dbCached = await this.repo.getCachedWeather(zoneId, 30);
+    if (dbCached && dbCached.hourly_cache) {
+      return dbCached.hourly_cache;
     }
 
-    // 2. Check Level 1 In-Memory Cache (TTL 60 mins)
-    const mem = this.memoryCache.get(zoneId);
-    const ttlMs = 60 * 60 * 1000;
-    if (mem && (Date.now() - new Date(mem.fetchedAt).getTime() < ttlMs)) {
-      return mem.hourly;
-    }
-
-    // 3. Fetch fresh batch weather data from Open-Meteo
+    // 2. If expired or not present, fetch fresh batch weather data from Open-Meteo
     await this.syncAllZonesWeather(true);
 
-    // Re-check Redis & Memory after sync
-    try {
-      if (redisClient && (redisClient.isOpen || redisClient.isReady)) {
-        const freshRedis = await redisClient.get(cacheKey);
-        if (freshRedis) {
-          return JSON.parse(freshRedis);
-        }
-      }
-    } catch (e) {}
-
-    const updatedMem = this.memoryCache.get(zoneId);
-    if (updatedMem) {
-      return updatedMem.hourly;
+    const freshDb = await this.repo.getCachedWeather(zoneId, 30);
+    if (freshDb && freshDb.hourly_cache) {
+      return freshDb.hourly_cache;
     }
 
-    // 4. Fallback to Level 2 PostgreSQL Cached Record (120 mins)
-    const dbRecord = await this.repo.getCachedWeather(zoneId, 120);
-    return dbRecord?.hourly_cache || {};
+    return null;
   }
 
   /**
@@ -149,6 +104,9 @@ export class POIWeatherService {
       skor_c4: evaluation.skor_c4, // Max precipitation probability % during operational hours (Cost criteria)
       max_precipitation_probability: evaluation.max_precipitation_probability,
       avg_precipitation_probability: evaluation.avg_precipitation_probability,
+      data_quality: evaluation.data_quality || (hourlyData ? "FRESH" : "DEGRADED"),
+      source: evaluation.source || (hourlyData ? "OPEN_METEO" : "CONSERVATIVE_BASELINE"),
+      warning: evaluation.warning || null,
       supporting_info: evaluation.supporting_info,
       active_time_slot: evaluation.active_slot,
       is_off_hours: evaluation.is_off_hours,

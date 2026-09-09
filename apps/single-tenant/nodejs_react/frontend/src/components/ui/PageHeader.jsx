@@ -14,16 +14,16 @@ export function PageHeader({
   return (
     <div
       className={cn(
-        "flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 bg-white p-4 md:p-5 rounded-xl border border-slate-200 shadow-xs",
+        "flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 bg-[#121215] p-4 md:p-5 rounded-xl border border-[#24242A] shadow-xs",
         className
       )}
     >
       <div className="space-y-1">
-        <h1 className="text-base md:text-xl font-heading font-extrabold text-slate-900 tracking-tight leading-snug">
+        <h1 className="text-base md:text-xl font-heading font-extrabold text-white tracking-tight leading-snug">
           {title}
         </h1>
         {description && (
-          <p className="text-xs text-slate-500 font-normal leading-relaxed">
+          <p className="text-xs text-[#A1A1AA] font-normal leading-relaxed">
             {description}
           </p>
         )}

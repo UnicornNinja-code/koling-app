@@ -10,23 +10,23 @@ export function StatusBadge({
   ...props
 }) {
   const variants = {
-    primary: "bg-[#FF5052]/10 text-[#FF5052] border-[#FF5052]/20",
-    success: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    warning: "bg-amber-50 text-amber-700 border-amber-200",
-    danger: "bg-rose-50 text-rose-700 border-rose-200",
-    info: "bg-blue-50 text-blue-700 border-blue-200",
-    neutral: "bg-slate-100 text-slate-700 border-slate-200",
-    secondary: "bg-slate-100 text-slate-700 border-slate-200",
+    primary: "bg-orange-500/15 text-orange-400 border-orange-500/30",
+    success: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+    warning: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+    danger: "bg-rose-500/15 text-rose-400 border-rose-500/30",
+    info: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+    neutral: "bg-[#18181B] text-[#A1A1AA] border-[#24242A]",
+    secondary: "bg-[#18181B] text-[#A1A1AA] border-[#24242A]",
   };
 
   const dotColors = {
-    primary: "bg-[#FF5052]",
-    success: "bg-emerald-500",
-    warning: "bg-amber-500",
-    danger: "bg-rose-500",
-    info: "bg-blue-500",
-    neutral: "bg-slate-400",
-    secondary: "bg-slate-400",
+    primary: "bg-[#ea580c]",
+    success: "bg-[#10B981]",
+    warning: "bg-[#F59E0B]",
+    danger: "bg-[#EF4444]",
+    info: "bg-[#3B82F6]",
+    neutral: "bg-[#71717A]",
+    secondary: "bg-[#71717A]",
   };
 
   const sizes = {
@@ -59,3 +59,4 @@ export function StatusBadge({
 
 // Alias export for Badge
 export const Badge = StatusBadge;
+

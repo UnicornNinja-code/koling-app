@@ -28,12 +28,15 @@ const ZoneManagementPage = lazy(() => import("./pages/superadmin/ZoneManagementP
 const DssManagementPage = lazy(() => import("./pages/superadmin/DssManagementPage.jsx").then((m) => ({ default: m.DssManagementPage })));
 const FleetManagementPage = lazy(() => import("./pages/superadmin/FleetManagementPage.jsx").then((m) => ({ default: m.FleetManagementPage })));
 const UserManagementPage = lazy(() => import("./pages/superadmin/UserManagementPage.jsx").then((m) => ({ default: m.UserManagementPage })));
+const PoiManagementPage = lazy(() => import("./pages/superadmin/PoiManagementPage.jsx").then((m) => ({ default: m.PoiManagementPage })));
+const CompetitorManagementPage = lazy(() => import("./pages/superadmin/CompetitorManagementPage.jsx").then((m) => ({ default: m.CompetitorManagementPage })));
 const DistributionPage = lazy(() => import("./pages/distribution/DistributionPage.jsx").then((m) => ({ default: m.DistributionPage })));
 const CatalogPage = lazy(() => import("./pages/catalog/CatalogPage.jsx").then((m) => ({ default: m.CatalogPage })));
 const ReportsPage = lazy(() => import("./pages/reports/ReportsPage.jsx").then((m) => ({ default: m.ReportsPage })));
-const AuditCronPage = lazy(() => import("./pages/superadmin/AuditCronPage.jsx").then((m) => ({ default: m.AuditCronPage })));
+const SettingsPage = lazy(() => import("./pages/superadmin/SettingsPage.jsx").then((m) => ({ default: m.SettingsPage })));
 
-const RiderMapPage = lazy(() => import("./pages/rider/RiderMapPage.jsx").then((m) => ({ default: m.RiderMapPage })));
+const MapOpsPage = lazy(() => import("./pages/map/MapOpsPage.jsx").then((m) => ({ default: m.MapOpsPage })));
+const RiderMapPage = lazy(() => import("./pages/map/MapOpsPage.jsx").then((m) => ({ default: m.MapOpsPage })));
 const RiderOperationalPage = lazy(() => import("./pages/rider/RiderOperationalPage.jsx").then((m) => ({ default: m.RiderOperationalPage })));
 
 const NotFoundPage = lazy(() => import("./pages/errors/NotFoundPage.jsx").then((m) => ({ default: m.NotFoundPage })));
@@ -41,8 +44,8 @@ const ForbiddenPage = lazy(() => import("./pages/errors/ForbiddenPage.jsx").then
 const InactiveAccountPage = lazy(() => import("./pages/errors/InactiveAccountPage.jsx").then((m) => ({ default: m.InactiveAccountPage })));
 
 const PageFallback = () => (
-  <div className="flex items-center justify-center min-h-screen bg-[#F8FAFC]">
-    <div className="w-8 h-8 border-4 border-[#FF5052] border-t-transparent rounded-full animate-spin" />
+  <div className="flex items-center justify-center min-h-screen bg-neutral-50">
+    <div className="w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full animate-spin" />
   </div>
 );
 
@@ -123,6 +126,7 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
+              <Route path="/dashboard" element={<Navigate to="/superadmin/dashboard" replace />} />
 
               {/* User Management Route (SUPERADMIN & MANAGEMENT only) */}
               <Route
@@ -143,6 +147,30 @@ export default function App() {
                   <ProtectedRoute>
                     <RoleGuard allowedRoles={["SUPERADMIN", "SUPERVISOR"]}>
                       <ZoneManagementPage />
+                    </RoleGuard>
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* POI Intelligence & Moderation Route */}
+              <Route
+                path="/pois"
+                element={
+                  <ProtectedRoute>
+                    <RoleGuard allowedRoles={["SUPERADMIN", "SUPERVISOR"]}>
+                      <PoiManagementPage />
+                    </RoleGuard>
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Competitor Intelligence Route */}
+              <Route
+                path="/competitors"
+                element={
+                  <ProtectedRoute>
+                    <RoleGuard allowedRoles={["SUPERADMIN", "SUPERVISOR"]}>
+                      <CompetitorManagementPage />
                     </RoleGuard>
                   </ProtectedRoute>
                 }
@@ -215,7 +243,7 @@ export default function App() {
                 element={
                   <ProtectedRoute>
                     <RoleGuard allowedRoles={["SUPERADMIN"]}>
-                      <AuditCronPage />
+                      <SettingsPage />
                     </RoleGuard>
                   </ProtectedRoute>
                 }
@@ -233,10 +261,21 @@ export default function App() {
                 }
               />
               <Route
+                path="/map-ops"
+                element={
+                  <ProtectedRoute>
+                    <RoleGuard allowedRoles={["SUPERADMIN", "MANAGEMENT", "SUPERVISOR", "RIDER"]}>
+                      <MapOpsPage />
+                    </RoleGuard>
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="/map" element={<Navigate to="/map-ops" replace />} />
+              <Route
                 path="/rider/map"
                 element={
                   <ProtectedRoute>
-                    <RiderMapPage />
+                    <MapOpsPage />
                   </ProtectedRoute>
                 }
               />

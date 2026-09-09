@@ -14,6 +14,7 @@ import { spatialDeduplicator } from "./poi/SpatialDeduplicator.js";
 import { poiEntityFactory } from "./poi/POIEntityFactory.js";
 import { poiRawRepository } from "../repositories/poiRawRepository.js";
 import { poiRepository } from "../repositories/poiRepository.js";
+import { syncRunRepository } from "../repositories/syncRunRepository.js";
 
 /**
  * POI ELT Pipeline Service (Clean Architecture OOP Orchestrator)
@@ -25,7 +26,8 @@ export class POIEltPipelineService {
     deduplicator = spatialDeduplicator,
     factory = poiEntityFactory,
     rawRepo = poiRawRepository,
-    repo = poiRepository
+    repo = poiRepository,
+    syncRunRepo = syncRunRepository
   ) {
     this.overpassClient = overpassClient;
     this.clusterer = clusterer;
@@ -33,6 +35,7 @@ export class POIEltPipelineService {
     this.factory = factory;
     this.rawRepo = rawRepo;
     this.repo = repo;
+    this.syncRunRepo = syncRunRepo;
   }
 
   /**
@@ -125,12 +128,32 @@ export class POIEltPipelineService {
   }
 
   /**
-   * Full City Sync (Run Stage 1 & Stage 2 in sequence)
+   * Full City Sync (Run Stage 1 & Stage 2 in sequence with Provenance Audit)
    */
   async syncCityPois(hubCityOverride = null) {
     const hubCity = await this.getActiveHubCity(hubCityOverride);
-    await this.fetchAndStoreRawPois(hubCity);
-    return await this.processAndSyncPois(hubCity);
+    const run = await this.syncRunRepo.startRun({
+      data_type: "POI",
+      source: "OVERPASS_API",
+      metadata: { city: hubCity },
+    });
+
+    try {
+      const stage1 = await this.fetchAndStoreRawPois(hubCity);
+      const stage2 = await this.processAndSyncPois(hubCity);
+
+      await this.syncRunRepo.completeRun(run.id, {
+        records_fetched: stage1.count || 0,
+        records_processed: stage2.count || 0,
+        records_rejected: (stage1.count || 0) - (stage2.count || 0),
+        metadata: { city: hubCity, message: stage2.message },
+      });
+
+      return stage2;
+    } catch (error) {
+      await this.syncRunRepo.failRun(run.id, error.message, { city: hubCity });
+      throw error;
+    }
   }
 
   /**

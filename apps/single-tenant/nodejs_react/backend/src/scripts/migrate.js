@@ -18,15 +18,19 @@ async function runMigration() {
     const sql001 = fs.readFileSync(path.join(dbDir, "migrations/001_poi_eligibility_and_candidate_spots.sql"), "utf8");
     await pool.query(sql001);
 
-    console.log("⏳ [3/4] Memproses migrasi 002 (002_protocol_roads_spatial_layer.sql)...");
+    console.log("⏳ [3/5] Memproses migrasi 002 (002_protocol_roads_spatial_layer.sql)...");
     const sql002 = fs.readFileSync(path.join(dbDir, "migrations/002_protocol_roads_spatial_layer.sql"), "utf8");
     await pool.query(sql002);
 
-    console.log("⏳ [4/4] Memproses migrasi 003 (003_add_zone_invalid_reason.sql)...");
+    console.log("⏳ [4/5] Memproses migrasi 003 (003_add_zone_invalid_reason.sql)...");
     const sql003 = fs.readFileSync(path.join(dbDir, "migrations/003_add_zone_invalid_reason.sql"), "utf8");
     await pool.query(sql003);
 
-    console.log("✅ Seluruh skema database dan migrasi (001, 002, 003) berhasil dieksekusi!");
+    console.log("⏳ [5/5] Memproses migrasi 004 (004_create_data_sync_runs_and_weather_freshness.sql)...");
+    const sql004 = fs.readFileSync(path.join(dbDir, "migrations/004_create_data_sync_runs_and_weather_freshness.sql"), "utf8");
+    await pool.query(sql004);
+
+    console.log("✅ Seluruh skema database dan migrasi (001, 002, 003, 004) berhasil dieksekusi!");
   } catch (error) {
     console.error("❌ Gagal migrasi database:", error.message);
     process.exit(1);

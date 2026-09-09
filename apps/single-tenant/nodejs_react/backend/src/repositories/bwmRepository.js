@@ -27,6 +27,15 @@ export class BwmRepository {
   }
 
   /**
+   * Fetch all active criteria list
+   */
+  async findActiveCriterias() {
+    const query = `SELECT id, name, type FROM criterias WHERE is_active = true ORDER BY name ASC;`;
+    const { rows } = await this.pool.query(query);
+    return rows;
+  }
+
+  /**
    * Fetch active DSS Configuration
    */
   async findActiveConfig() {
@@ -96,6 +105,48 @@ export class BwmRepository {
         calculated_weights,
         consistency_ratio,
       };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Fetch all saved BWM configurations
+   */
+  async findAllConfigs() {
+    const query = `
+      SELECT dc.*, 
+             bc.name AS best_criteria_name, 
+             wc.name AS worst_criteria_name
+      FROM dss_configurations dc
+      LEFT JOIN criterias bc ON dc.best_criteria_id = bc.id
+      LEFT JOIN criterias wc ON dc.worst_criteria_id = wc.id
+      ORDER BY dc.created_at DESC;
+    `;
+    const { rows } = await this.pool.query(query);
+    return rows;
+  }
+
+  /**
+   * Activate specific BWM configuration and deactivate all others
+   */
+  async activateConfig(id) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("UPDATE dss_configurations SET is_active = false;");
+      const { rows } = await client.query(
+        "UPDATE dss_configurations SET is_active = true, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *;",
+        [id]
+      );
+      if (rows.length === 0) {
+        throw new Error(`Konfigurasi BWM dengan ID '${id}' tidak ditemukan.`);
+      }
+      await client.query("COMMIT");
+      return rows[0];
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;

@@ -6,6 +6,7 @@
 
 import express from "express";
 import {
+  getZoneC6Score,
   getCompetitorsByZone,
   createCompetitor,
   deleteCompetitor,
@@ -14,6 +15,13 @@ import { authenticateToken } from "../middlewares/authMiddleware.js";
 import { checkRole } from "../middlewares/roleMiddleware.js";
 
 const router = express.Router();
+
+// Calculate / Fetch C6 Competitor Density Score for a Zone
+router.get(
+  "/score/:zone_id",
+  authenticateToken,
+  getZoneC6Score
+);
 
 // Fetch field competitors for a specific zone
 router.get(

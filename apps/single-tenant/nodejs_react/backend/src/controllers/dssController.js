@@ -4,19 +4,19 @@
  *   dssController.js (HTTP Controller for BWM Engine & TOPSIS Recommendation Engine)
  */
 
-import { pool } from "../config/database.js";
 import { bwmWeightService } from "../services/dss/BwmWeightService.js";
 import { topsisEngineService } from "../services/dss/TopsisEngineService.js";
 import { rawCriteriaEvaluationService } from "../services/dss/RawCriteriaEvaluationService.js";
 import { hybridBwmTopsisService } from "../services/dss/HybridBwmTopsisService.js";
 import { bwmRepository } from "../repositories/bwmRepository.js";
+import { TimeSlotEvaluator } from "../utils/TimeSlotEvaluator.js";
 
 export const calculateBwmWeights = async (req, res) => {
   try {
     const { name, best_criteria_id, worst_criteria_id, best_to_others, worst_to_others } = req.body;
 
-    // 1. Fetch active criteria list from database
-    const { rows: criteriaList } = await pool.query("SELECT id, name, type FROM criterias WHERE is_active = true ORDER BY name ASC;");
+    // 1. Fetch active criteria list from database via repository
+    const criteriaList = await bwmRepository.findActiveCriterias();
 
     if (criteriaList.length === 0) {
       const error = new Error("Tabel kriteria (criterias) belum terisi.");
@@ -30,7 +30,7 @@ export const calculateBwmWeights = async (req, res) => {
       code: `C${idx + 1}`,
     }));
 
-    // 2. Compute BWM Optimal Weights & Print Terminal Console Logs
+    // 2. Compute BWM Optimal Weights & Consistency Check
     const result = bwmWeightService.calculateBwmWeights({
       best_criteria_id,
       worst_criteria_id,
@@ -70,8 +70,74 @@ export const calculateBwmWeights = async (req, res) => {
 
 export const getActiveDssConfig = async (req, res) => {
   try {
-    const config = await bwmRepository.findActiveConfig();
-    return res.status(200).json({ config });
+    const activeConfig = await bwmRepository.findActiveConfig();
+    if (!activeConfig) {
+      return res.status(404).json({ msg: "Belum ada konfigurasi BWM aktif yang tersimpan." });
+    }
+    return res.status(200).json({ config: activeConfig });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Internal server error" });
+  }
+};
+
+export const getAllBwmConfigs = async (req, res) => {
+  try {
+    const configs = await bwmRepository.findAllConfigs();
+    return res.status(200).json({ configs });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Internal server error" });
+  }
+};
+
+export const activateBwmConfig = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const activated = await bwmRepository.activateConfig(id);
+    return res.status(200).json({
+      msg: "Konfigurasi BWM berhasil diaktifkan.",
+      config: activated,
+    });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Internal server error" });
+  }
+};
+
+export const previewBwmImpact = async (req, res) => {
+  try {
+    const { weights, best_criteria_id, worst_criteria_id, best_to_others, worst_to_others, time_slot } = req.body;
+    const slot = time_slot ? TimeSlotEvaluator.getSlot(time_slot) : TimeSlotEvaluator.getSlot(new Date());
+
+    let customWeights = weights || null;
+
+    // Jika user mengirimkan perbandingan BWM langsung untuk di-preview sebelum disimpan
+    if (!customWeights && best_criteria_id && worst_criteria_id && best_to_others && worst_to_others) {
+      const criteriaList = await bwmRepository.findActiveCriterias();
+      const formattedCriteria = criteriaList.map((c, idx) => ({ ...c, code: `C${idx + 1}` }));
+      
+      const bwmRes = bwmWeightService.calculateBwmWeights({
+        best_criteria_id,
+        worst_criteria_id,
+        best_to_others,
+        worst_to_others,
+        criteria_list: formattedCriteria,
+      });
+      customWeights = bwmRes.weights;
+    }
+
+    const result = await topsisEngineService.calculateTopsisRecommendations({
+      timeSlot: slot,
+      customWeights,
+    });
+
+    return res.status(200).json({
+      status: "success",
+      time_slot: slot,
+      rankings: result.rankings || [],
+      total_zones: result.total_evaluated_zones || result.rankings?.length || 0,
+    });
   } catch (error) {
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({ msg: error.message || "Internal server error" });
@@ -82,9 +148,10 @@ export const getZoneRawEvaluation = async (req, res) => {
   try {
     const { id } = req.params;
     const { time, lat, lon } = req.query;
+    const slot = time ? TimeSlotEvaluator.getSlot(time) : TimeSlotEvaluator.getSlot(new Date());
 
     const result = await rawCriteriaEvaluationService.evaluateZoneRawCriteria(id, {
-      timeSlot: time || null,
+      timeSlot: slot,
       riderLat: lat ? parseFloat(lat) : null,
       riderLon: lon ? parseFloat(lon) : null,
     });
@@ -102,10 +169,11 @@ export const getZoneRawEvaluation = async (req, res) => {
 export const evaluateHybridBwmTopsis = async (req, res) => {
   try {
     const { zone_ids, time_slot, lat, lon, bwm_config_id } = req.body;
+    const slot = time_slot ? TimeSlotEvaluator.getSlot(time_slot) : TimeSlotEvaluator.getSlot(new Date());
 
     const result = await hybridBwmTopsisService.evaluateZonesHybrid({
       zone_ids: zone_ids || null,
-      time_slot: time_slot || null,
+      time_slot: slot,
       rider_lat: lat ? parseFloat(lat) : null,
       rider_lon: lon ? parseFloat(lon) : null,
       bwm_config_id: bwm_config_id || null,
@@ -154,9 +222,10 @@ export const getTopsisRecommendations = async (req, res) => {
   try {
     const { time, lat, lon } = req.query;
     const riderId = req.user?.id || req.user?.userId || null;
+    const slot = time ? TimeSlotEvaluator.getSlot(time) : TimeSlotEvaluator.getSlot(new Date());
 
     const result = await topsisEngineService.calculateTopsisRecommendations({
-      timeSlot: time || "pagi",
+      timeSlot: slot,
       riderLat: lat ? parseFloat(lat) : null,
       riderLon: lon ? parseFloat(lon) : null,
       riderId,

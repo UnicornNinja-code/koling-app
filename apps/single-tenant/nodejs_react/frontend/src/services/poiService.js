@@ -31,4 +31,16 @@ export const poiService = {
     const res = await axiosInstance.get(`/pois/scores/c1-c2/${zone_id}`);
     return res.data;
   },
+  getCrowdScores: async () => {
+    const res = await axiosInstance.get("/poi-categories/crowd-scores");
+    return res.data;
+  },
+  updateBulkCrowdScores: async (payload) => {
+    const res = await axiosInstance.put("/poi-categories/crowd-scores", payload);
+    return res.data;
+  },
+  updateSingleCrowdScores: async (id, payload) => {
+    const res = await axiosInstance.put(`/poi-categories/${id}/crowd-scores`, payload);
+    return res.data;
+  },
 };

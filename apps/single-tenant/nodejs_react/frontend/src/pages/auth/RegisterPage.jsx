@@ -133,55 +133,44 @@ export function AccountActivationPage() {
 
   if (verifyingToken) {
     return (
-      <div className="min-h-screen bg-[#F4F4F6] flex items-center justify-center p-4">
-        <div className="w-8 h-8 border-4 border-[#FF634A] border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center p-4">
+        <div className="w-8 h-8 border-4 border-[#2563EB] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#F4F4F6] flex flex-col justify-center py-10 sm:px-6 lg:px-8 px-4 font-sans">
+    <div className="min-h-screen bg-[#FAFAFA] flex flex-col justify-center py-10 sm:px-6 lg:px-8 px-4 font-sans">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        {/* Brand Header */}
         <div className="text-center space-y-2 mb-6">
-          <div className="w-12 h-12 bg-[#FF634A] rounded-xl flex items-center justify-center text-white mx-auto shadow-md shadow-orange-200 shrink-0">
+          <div className="w-12 h-12 bg-[#2563EB] rounded-[10px] flex items-center justify-center text-white mx-auto shadow-md shadow-blue-200 shrink-0">
             <Coffee className="w-6 h-6" />
           </div>
-          <h1 className="text-2xl font-heading font-extrabold text-slate-900 tracking-tight">
+          <h1 className="text-2xl font-heading font-extrabold text-[#111111] tracking-tight">
             Aktivasi Akun Internal
           </h1>
-          <p className="text-xs text-slate-500 font-medium">
-            Verifikasi identitas & setup kata sandi awal personel COZIS
+          <p className="text-xs text-[#737373] font-normal">
+            Verifikasi identitas & setup kata sandi awal personel MOVA
           </p>
         </div>
 
-        {/* Card Container */}
-        <div className="bg-white py-8 px-6 sm:px-8 rounded-2xl border border-[#D2D2D4] shadow-xl space-y-5">
-          {errorMsg && (
-            <Alert variant="danger" title="Kendala Aktivasi">
-              {errorMsg}
-            </Alert>
-          )}
-
-          {successMsg && step !== 3 && (
-            <Alert variant="success" title="Instruksi Terkirim">
-              {successMsg}
-            </Alert>
-          )}
-
+        <div className="bg-white py-8 px-6 sm:px-8 rounded-[12px] border border-[#E5E5E5] shadow-2xs space-y-5">
+          {errorMsg && <Alert variant="danger" title="Kendala Aktivasi">{errorMsg}</Alert>}
+          {successMsg && step !== 3 && <Alert variant="success" title="Instruksi Terkirim">{successMsg}</Alert>}
           {/* STEP 1: REQUEST ACTIVATION LINK (NO TOKEN PRESENT) */}
           {step === 1 && !successMsg && (
             <form onSubmit={handleSubmitRequest(onRequestActivation)} className="space-y-4">
-              <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-200 text-xs text-blue-900 flex items-start gap-2.5">
+              <div className="p-3 bg-blue-50/70 rounded-[8px] border border-blue-200 text-xs text-blue-900 flex items-start gap-2.5">
                 <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                 <p className="leading-relaxed">
-                  Akun Anda telah diterbitkan oleh Tim Manajemen COZIS. Masukkan email terdaftar untuk menerima tautan aktivasi akun.
+                  Akun Anda telah diterbitkan oleh Tim Manajemen MOVA. Masukkan email terdaftar untuk menerima tautan aktivasi akun.
                 </p>
               </div>
 
               <Input
                 label="Alamat Email Terdaftar"
-                leftIcon={User}
+                leftIcon={Mail}
+                type="email"
                 placeholder="nama@domain.com"
                 required
                 error={requestErrors.emailOrUsername?.message}
@@ -193,7 +182,7 @@ export function AccountActivationPage() {
                 variant="primary"
                 size="md"
                 isPending={loading}
-                className="w-full py-3 shadow-xs font-bold"
+                className="w-full py-2.5 font-bold"
                 rightIcon={ArrowRight}
               >
                 {loading ? "Memproses Permintaan..." : "Kirim Tautan Aktivasi"}
@@ -204,7 +193,7 @@ export function AccountActivationPage() {
           {/* STEP 2: SET PASSWORD (VALID TOKEN PRESENT) */}
           {step === 2 && (
             <form onSubmit={handleSubmitPassword(onSetPassword)} className="space-y-4">
-              <div className="p-3 bg-emerald-50/80 rounded-xl border border-emerald-200 text-xs text-emerald-900 flex items-start gap-2.5">
+              <div className="p-3 bg-emerald-50/80 rounded-[8px] border border-emerald-200 text-xs text-emerald-900 flex items-start gap-2.5">
                 <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                 <p className="leading-relaxed">
                   Tautan aktivasi terverifikasi. Silakan buat kata sandi baru untuk mengamankan akun Anda.
@@ -237,7 +226,7 @@ export function AccountActivationPage() {
                 variant="primary"
                 size="md"
                 isPending={loading}
-                className="w-full py-3 shadow-xs font-bold"
+                className="w-full py-2.5 font-bold"
                 rightIcon={ArrowRight}
               >
                 {loading ? "Menyimpan Sandi..." : "Aktifkan Akun Saya"}
@@ -253,11 +242,11 @@ export function AccountActivationPage() {
               </div>
 
               <div className="space-y-1">
-                <h3 className="font-heading font-extrabold text-lg text-slate-900">
+                <h3 className="font-heading font-extrabold text-lg text-[#111111]">
                   Akun Berhasil Diaktifkan!
                 </h3>
-                <p className="text-xs text-slate-500 max-w-xs mx-auto">
-                  Kata sandi baru Anda telah aktif. Silakan masuk ke aplikasi COZIS.
+                <p className="text-xs text-[#737373] max-w-xs mx-auto">
+                  Kata sandi baru Anda telah aktif. Silakan masuk ke aplikasi MOVA.
                 </p>
               </div>
 
@@ -265,7 +254,7 @@ export function AccountActivationPage() {
                 onClick={() => navigate("/login")}
                 variant="primary"
                 size="md"
-                className="w-full py-3 shadow-xs font-bold"
+                className="w-full py-2.5 font-bold"
                 rightIcon={ArrowRight}
               >
                 Masuk ke Halaman Login
@@ -273,10 +262,10 @@ export function AccountActivationPage() {
             </div>
           )}
 
-          <div className="pt-3 border-t border-[#D2D2D4]/50 text-center">
+          <div className="pt-3 border-t border-[#E5E5E5] text-center">
             <Link
               to="/login"
-              className="inline-flex items-center gap-1.5 text-xs text-slate-600 hover:text-[#FF634A] font-bold"
+              className="inline-flex items-center gap-1.5 text-xs text-[#525252] hover:text-[#2563EB] font-bold"
             >
               <ArrowLeft className="w-3.5 h-3.5" /> Kembali ke Halaman Masuk
             </Link>

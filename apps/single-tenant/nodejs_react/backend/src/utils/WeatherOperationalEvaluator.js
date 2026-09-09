@@ -91,6 +91,8 @@ export class WeatherOperationalEvaluator {
         skor_c4: 0,
         max_precipitation_probability: 0,
         avg_precipitation_probability: 0,
+        data_quality: "VALID",
+        source: "OPEN_METEO",
         supporting_info: {
           rain: 0,
           weather_code: 0,
@@ -106,17 +108,21 @@ export class WeatherOperationalEvaluator {
 
     const filtered = this.extractOperationalForecast(hourlyData, timeInput);
     if (filtered.length === 0) {
+      // CONSERVATIVE FALLBACK: Do not set 0% because C4 is a COST criterion. 0% would wrongly favor zones with missing weather data.
       return {
-        skor_c4: 0,
-        max_precipitation_probability: 0,
-        avg_precipitation_probability: 0,
+        skor_c4: 50, // Conservative neutral 50% precipitation risk
+        max_precipitation_probability: 50,
+        avg_precipitation_probability: 50,
+        data_quality: "DEGRADED",
+        source: "CONSERVATIVE_BASELINE",
+        warning: "WEATHER_UNAVAILABLE_CONSERVATIVE_FALLBACK",
         supporting_info: {
           rain: 0,
           weather_code: 0,
           wind_speed: 0,
           humidity: 0,
           dew_point: 0,
-          temperature: 0,
+          temperature: 28,
         },
         active_slot: activeSlot,
         is_off_hours: false,

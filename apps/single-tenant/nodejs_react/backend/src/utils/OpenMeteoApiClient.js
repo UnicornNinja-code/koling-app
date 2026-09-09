@@ -48,7 +48,7 @@ export class OpenMeteoApiClient {
     const url = `${this.baseUrl}?latitude=${lats}&longitude=${lons}&hourly=${hourlyParams}&timezone=Asia%2FJakarta`;
 
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, { signal: AbortSignal.timeout(3000) });
       if (!response.ok) {
         throw new Error(`Open-Meteo API HTTP error! status: ${response.status}`);
       }

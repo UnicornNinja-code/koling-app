@@ -12,8 +12,8 @@ MOVA Core (Shared Spatial Engine & DSS Models)
 ├── MOVA Lite (Single Tenant / Skripsi)
 │   ├── Context: Single Organization (Studi Kasus: Sejuta Jiwa)
 │   ├── Codebase: `apps/single-tenant/nodejs_react/`
-│   │   ├── `backend_old/` (Express API Server)
-│   │   └── `frontend_old/` (React Frontend)
+│   │   ├── `backend/` (Express API Server)
+│   │   └── `frontend/` (React Frontend)
 │   ├── Tenant Management: Hidden / Default Tenant ID (`thesis-default`)
 │   └── Resource Quota & UI: Sederhana & Sesuai Scope Penelitian
 │

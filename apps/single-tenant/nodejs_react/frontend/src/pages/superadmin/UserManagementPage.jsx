@@ -96,7 +96,7 @@ export function UserManagementPage() {
 
   // Fetch Users List
   const { data: usersRes, isLoading, isError, error } = useQuery({
-    queryKey: queryKeys.users.all(),
+    queryKey: queryKeys.users.all,
     queryFn: userService.getUsers,
   });
 
@@ -156,7 +156,7 @@ export function UserManagementPage() {
   const createUserMutation = useMutation({
     mutationFn: userService.createUser,
     onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.users.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
       setProvisionedUserResult({
         ...variables,
         id: data?.user?.id || data?.id,
@@ -169,7 +169,7 @@ export function UserManagementPage() {
   const updateUserMutation = useMutation({
     mutationFn: ({ id, payload }) => userService.updateUser(id, payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.users.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
       setShowEditModal(false);
       setSelectedUser(null);
     },
@@ -179,7 +179,7 @@ export function UserManagementPage() {
   const toggleStatusMutation = useMutation({
     mutationFn: ({ id, is_active }) => userService.setUserStatus(id, is_active),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.users.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
       setShowStatusModal(false);
       setSelectedUser(null);
     },
@@ -189,7 +189,7 @@ export function UserManagementPage() {
   const deleteUserMutation = useMutation({
     mutationFn: (id) => userService.deleteUser(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.users.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
       setShowDeleteModal(false);
       setSelectedUser(null);
     },
@@ -313,17 +313,17 @@ export function UserManagementPage() {
                 <TableRow key={u.id}>
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-[#FF634A]/10 text-[#FF634A] font-bold flex items-center justify-center text-xs shrink-0 border border-[#FF634A]/20">
+                      <div className="w-8 h-8 rounded-lg bg-[#EFF6FF] text-[#2563EB] font-bold flex items-center justify-center text-xs shrink-0 border border-[#DBEAFE]">
                         {u.name?.[0] || u.username?.[0] || "U"}
                       </div>
                       <div>
-                        <p className="font-bold text-slate-900 leading-tight">{u.name}</p>
-                        <p className="text-[11px] text-slate-500 font-mono">@{u.username}</p>
+                        <p className="font-bold text-[#111111] leading-tight">{u.name}</p>
+                        <p className="text-[11px] text-[#737373] font-mono">@{u.username}</p>
                       </div>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span className="text-xs text-slate-700">{u.email}</span>
+                    <span className="text-xs text-[#525252]">{u.email}</span>
                   </TableCell>
                   <TableCell>
                     <StatusBadge variant={getRoleVariant(u.role)} size="sm">
@@ -340,7 +340,7 @@ export function UserManagementPage() {
                     </StatusBadge>
                   </TableCell>
                   <TableCell>
-                    <span className="text-xs text-slate-500 font-mono">
+                    <span className="text-xs text-[#737373] font-mono">
                       {u.created_at ? new Date(u.created_at).toLocaleDateString("id-ID") : "-"}
                     </span>
                   </TableCell>
@@ -355,7 +355,7 @@ export function UserManagementPage() {
                         size="icon"
                         title="Lihat Rincian"
                       >
-                        <Eye className="w-4 h-4 text-slate-600" />
+                        <Eye className="w-4 h-4 text-[#525252]" />
                       </Button>
 
                       <Button
@@ -364,7 +364,7 @@ export function UserManagementPage() {
                         size="icon"
                         title="Ubah Profil / Peran"
                       >
-                        <Edit className="w-4 h-4 text-slate-600" />
+                        <Edit className="w-4 h-4 text-[#525252]" />
                       </Button>
 
                       <Button
@@ -421,17 +421,17 @@ export function UserManagementPage() {
       >
         <div className="space-y-5">
           {/* Stepper Header Indicator */}
-          <div className="flex items-center justify-between text-xs font-bold text-slate-500 pb-2 border-b border-[#D2D2D4]/50">
-            <span className={wizardStep === 1 ? "text-[#FF634A] font-bold" : ""}>1. Peran</span>
-            <span className={wizardStep === 2 ? "text-[#FF634A] font-bold" : ""}>2. Identitas</span>
-            <span className={wizardStep === 3 ? "text-[#FF634A] font-bold" : ""}>3. Sandi</span>
+          <div className="flex items-center justify-between text-xs font-bold text-[#737373] pb-2 border-b border-[#E5E5E5]">
+            <span className={wizardStep === 1 ? "text-[#2563EB] font-bold" : ""}>1. Peran</span>
+            <span className={wizardStep === 2 ? "text-[#2563EB] font-bold" : ""}>2. Identitas</span>
+            <span className={wizardStep === 3 ? "text-[#2563EB] font-bold" : ""}>3. Sandi</span>
             <span className={wizardStep === 4 ? "text-emerald-700 font-bold" : ""}>4. Ringkasan</span>
           </div>
 
           {/* STEP 1: ROLE SELECTION */}
           {wizardStep === 1 && (
             <div className="space-y-4">
-              <p className="text-xs text-slate-600">
+              <p className="text-xs text-[#525252]">
                 Pilih peran organisasi yang akan diberikan kepada personel ini:
               </p>
 
@@ -441,15 +441,15 @@ export function UserManagementPage() {
                   onClick={() => setCreateValue("role", "RIDER")}
                   className={`p-4 rounded-xl border cursor-pointer transition-all ${
                     selectedRoleWatch === "RIDER"
-                      ? "border-[#FF634A] bg-orange-50/40 ring-2 ring-[#FF634A]/20"
-                      : "border-[#D2D2D4] hover:bg-[#F4F4F6]"
+                      ? "border-[#2563EB] bg-[#EFF6FF]/60 ring-2 ring-[#2563EB]/20"
+                      : "border-[#E5E5E5] hover:bg-[#F5F5F5]"
                   }`}
                 >
                   <div className="flex items-center gap-2.5 mb-1.5">
                     <Bike className="w-5 h-5 text-emerald-600" />
-                    <span className="font-bold text-slate-900 text-xs">RIDER</span>
+                    <span className="font-bold text-[#111111] text-xs">RIDER</span>
                   </div>
-                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                  <p className="text-[11px] text-[#737373] leading-relaxed">
                     Mitra lapangan penjual kopi keliling, klaim armada & pencatatan POS.
                   </p>
                 </div>
@@ -459,15 +459,15 @@ export function UserManagementPage() {
                   onClick={() => setCreateValue("role", "SUPERVISOR")}
                   className={`p-4 rounded-xl border cursor-pointer transition-all ${
                     selectedRoleWatch === "SUPERVISOR"
-                      ? "border-[#FF634A] bg-orange-50/40 ring-2 ring-[#FF634A]/20"
-                      : "border-[#D2D2D4] hover:bg-[#F4F4F6]"
+                      ? "border-[#2563EB] bg-[#EFF6FF]/60 ring-2 ring-[#2563EB]/20"
+                      : "border-[#E5E5E5] hover:bg-[#F5F5F5]"
                   }`}
                 >
                   <div className="flex items-center gap-2.5 mb-1.5">
                     <Briefcase className="w-5 h-5 text-blue-600" />
-                    <span className="font-bold text-slate-900 text-xs">SUPERVISOR</span>
+                    <span className="font-bold text-[#111111] text-xs">SUPERVISOR</span>
                   </div>
-                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                  <p className="text-[11px] text-[#737373] leading-relaxed">
                     Pengawas operasional lapangan, eksekusi DSS & plotting rider ke zona.
                   </p>
                 </div>
@@ -477,15 +477,15 @@ export function UserManagementPage() {
                   onClick={() => setCreateValue("role", "MANAGEMENT")}
                   className={`p-4 rounded-xl border cursor-pointer transition-all ${
                     selectedRoleWatch === "MANAGEMENT"
-                      ? "border-[#FF634A] bg-orange-50/40 ring-2 ring-[#FF634A]/20"
-                      : "border-[#D2D2D4] hover:bg-[#F4F4F6]"
+                      ? "border-[#2563EB] bg-[#EFF6FF]/60 ring-2 ring-[#2563EB]/20"
+                      : "border-[#E5E5E5] hover:bg-[#F5F5F5]"
                   }`}
                 >
                   <div className="flex items-center gap-2.5 mb-1.5">
                     <UserCog className="w-5 h-5 text-indigo-600" />
-                    <span className="font-bold text-slate-900 text-xs">MANAGEMENT</span>
+                    <span className="font-bold text-[#111111] text-xs">MANAGEMENT</span>
                   </div>
-                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                  <p className="text-[11px] text-[#737373] leading-relaxed">
                     Pengelola armada, katalog produk, dan laporan analitik bisnis.
                   </p>
                 </div>
@@ -496,15 +496,15 @@ export function UserManagementPage() {
                     onClick={() => setCreateValue("role", "SUPERADMIN")}
                     className={`p-4 rounded-xl border cursor-pointer transition-all ${
                       selectedRoleWatch === "SUPERADMIN"
-                        ? "border-[#FF634A] bg-orange-50/40 ring-2 ring-[#FF634A]/20"
-                        : "border-[#D2D2D4] hover:bg-[#F4F4F6]"
+                        ? "border-[#2563EB] bg-[#EFF6FF]/60 ring-2 ring-[#2563EB]/20"
+                        : "border-[#E5E5E5] hover:bg-[#F5F5F5]"
                     }`}
                   >
                     <div className="flex items-center gap-2.5 mb-1.5">
                       <Shield className="w-5 h-5 text-rose-600" />
-                      <span className="font-bold text-slate-900 text-xs">SUPERADMIN</span>
+                      <span className="font-bold text-[#111111] text-xs">SUPERADMIN</span>
                     </div>
-                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                    <p className="text-[11px] text-[#737373] leading-relaxed">
                       Akses master sistem, konfigurasi DSS, audit logs & automasi cron.
                     </p>
                   </div>
@@ -626,28 +626,28 @@ export function UserManagementPage() {
                 </p>
               </div>
 
-              <div className="p-4 bg-[#F4F4F6] rounded-xl border border-[#D2D2D4] text-xs text-left space-y-2 font-mono">
+              <div className="p-4 bg-[#F5F5F5] rounded-xl border border-[#E5E5E5] text-xs text-left space-y-2 font-mono">
                 <div className="flex justify-between">
-                  <span className="text-slate-500 font-sans">Nama:</span>
-                  <span className="font-bold text-slate-900">{provisionedUserResult.name}</span>
+                  <span className="text-[#737373] font-sans">Nama:</span>
+                  <span className="font-bold text-[#111111]">{provisionedUserResult.name}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500 font-sans">Username:</span>
-                  <span className="font-bold text-slate-900">{provisionedUserResult.username}</span>
+                  <span className="text-[#737373] font-sans">Username:</span>
+                  <span className="font-bold text-[#111111]">{provisionedUserResult.username}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500 font-sans">Email:</span>
-                  <span className="text-slate-700">{provisionedUserResult.email}</span>
+                  <span className="text-[#737373] font-sans">Email:</span>
+                  <span className="text-[#525252]">{provisionedUserResult.email}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500 font-sans">Peran:</span>
+                  <span className="text-[#737373] font-sans">Peran:</span>
                   <StatusBadge variant={getRoleVariant(provisionedUserResult.role)} size="sm">
                     {provisionedUserResult.role}
                   </StatusBadge>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500 font-sans">Sandi Awal:</span>
-                  <span className="font-bold text-[#FF634A]">{provisionedUserResult.password}</span>
+                  <span className="text-[#737373] font-sans">Sandi Awal:</span>
+                  <span className="font-bold text-[#2563EB]">{provisionedUserResult.password}</span>
                 </div>
               </div>
 
@@ -690,23 +690,23 @@ export function UserManagementPage() {
       >
         {selectedUser && (
           <div className="space-y-4">
-            <div className="flex items-center gap-3 p-4 bg-[#F4F4F6] rounded-xl border border-[#D2D2D4]">
-              <div className="w-12 h-12 rounded-xl bg-[#FF634A]/10 text-[#FF634A] font-black text-lg flex items-center justify-center border border-[#FF634A]/20">
+            <div className="flex items-center gap-3 p-4 bg-[#F5F5F5] rounded-xl border border-[#E5E5E5]">
+              <div className="w-12 h-12 rounded-xl bg-[#EFF6FF] text-[#2563EB] font-black text-lg flex items-center justify-center border border-[#DBEAFE]">
                 {selectedUser.name?.[0] || selectedUser.username?.[0] || "U"}
               </div>
               <div>
-                <h4 className="font-heading font-extrabold text-slate-900 text-sm">{selectedUser.name}</h4>
-                <p className="text-xs text-slate-500 font-mono">@{selectedUser.username}</p>
+                <h4 className="font-heading font-extrabold text-[#111111] text-sm">{selectedUser.name}</h4>
+                <p className="text-xs text-[#737373] font-mono">@{selectedUser.username}</p>
               </div>
             </div>
 
-            <div className="p-4 bg-[#F4F4F6] rounded-xl border border-[#D2D2D4] space-y-2 text-xs">
+            <div className="p-4 bg-[#F5F5F5] rounded-xl border border-[#E5E5E5] space-y-2 text-xs">
               <div className="flex justify-between">
-                <span className="text-slate-500 font-medium">Alamat Email:</span>
-                <span className="font-semibold text-slate-800">{selectedUser.email}</span>
+                <span className="text-[#737373] font-medium">Alamat Email:</span>
+                <span className="font-semibold text-[#111111]">{selectedUser.email}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500 font-medium">Peran Akses:</span>
+                <span className="text-[#737373] font-medium">Peran Akses:</span>
                 <StatusBadge variant={getRoleVariant(selectedUser.role)} size="sm">
                   {selectedUser.role}
                 </StatusBadge>

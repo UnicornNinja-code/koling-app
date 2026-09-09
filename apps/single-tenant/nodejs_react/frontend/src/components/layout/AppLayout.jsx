@@ -6,17 +6,17 @@ import { cn } from "../../lib/utils.js";
 
 export function AppLayout({ children, title, subtitle, className = "" }) {
   return (
-    <div className="flex min-h-screen bg-[#F4F4F6] text-slate-900 font-sans antialiased selection:bg-[#FF634A]/20 selection:text-[#FF634A]">
+    <div className="flex min-h-screen bg-[#09090B] text-[#FAFAFA] font-sans antialiased selection:bg-[#ea580c]/25 selection:text-[#f97316]">
       {/* Persistent Desktop Sidebar */}
       <Sidebar />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 pb-24 md:pb-8">
+      <div className="flex-1 flex flex-col min-w-0 pb-20 md:pb-8">
         {/* Sticky Topbar */}
         <Topbar title={title} subtitle={subtitle} />
 
-        {/* Page Body Container */}
-        <main className={cn("p-3.5 sm:p-4 md:p-6 lg:p-8 flex-1 max-w-7xl w-full mx-auto", className)}>
+        {/* Page Body Container — Full Viewport Operations Workspace */}
+        <main className={cn("p-4 md:p-5 flex-1 w-full min-w-0", className)}>
           {children}
         </main>
       </div>
@@ -26,3 +26,4 @@ export function AppLayout({ children, title, subtitle, className = "" }) {
     </div>
   );
 }
+

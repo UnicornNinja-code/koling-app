@@ -86,30 +86,30 @@ export function ResetPasswordPage() {
 
   if (verifying) {
     return (
-      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4">
-        <div className="w-8 h-8 border-4 border-[#FF5052] border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center p-4">
+        <div className="w-8 h-8 border-4 border-[#2563EB] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col justify-center py-12 sm:px-6 lg:px-8 px-4">
+    <div className="min-h-screen bg-[#FAFAFA] flex flex-col justify-center py-12 sm:px-6 lg:px-8 px-4">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         {/* Brand Header */}
         <div className="text-center space-y-2 mb-6">
-          <div className="w-12 h-12 bg-[#FF5052] rounded-xl flex items-center justify-center text-white mx-auto shadow-md shadow-red-200 shrink-0">
+          <div className="w-12 h-12 bg-[#2563EB] rounded-[10px] flex items-center justify-center text-white mx-auto shadow-md shadow-blue-200 shrink-0">
             <Coffee className="w-6 h-6" />
           </div>
-          <h1 className="text-2xl font-heading font-extrabold text-slate-900 tracking-tight">
+          <h1 className="text-2xl font-heading font-extrabold text-[#111111] tracking-tight">
             Setel Ulang Kata Sandi
           </h1>
-          <p className="text-xs text-slate-500 font-medium">
+          <p className="text-xs text-[#737373] font-normal">
             Buat kata sandi baru yang kuat untuk akun Anda
           </p>
         </div>
 
         {/* Card Form Container */}
-        <div className="bg-white py-8 px-6 sm:px-8 rounded-2xl border border-slate-200 shadow-xl space-y-5">
+        <div className="bg-white py-8 px-6 sm:px-8 rounded-[12px] border border-[#E5E5E5] shadow-2xs space-y-5">
           {successMsg && (
             <Alert variant="success" title="Pembaruan Berhasil">
               {successMsg}
@@ -149,7 +149,7 @@ export function ResetPasswordPage() {
                 variant="primary"
                 size="md"
                 isPending={loading}
-                className="w-full py-3 shadow-xs font-bold"
+                className="w-full py-2.5 font-bold"
                 rightIcon={ArrowRight}
               >
                 {loading ? "Menyimpan Kata Sandi..." : "Perbarui Kata Sandi"}
@@ -157,10 +157,10 @@ export function ResetPasswordPage() {
             </form>
           )}
 
-          <div className="pt-3 border-t border-slate-100 text-center">
+          <div className="pt-3 border-t border-[#E5E5E5] text-center">
             <Link
               to="/login"
-              className="text-xs text-slate-600 hover:text-[#FF5052] font-bold"
+              className="text-xs text-[#525252] hover:text-[#2563EB] font-bold"
             >
               Kembali ke Halaman Masuk
             </Link>

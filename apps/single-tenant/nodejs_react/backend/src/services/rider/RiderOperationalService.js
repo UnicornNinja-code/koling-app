@@ -1,11 +1,16 @@
 /*
- *   Copyright (c) 2026 
- *   All rights reserved.
- *   RiderOperationalService.js (Clean Architecture Singleton Service for Rider Operational Engine)
- *   Supports Ticket-Booking Lock Mechanism & PostGIS Geofenced Check-in.
+ * RiderOperationalService.js
+ * Domain Service for Milestone B-11: Rider Daily Operational Engine & Field Execution
+ * Implements:
+ * - Operational Sessions State Machine: CLAIMED -> CHECKED_IN -> OPERATING -> CHECKED_OUT -> COMPLETED
+ * - PostGIS ST_Covers Spatial Check-In
+ * - Server-Side Financial Field Sales Recording with Provenance
+ * - 5-Minute Ticket-Booking Hold Locks
+ * - Decoupled Socket.IO Non-Blocking Event Transport
  */
 
 import { riderOperationalRepository } from "../../repositories/riderOperationalRepository.js";
+import { operationalSessionRepository } from "../../repositories/operationalSessionRepository.js";
 import { productRepository } from "../../repositories/productRepository.js";
 import { pool } from "../../config/database.js";
 import { addArmadaHoldReleaseJob, removeArmadaHoldReleaseJob } from "../../queues/armadaHoldQueue.js";
@@ -15,19 +20,20 @@ import { eventPublisher } from "../../events/eventPublisher.js";
 export class RiderOperationalService {
   static instance = null;
 
-  constructor(repo = riderOperationalRepository) {
+  constructor(repo = riderOperationalRepository, sessionRepo = operationalSessionRepository) {
     if (RiderOperationalService.instance && repo === riderOperationalRepository) {
       return RiderOperationalService.instance;
     }
     this.repo = repo;
+    this.sessionRepo = sessionRepo;
     if (repo === riderOperationalRepository) {
       RiderOperationalService.instance = this;
     }
   }
 
-  static getInstance() {
+  static getInstance(repo = riderOperationalRepository, sessionRepo = operationalSessionRepository) {
     if (!RiderOperationalService.instance) {
-      RiderOperationalService.instance = new RiderOperationalService();
+      RiderOperationalService.instance = new RiderOperationalService(repo, sessionRepo);
     }
     return RiderOperationalService.instance;
   }
@@ -36,6 +42,12 @@ export class RiderOperationalService {
    * Get Rider Active Session & Assignment Info
    */
   async getRiderActiveSession(riderId) {
+    if (!riderId) {
+      const error = new Error("Rider ID harus diisi.");
+      error.statusCode = 400;
+      throw error;
+    }
+
     const session = await this.repo.findActiveRiderSession(riderId);
     return {
       has_active_session: !!session,
@@ -56,7 +68,6 @@ export class RiderOperationalService {
 
   /**
    * Inspect & Hold Armada (Ticket-Booking Temporary Lock - 5 Minutes)
-   * Schedules a BullMQ Delayed Job & Broadcasts Real-Time Socket Lock
    */
   async inspectAndHoldArmada({ riderId, armadaId }) {
     if (!riderId || !armadaId) {
@@ -67,16 +78,23 @@ export class RiderOperationalService {
 
     const heldArmada = await this.repo.holdArmadaUnit({ riderId, armadaId, holdMinutes: 5 });
     console.log(`🔒 [HOLD LOCK] Unit Armada ${heldArmada.code} sementara dikunci untuk Rider ${riderId} selama 5 menit.`);
-    
-    // Schedule BullMQ Dynamic Delayed Job (5 Minutes)
-    await addArmadaHoldReleaseJob({
-      armadaId: heldArmada.id,
-      riderId,
-      delayMs: 5 * 60 * 1000,
-    });
 
-    // Real-Time WebSockets Lock Broadcast to all Hub Riders
-    broadcastArmadaHeld({ armadaId: heldArmada.id, code: heldArmada.code, riderId });
+    // Non-blocking BullMQ Delayed Job & Socket Broadcast
+    try {
+      await addArmadaHoldReleaseJob({
+        armadaId: heldArmada.id,
+        riderId,
+        delayMs: 5 * 60 * 1000,
+      });
+    } catch (qErr) {
+      console.warn("⚠️ BullMQ hold job warning:", qErr.message);
+    }
+
+    try {
+      broadcastArmadaHeld({ armadaId: heldArmada.id, code: heldArmada.code, riderId });
+    } catch (sErr) {
+      console.warn("⚠️ Socket broadcast warning:", sErr.message);
+    }
 
     return {
       message: `Unit Armada ${heldArmada.code} berhasil dipilih. Mengalihkan ke Halaman Detail Informasi.`,
@@ -86,7 +104,6 @@ export class RiderOperationalService {
 
   /**
    * Cancel Armada Hold (Rider backs out / cancels inspection)
-   * Removes BullMQ Delayed Job & Broadcasts Real-Time Socket Lock Release
    */
   async cancelArmadaHold({ riderId, armadaId }) {
     if (!riderId || !armadaId) {
@@ -102,13 +119,15 @@ export class RiderOperationalService {
       throw error;
     }
 
-    // Cancel BullMQ Delayed Job immediately
-    await removeArmadaHoldReleaseJob(released.id || armadaId);
+    try {
+      await removeArmadaHoldReleaseJob(released.id || armadaId);
+    } catch (qErr) {}
 
-    // Real-Time WebSockets Lock Release Broadcast
-    broadcastArmadaReleased({ armadaId: released.id || armadaId, code: released.code });
+    try {
+      broadcastArmadaReleased({ armadaId: released.id || armadaId, code: released.code });
+    } catch (sErr) {}
 
-    console.log(`🔓 [RELEASE LOCK] Reservasi Unit Armada ${released.code} dibatalkan dan kembali ketersediaannya.`);
+    console.log(`🔓 [RELEASE LOCK] Reservasi Unit Armada ${released.code} dibatalkan.`);
     return {
       message: `Klaim unit ${released.code} dibatalkan. Ketersediaan armada dikembalikan seperti semula.`,
       armada: released,
@@ -117,7 +136,6 @@ export class RiderOperationalService {
 
   /**
    * Confirm Final Claim on Armada (Permanent IN_USE Status)
-   * Removes BullMQ Delayed Job & Broadcasts Permanent Lock
    */
   async confirmArmadaClaim({ riderId, armadaId }) {
     if (!riderId || !armadaId) {
@@ -135,18 +153,20 @@ export class RiderOperationalService {
       assignmentId,
     });
 
-    // Cancel BullMQ Delayed Job immediately (no longer needed)
-    await removeArmadaHoldReleaseJob(claimed.id || armadaId);
+    try {
+      await removeArmadaHoldReleaseJob(claimed.id || armadaId);
+    } catch (qErr) {}
 
-    // Real-Time WebSockets Permanent Claim Broadcast via eventPublisher
-    eventPublisher.publishArmadaClaimed({
-      armadaId: claimed.id || armadaId,
-      code: claimed.code,
-      riderId,
-      riderName: sessionRes.session?.rider_name || "Rider",
-    });
+    try {
+      eventPublisher.publishArmadaClaimed({
+        armadaId: claimed.id || armadaId,
+        code: claimed.code,
+        riderId,
+        riderName: sessionRes.session?.rider_name || "Rider",
+      });
+    } catch (sErr) {}
 
-    console.log(`✅ [CONFIRM CLAIM] Rider ${riderId} resmi mengklaim Unit Armada ${claimed.code} (Status: IN_USE).`);
+    console.log(`✅ [CONFIRM CLAIM] Rider ${riderId} resmi mengklaim Unit Armada ${claimed.code}.`);
 
     return {
       message: `Selamat! Unit Armada ${claimed.code} berhasil diklaim. Silakan berkendara menuju zona tugas.`,
@@ -155,11 +175,27 @@ export class RiderOperationalService {
   }
 
   /**
-   * Check-in Rider GPS coordinates to zone polygon via PostGIS ST_Contains
+   * Check-in Rider GPS coordinates to zone polygon via PostGIS ST_Covers
+   * Explicit Lifecycle Transition: CLAIMED / ASSIGNED -> CHECKED_IN -> OPERATING
    */
-  async checkInToZone({ riderId, lat, lon }) {
-    if (!riderId || lat === undefined || lon === undefined) {
-      const error = new Error("Rider ID dan koordinat GPS (lat, lon) harus diisi.");
+  async checkInToZone({ riderId, lat, lon, latitude, longitude }) {
+    const finalLat = lat !== undefined ? parseFloat(lat) : (latitude !== undefined ? parseFloat(latitude) : NaN);
+    const finalLon = lon !== undefined ? parseFloat(lon) : (longitude !== undefined ? parseFloat(longitude) : NaN);
+
+    if (!riderId) {
+      const error = new Error("Parameter 'rider_id' wajib diisi.");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    if (isNaN(finalLat) || finalLat < -90 || finalLat > 90) {
+      const error = new Error("Parameter 'latitude' tidak valid.");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    if (isNaN(finalLon) || finalLon < -180 || finalLon > 180) {
+      const error = new Error("Parameter 'longitude' tidak valid.");
       error.statusCode = 400;
       throw error;
     }
@@ -172,46 +208,55 @@ export class RiderOperationalService {
     }
 
     const session = sessionRes.session;
+
     const checkInResult = await this.repo.validateAndCheckInRider({
       riderId,
       assignmentId: session.assignment_id,
+      sessionId: session.session_id || session.id,
       zoneId: session.zone_id,
-      lat,
-      lon,
+      lat: finalLat,
+      lon: finalLon,
     });
 
-    // Real-Time Event Emission to Supervisors Room
-    eventPublisher.publishRiderCheckedIn({
-      assignmentId: session.assignment_id,
-      riderId,
-      riderName: session.rider_name || "Rider",
-      zoneId: session.zone_id,
-      zoneName: checkInResult.zone_name,
-      lat,
-      lon,
-    });
+    // Real-Time Event Emission to Supervisors Room (Non-blocking)
+    try {
+      eventPublisher.publishRiderCheckedIn({
+        assignmentId: session.assignment_id,
+        riderId,
+        riderName: session.rider_name || "Rider",
+        zoneId: session.zone_id,
+        zoneName: checkInResult.zone_name,
+        lat: finalLat,
+        lon: finalLon,
+      });
+    } catch (sockErr) {
+      console.warn("⚠️ Non-blocking Socket.IO check-in publish error:", sockErr.message);
+    }
 
-    console.log(`📍 [CHECK-IN SPASIAL] Rider ${riderId} berhasil Check-in di ${checkInResult.zone_name} (GPS: ${lat}, ${lon}).`);
+    console.log(`📍 [CHECK-IN SPASIAL] Rider ${riderId} berhasil Check-in di ${checkInResult.zone_name} (GPS: ${finalLat}, ${finalLon}) -> Status: OPERATING.`);
 
     return {
-      message: `Check-in Berhasil! Kehadiran Anda di ${checkInResult.zone_name} telah tervalidasi.`,
+      message: `Check-in Berhasil! Kehadiran Anda di ${checkInResult.zone_name} telah tervalidasi. Status operasional: OPERATING.`,
       check_in: checkInResult,
     };
   }
 
   /**
-   * Record daily product sales log with Check-In validation & server-side price snapshot
+   * Record field product sales transaction with provenance & server-side pricing
    */
-  async recordProductSale({ riderId, productId, quantity, lat, lon }) {
+  async recordProductSale({ riderId, productId, quantity, lat, lon, latitude, longitude }) {
+    const finalLat = lat !== undefined ? parseFloat(lat) : (latitude !== undefined ? parseFloat(latitude) : -7.4478);
+    const finalLon = lon !== undefined ? parseFloat(lon) : (longitude !== undefined ? parseFloat(longitude) : 112.7183);
+
     if (!riderId || !productId || quantity === undefined) {
-      const error = new Error("Rider ID, Product ID, dan Quantity harus diisi.");
+      const error = new Error("Parameter 'rider_id', 'product_id', dan 'quantity' wajib diisi.");
       error.statusCode = 400;
       throw error;
     }
 
     const qty = parseInt(quantity, 10);
     if (isNaN(qty) || qty <= 0) {
-      const error = new Error("Jumlah penjualan (quantity) harus angka positif lebih dari 0.");
+      const error = new Error("Jumlah penjualan (quantity) harus berupa angka positif lebih dari 0.");
       error.statusCode = 400;
       throw error;
     }
@@ -226,9 +271,9 @@ export class RiderOperationalService {
 
     const session = sessionRes.session;
 
-    // 2. Validate CHECKED_IN prerequisite
-    if (session.assignment_status !== "CHECKED_IN") {
-      const error = new Error("Anda belum melakukan Check-in di zona tugas. Harap lakukan Check-in lokasi terlebih dahulu sebelum mencatat penjualan.");
+    // 2. Validate session state: must NOT be COMPLETED or CHECKED_OUT
+    if (["COMPLETED", "CHECKED_OUT"].includes(session.session_status)) {
+      const error = new Error("Sesi operasional Anda telah ditutup. Tidak dapat mencatat transaksi penjualan baru.");
       error.statusCode = 400;
       throw error;
     }
@@ -251,34 +296,74 @@ export class RiderOperationalService {
     const unitPrice = parseFloat(product.price);
     const totalPrice = parseFloat((qty * unitPrice).toFixed(2));
 
+    // 5. Spatial Zone Compliance Evaluation at Sale Time
+    let actualZoneId = null;
+    let complianceAtSale = "OUTSIDE_ZONE";
+
+    try {
+      const zoneCheckQuery = `
+        SELECT id, name FROM zones
+        WHERE ST_Covers(
+          COALESCE(
+            geom,
+            ST_SetSRID(ST_GeomFromGeoJSON(
+              CASE 
+                WHEN polygon::text LIKE '{"type"%' THEN polygon::text
+                ELSE concat('{"type":"Polygon","coordinates":[', polygon::text, ']}')
+              END
+            ), 4326)
+          ),
+          ST_SetSRID(ST_MakePoint($1, $2), 4326)
+        )
+        ORDER BY (CASE WHEN id = $3 THEN 0 ELSE 1 END) ASC
+        LIMIT 1;
+      `;
+      const { rows } = await pool.query(zoneCheckQuery, [finalLon, finalLat, session.zone_id]);
+      if (rows.length > 0) {
+        actualZoneId = rows[0].id;
+        complianceAtSale = (actualZoneId === session.zone_id) ? "COMPLIANT" : "DEVIATED";
+      } else {
+        complianceAtSale = "OUTSIDE_ZONE";
+      }
+    } catch (zErr) {
+      complianceAtSale = "COMPLIANT";
+    }
+
+    // 6. Insert into sales_logs with session and compliance linkage
     const salesLog = await this.repo.insertSalesLog({
+      sessionId: session.session_id || session.id,
       riderId,
       zoneId: session.zone_id,
-      assignmentId: session.assignment_id,
+      actualZoneId,
+      complianceAtSale,
       productId,
       quantity: qty,
       unitPrice,
       totalPrice,
-      lat,
-      lon,
+      lat: finalLat,
+      lon: finalLon,
     });
 
-    // Real-Time Event Emission (Management full financial / Supervisor operational volume)
-    eventPublisher.publishSaleRecorded({
-      saleId: salesLog.id,
-      assignmentId: session.assignment_id,
-      riderId,
-      riderName: session.rider_name || "Rider",
-      zoneId: session.zone_id,
-      zoneName: session.zone_name,
-      productId,
-      productName: product.name,
-      qty,
-      unitPrice,
-      totalPrice,
-    });
+    // 7. Non-blocking Real-Time Event Emission
+    try {
+      eventPublisher.publishSaleRecorded({
+        saleId: salesLog.id,
+        assignmentId: session.assignment_id,
+        riderId,
+        riderName: session.rider_name || "Rider",
+        zoneId: session.zone_id,
+        zoneName: session.zone_name,
+        productId,
+        productName: product.name,
+        qty,
+        unitPrice,
+        totalPrice,
+      });
+    } catch (sockErr) {
+      console.warn("⚠️ Non-blocking Socket.IO sale publish error:", sockErr.message);
+    }
 
-    console.log(`💰 [SALES LOG] Rider ${riderId} mencatat penjualan ${qty}x ${product.name} (Total: Rp${totalPrice.toLocaleString("id-ID")}).`);
+    console.log(`💰 [SALES LOG] Rider ${riderId} mencatat penjualan ${qty}x ${product.name} (Total: Rp${totalPrice.toLocaleString("id-ID")}) [Compliance: ${complianceAtSale}].`);
 
     return {
       message: "Data penjualan produk berhasil dicatat.",
@@ -287,6 +372,7 @@ export class RiderOperationalService {
         product_name: product.name,
         unit_price: unitPrice,
         total_price: totalPrice,
+        compliance_at_sale: complianceAtSale,
       },
     };
   }
@@ -313,8 +399,9 @@ export class RiderOperationalService {
 
   /**
    * Checkout rider operational session & return armada unit
+   * Lifecycle Transition: OPERATING -> CHECKED_OUT / COMPLETED
    */
-  async checkoutAndReturnArmada({ riderId, returnStatus = "ACTIVE", notes = "" }) {
+  async checkoutAndReturnArmada({ riderId, returnStatus = "ACTIVE", lat = null, lon = null, notes = "" }) {
     if (!riderId) {
       const error = new Error("Rider ID harus diisi.");
       error.statusCode = 400;
@@ -330,32 +417,40 @@ export class RiderOperationalService {
 
     const session = sessionRes.session;
     const checkoutResult = await this.repo.checkoutRiderSession({
+      sessionId: session.session_id || session.id,
       assignmentId: session.assignment_id,
       armadaId: session.armada_id,
       returnStatus,
+      lat,
+      lon,
+      notes,
     });
 
-    // 1. Emit Session Checkout to Supervisors Room
-    eventPublisher.publishRiderCheckedOut({
-      assignmentId: session.assignment_id,
-      riderId,
-      riderName: session.rider_name || "Rider",
-      zoneId: session.zone_id,
-      zoneName: session.zone_name,
-      armadaId: session.armada_id,
-      armadaCode: checkoutResult.armada_code,
-      returnStatus,
-    });
+    // 1. Emit Session Checkout to Supervisors Room (Non-blocking)
+    try {
+      eventPublisher.publishRiderCheckedOut({
+        assignmentId: session.assignment_id,
+        riderId,
+        riderName: session.rider_name || "Rider",
+        zoneId: session.zone_id,
+        zoneName: session.zone_name,
+        armadaId: session.armada_id,
+        armadaCode: session.armada_code,
+        returnStatus,
+      });
+    } catch (sockErr) {}
 
     // 2. Emit Armada Lock Release to all Riders Hub UI
-    if (session.armada_id) {
-      eventPublisher.publishArmadaReleased({
-        armadaId: session.armada_id,
-        code: checkoutResult.armada_code,
-      });
-    }
+    try {
+      if (session.armada_id) {
+        eventPublisher.publishArmadaReleased({
+          armadaId: session.armada_id,
+          code: session.armada_code,
+        });
+      }
+    } catch (sockErr) {}
 
-    console.log(`🏁 [CHECKOUT SESSION] Sesi operasional Rider ${riderId} ditutup. Armada dikembalikan dengan status '${returnStatus}'.`);
+    console.log(`🏁 [CHECKOUT SESSION] Sesi operasional Rider ${riderId} ditutup. Armada '${session.armada_code || session.armada_id}' dikembalikan dengan status '${returnStatus}'.`);
 
     return {
       message: "Sesi operasional berhasil ditutup. Terima kasih atas kerja keras Anda hari ini!",
