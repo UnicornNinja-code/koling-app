@@ -4,16 +4,16 @@
   "private": true,
   "description": "MOVA DSS Fullstack Application",
   "scripts": {
-    "dev": "cd bun_svelte && bun dev.ts",
-    "start": "cd bun_svelte && bun dev.ts",
-    "build": "cd bun_svelte/frontend && bun run build",
-    "prod:start": "cd bun_svelte && bun run build && pm2 start ecosystem.config.cjs",
-    "prod:stop": "cd bun_svelte && (pm2 stop ecosystem.config.cjs 2>/dev/null || fuser -k 9967/tcp 9968/tcp 2>/dev/null || true)",
-    "prod:restart": "cd bun_svelte && pm2 restart ecosystem.config.cjs",
+    "dev": "cd apps/multi-tenant && bun dev.ts",
+    "start": "cd apps/multi-tenant && bun dev.ts",
+    "build": "cd apps/multi-tenant/frontend && bun run build",
+    "prod:start": "cd apps/multi-tenant && bun run build && pm2 start ecosystem.config.cjs",
+    "prod:stop": "cd apps/multi-tenant && (pm2 stop ecosystem.config.cjs 2>/dev/null || fuser -k 9967/tcp 9968/tcp 2>/dev/null || true)",
+    "prod:restart": "cd apps/multi-tenant && pm2 restart ecosystem.config.cjs",
     "prod:logs": "pm2 logs",
     "stop": "fuser -k 9967/tcp 9968/tcp 2>/dev/null || pkill -f 'index.ts' 2>/dev/null || pkill -f 'vite' 2>/dev/null || true",
     "kill": "fuser -k 9967/tcp 9968/tcp 2>/dev/null || pkill -f 'index.ts' 2>/dev/null || pkill -f 'vite' 2>/dev/null || true",
-    "dev:backend": "cd bun_svelte/backend && bun run dev",
-    "dev:frontend": "cd bun_svelte/frontend && bun run dev"
+    "dev:backend": "cd apps/multi-tenant/backend && bun run dev",
+    "dev:frontend": "cd apps/multi-tenant/frontend && bun run dev"
   }
 }
