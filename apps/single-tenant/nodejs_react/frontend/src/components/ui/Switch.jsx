@@ -57,9 +57,9 @@ export function Switch({
         onKeyDown={handleKeyDown}
         className={cn(
           "relative inline-flex shrink-0 items-center cursor-pointer transition-colors duration-200 ease-in-out",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#EA580C] focus-visible:ring-offset-1 focus-visible:ring-offset-white",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#EA580C] focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-[#0B0F17]",
           "border",
-          checked ? "bg-[#EA580C] border-[#EA580C]" : "bg-slate-200 border-slate-300 hover:bg-slate-300",
+          checked ? "bg-[#EA580C] border-[#EA580C]" : "bg-slate-200 dark:bg-[#1E293B] border-slate-300 dark:border-[#334155] hover:bg-slate-300 dark:hover:bg-[#334155]",
           disabled && "cursor-not-allowed",
           trackSizes[size] || trackSizes.md
         )}
@@ -77,12 +77,12 @@ export function Switch({
       {(label || description) && (
         <div className="flex flex-col cursor-pointer" onClick={handleClick}>
           {label && (
-            <label htmlFor={switchId} className="text-xs md:text-sm font-semibold text-slate-800 cursor-pointer">
+            <label htmlFor={switchId} className="text-xs md:text-sm font-semibold text-slate-800 dark:text-slate-200 cursor-pointer">
               {label}
             </label>
           )}
           {description && (
-            <span className="text-[11px] md:text-xs text-slate-500 leading-relaxed mt-0.5">
+            <span className="text-[11px] md:text-xs text-slate-500 dark:text-slate-400 leading-relaxed mt-0.5">
               {description}
             </span>
           )}
@@ -91,3 +91,4 @@ export function Switch({
     </div>
   );
 }
+

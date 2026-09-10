@@ -17,7 +17,7 @@ export function TabsList({ activeValue, onValueChange, className, children, ...p
     <div
       role="tablist"
       className={cn(
-        "inline-flex items-center gap-1 p-1 bg-slate-100 rounded-[6px] border border-slate-200 text-xs font-semibold overflow-x-auto max-w-full select-none",
+        "inline-flex items-center gap-1 p-1 bg-slate-100 dark:bg-[#131822] rounded-[6px] border border-slate-200 dark:border-[#1E293B] text-xs font-semibold overflow-x-auto max-w-full select-none",
         className
       )}
       {...props}
@@ -52,11 +52,11 @@ export function TabsTrigger({
       onClick={onSelect}
       className={cn(
         "inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-[4px] transition-all min-h-[30px] cursor-pointer whitespace-nowrap text-xs font-medium",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#EA580C] focus-visible:ring-offset-1 focus-visible:ring-offset-white",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#EA580C] focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-[#0B0F17]",
         "disabled:opacity-40 disabled:cursor-not-allowed",
         isActive
-          ? "bg-white text-slate-900 font-bold border border-slate-300/80 shadow-2xs"
-          : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 border border-transparent",
+          ? "bg-white dark:bg-[#1E293B] text-slate-900 dark:text-white font-bold border border-slate-300/80 dark:border-[#334155] shadow-2xs"
+          : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-[#1E293B]/60 border border-transparent",
         className
       )}
       {...props}
@@ -80,3 +80,4 @@ export function TabsContent({ value, activeValue, onValueChange, className, chil
     </div>
   );
 }
+

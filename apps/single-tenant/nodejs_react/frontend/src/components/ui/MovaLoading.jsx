@@ -25,15 +25,15 @@ export function MovaLoading({
         {/* Rotating dash spinner */}
         <div className={cn("absolute rounded-full border-2 border-[#ea580c] border-t-transparent animate-spin", currentSize.ring)} />
         {/* Center brand coffee icon */}
-        <div className="w-9 h-9 rounded-[6px] bg-white border border-slate-200 flex items-center justify-center text-[#ea580c] shadow-xs">
+        <div className="w-9 h-9 rounded-[6px] bg-white dark:bg-[#131822] border border-slate-200 dark:border-[#1E293B] flex items-center justify-center text-[#ea580c] shadow-xs">
           <Coffee className={cn("animate-pulse", currentSize.icon)} />
         </div>
       </div>
 
       {(text || description) && (
         <div className="flex flex-col items-center gap-0.5 mt-2">
-          {text && <span className={cn("font-heading font-semibold text-slate-800", currentSize.text)}>{text}</span>}
-          {description && <span className="text-xs text-slate-500 max-w-xs">{description}</span>}
+          {text && <span className={cn("font-heading font-semibold text-slate-800 dark:text-white", currentSize.text)}>{text}</span>}
+          {description && <span className="text-xs text-slate-500 dark:text-slate-400 max-w-xs">{description}</span>}
         </div>
       )}
     </div>
@@ -41,7 +41,7 @@ export function MovaLoading({
 
   if (fullScreen) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 dark:bg-black/70 backdrop-blur-xs">
         {content}
       </div>
     );
@@ -60,3 +60,4 @@ export function Spinner({ size = "md", className = "" }) {
   };
   return <Loader2 className={cn("animate-spin text-[#ea580c]", sizes[size] || sizes.md, className)} />;
 }
+

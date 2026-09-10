@@ -12,7 +12,7 @@ export function MetricSkeleton({ count = 4, className = "" }) {
       {Array.from({ length: count }).map((_, i) => (
         <div
           key={i}
-          className="bg-white p-4 md:p-5 rounded-[6px] border border-slate-200 space-y-3 shadow-xs"
+          className="bg-white dark:bg-[#131822] p-4 md:p-5 rounded-[6px] border border-slate-200 dark:border-[#1E293B] space-y-3 shadow-xs transition-colors"
         >
           <div className="flex justify-between items-center">
             <Skeleton className="h-3 w-24 rounded-[4px]" />
@@ -30,11 +30,11 @@ export function PanelSkeleton({ className = "", height = "h-48" }) {
   return (
     <div
       className={cn(
-        "bg-white p-5 rounded-[6px] border border-slate-200 space-y-4 shadow-xs",
+        "bg-white dark:bg-[#131822] p-5 rounded-[6px] border border-slate-200 dark:border-[#1E293B] space-y-4 shadow-xs transition-colors",
         className
       )}
     >
-      <div className="flex justify-between items-center border-b border-slate-200 pb-3">
+      <div className="flex justify-between items-center border-b border-slate-200 dark:border-[#1E293B] pb-3">
         <div className="space-y-1">
           <Skeleton className="h-4 w-40 rounded-[4px]" />
           <Skeleton className="h-3 w-56 rounded-[4px]" />
@@ -48,12 +48,12 @@ export function PanelSkeleton({ className = "", height = "h-48" }) {
 
 export function TableSkeleton({ rows = 5, cols = 4, className = "" }) {
   return (
-    <div className={cn("bg-white rounded-[6px] border border-slate-200 overflow-hidden shadow-xs", className)}>
-      <div className="p-4 border-b border-slate-200 bg-slate-50 flex justify-between">
+    <div className={cn("bg-white dark:bg-[#131822] rounded-[6px] border border-slate-200 dark:border-[#1E293B] overflow-hidden shadow-xs transition-colors", className)}>
+      <div className="p-4 border-b border-slate-200 dark:border-[#1E293B] bg-slate-50 dark:bg-[#0B0F17] flex justify-between">
         <Skeleton className="h-4 w-32 rounded-[4px]" />
         <Skeleton className="h-4 w-20 rounded-[4px]" />
       </div>
-      <div className="divide-y divide-slate-100 p-2">
+      <div className="divide-y divide-slate-100 dark:divide-[#1E293B] p-2">
         {Array.from({ length: rows }).map((_, rIdx) => (
           <div key={rIdx} className="py-3 px-2 flex items-center justify-between gap-4">
             {Array.from({ length: cols }).map((_, cIdx) => (
@@ -67,3 +67,4 @@ export function TableSkeleton({ rows = 5, cols = 4, className = "" }) {
 }
 
 export const LoadingSkeleton = MetricSkeleton;
+

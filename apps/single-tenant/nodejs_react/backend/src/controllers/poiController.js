@@ -168,3 +168,27 @@ export const triggerCronDetection = async (req, res) => {
     }
 };
 
+export const getQualitySummary = async (req, res) => {
+    try {
+        const { getQualitySummaryService } = await import("../services/poiService.js");
+        const summary = await getQualitySummaryService();
+        return res.status(200).json(summary);
+    } catch (error) {
+        const statusCode = error.statusCode || 500;
+        return res.status(statusCode).json({ msg: error.message || "Internal server error" });
+    }
+};
+
+export const resolveAnomaly = async (req, res) => {
+    try {
+        const { getQualitySummaryService, resolveAnomalyService } = await import("../services/poiService.js");
+        const { poi_id, resolved_category, category, action } = req.body;
+        const userId = req.user?.id || req.user?.userId;
+        const result = await resolveAnomalyService(poi_id, resolved_category || category, action || "APPROVE", userId);
+        return res.status(200).json(result);
+    } catch (error) {
+        const statusCode = error.statusCode || 500;
+        return res.status(statusCode).json({ msg: error.message || "Internal server error" });
+    }
+};
+

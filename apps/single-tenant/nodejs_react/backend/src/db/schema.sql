@@ -52,6 +52,8 @@ CREATE TABLE IF NOT EXISTS "users" (
   "phone" varchar(50),
   "role" "Role" NOT NULL DEFAULT 'RIDER',
   "is_active" boolean NOT NULL DEFAULT true,
+  "first_login" boolean NOT NULL DEFAULT false,
+  "birth_date" date,
   "created_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updated_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

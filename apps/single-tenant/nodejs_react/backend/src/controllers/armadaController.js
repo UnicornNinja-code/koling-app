@@ -135,3 +135,26 @@ export const releaseArmada = async (req, res) => {
     return res.status(statusCode).json({ msg: error.message || "Internal server error" });
   }
 };
+
+export const setMaintenance = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { notes, cost } = req.body;
+    const result = await armadaService.setMaintenance(id, { notes, cost });
+    return res.status(200).json({ success: true, msg: "Unit armada dialihkan ke status pemeliharaan", armada: result });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Internal server error" });
+  }
+};
+
+export const releaseMaintenance = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await armadaService.releaseMaintenance(id);
+    return res.status(200).json({ success: true, msg: "Unit armada telah selesai diservis dan siap digunakan", armada: result });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Internal server error" });
+  }
+};

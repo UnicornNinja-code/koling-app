@@ -1,16 +1,18 @@
 import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { AppLayout } from "../../components/layout/AppLayout.jsx";
 import { PageHeader } from "../../components/ui/PageHeader.jsx";
-import { Button } from "../../components/common/Button.jsx";
-import { StatusBadge } from "../../components/ui/StatusBadge.jsx";
+import { Button } from "../../components/ui/Button.jsx";
+import { Card } from "../../components/ui/Card.jsx";
+import { Badge } from "../../components/ui/Badge.jsx";
 import { Alert } from "../../components/ui/Alert.jsx";
 import { Table, TableContainer } from "../../components/ui/Table.jsx";
-import { analyticsService } from "../../services/analyticsService.js";
+import { reportService } from "../../services/reportService.js";
 import { zoneService } from "../../services/zoneService.js";
-import { queryKeys } from "../../lib/queryKeys.js";
 import { formatCurrency, formatDate } from "../../lib/utils.js";
 import { useAuth } from "../../context/AuthContext.jsx";
+import { useToast } from "../../components/ui/Toast.jsx";
 import {
   BarChart3,
   TrendingUp,
@@ -26,27 +28,33 @@ import {
   Clock,
   CheckCircle2,
   AlertTriangle,
-  Lock,
   FileSpreadsheet,
-  PieChart,
-  Target,
-  Navigation,
+  Printer,
+  Compass,
+  FileText,
+  UserCheck,
+  Cpu,
+  History,
+  ShieldAlert,
 } from "lucide-react";
 
 export function ReportsPage() {
+  const navigate = useNavigate();
   const { user } = useAuth();
-  const isSupervisor = user?.role === "SUPERVISOR";
+  const { showToast } = useToast();
+  const isSuperAdmin = user?.role === "SUPERADMIN";
 
-  // Date and Filter State
-  const [activeTab, setActiveTab] = useState("overview"); // 'overview' | 'operational' | 'compliance' | 'dss' | 'daily'
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+  // Active Tab & Filters State
+  const [activeTab, setActiveTab] = useState("executive");
+  const today = new Date().toISOString().split("T")[0];
+  const [startDate, setStartDate] = useState(today);
+  const [endDate, setEndDate] = useState(today);
   const [selectedZoneId, setSelectedZoneId] = useState("ALL");
   const [isExporting, setIsExporting] = useState(false);
-  const [exportError, setExportError] = useState(null);
 
   // 1. Authoritative Zones List
   const { data: zonesRes } = useQuery({
-    queryKey: queryKeys.zones.list(),
+    queryKey: ["zones", "list"],
     queryFn: () => zoneService.getZones(),
   });
 
@@ -54,620 +62,667 @@ export function ReportsPage() {
     return Array.isArray(zonesRes) ? zonesRes : zonesRes?.zones || zonesRes?.data || [];
   }, [zonesRes]);
 
-  // 2. Overview Query
+  // 2. Executive Summary Query
   const {
-    data: overviewRes,
-    isLoading: isLoadingOverview,
-    refetch: refetchOverview,
+    data: executiveData,
+    isLoading: isLoadingExecutive,
+    refetch: refetchExecutive,
   } = useQuery({
-    queryKey: queryKeys.analytics.overview({ date: selectedDate }),
-    queryFn: () => analyticsService.getOverview({ date: selectedDate }),
+    queryKey: ["reports", "executive-summary"],
+    queryFn: () => reportService.getExecutiveSummary(),
+    enabled: activeTab === "executive",
   });
 
-  const overview = overviewRes?.data || overviewRes || {};
-
-  // 3. Operational Analytics Query
+  // 3. Rider Operational Query
   const {
-    data: operationalRes,
-    isLoading: isLoadingOperational,
-    refetch: refetchOperational,
+    data: riderData,
+    isLoading: isLoadingRider,
+    refetch: refetchRider,
   } = useQuery({
-    queryKey: queryKeys.analytics.operational({ date: selectedDate }),
-    queryFn: () => analyticsService.getOperational({ date: selectedDate }),
+    queryKey: ["reports", "rider-operational", { startDate, endDate }],
+    queryFn: () => reportService.getRiderOperationalReport({ startDate, endDate }),
+    enabled: activeTab === "rider_operational",
   });
 
-  const operational = operationalRes?.data || operationalRes || {};
-
-  // 4. Fleet Utilization Query
-  const { data: fleetRes } = useQuery({
-    queryKey: queryKeys.armadas.all,
-    queryFn: () => analyticsService.getFleetUtilization(),
-  });
-
-  const fleet = fleetRes?.data || fleetRes || {};
-
-  // 5. Compliance Analytics Query
+  // 4. Zone Effectiveness Query
   const {
-    data: complianceRes,
-    isLoading: isLoadingCompliance,
-    refetch: refetchCompliance,
+    data: zoneData,
+    isLoading: isLoadingZone,
+    refetch: refetchZone,
   } = useQuery({
-    queryKey: queryKeys.analytics.compliance({ date: selectedDate }),
-    queryFn: () => analyticsService.getCompliance({ date: selectedDate }),
+    queryKey: ["reports", "zone-effectiveness", { startDate, endDate, zoneId: selectedZoneId }],
+    queryFn: () => reportService.getZoneEffectivenessReport({ startDate, endDate, zoneId: selectedZoneId }),
+    enabled: activeTab === "zone_performance",
   });
 
-  const compliance = complianceRes?.data || complianceRes || {};
-
-  // 6. Sales Performance Query
+  // 5. Fleet Report Query
   const {
-    data: salesRes,
-    isLoading: isLoadingSales,
-    refetch: refetchSales,
+    data: fleetData,
+    isLoading: isLoadingFleet,
+    refetch: refetchFleet,
   } = useQuery({
-    queryKey: queryKeys.analytics.sales({ date: selectedDate }),
-    queryFn: () => analyticsService.getSales({ date: selectedDate }),
+    queryKey: ["reports", "fleet"],
+    queryFn: () => reportService.getFleetReport(),
+    enabled: activeTab === "fleet",
   });
 
-  const sales = salesRes?.data || salesRes || {};
-
-  // 7. DSS Plan vs Actual Query
+  // 6. DSS Accuracy Query
   const {
-    data: dssPerformanceRes,
+    data: dssData,
     isLoading: isLoadingDss,
     refetch: refetchDss,
   } = useQuery({
-    queryKey: queryKeys.analytics.dssPerformance({ date: selectedDate }),
-    queryFn: () => analyticsService.getDssPerformance({ date: selectedDate }),
+    queryKey: ["reports", "dss-accuracy", { startDate, endDate }],
+    queryFn: () => reportService.getDssAccuracyReport({ startDate, endDate }),
+    enabled: activeTab === "dss_accuracy",
   });
 
-  const dssPerformance = dssPerformanceRes?.data || dssPerformanceRes || {};
-
-  // 8. Daily Detailed Report Query
+  // 7. Audit Logs Query
   const {
-    data: dailyReportRes,
-    isLoading: isLoadingDaily,
-    refetch: refetchDaily,
+    data: auditData,
+    isLoading: isLoadingAudit,
+    refetch: refetchAudit,
   } = useQuery({
-    queryKey: queryKeys.analytics.dailyReport({
-      date: selectedDate,
-      zoneId: selectedZoneId === "ALL" ? undefined : selectedZoneId,
-    }),
-    queryFn: () =>
-      analyticsService.getDailyReport({
-        date: selectedDate,
-        zoneId: selectedZoneId === "ALL" ? undefined : selectedZoneId,
-      }),
+    queryKey: ["reports", "audit-logs"],
+    queryFn: () => reportService.getAuditLogsReport({ limit: 100 }),
+    enabled: activeTab === "audit_logs" && isSuperAdmin,
   });
 
-  const dailyReport = dailyReportRes?.data || dailyReportRes || {};
-  const dailyRows = dailyReport?.rows || dailyReport?.sessions || [];
-
-  // Handle CSV Export
-  const handleExportCsv = async () => {
+  // Handle File Exports (CSV, XLSX, PDF/Print)
+  const handleExport = async (format) => {
+    setIsExporting(true);
     try {
-      setIsExporting(true);
-      setExportError(null);
-      await analyticsService.exportDailyReport({
-        date: selectedDate,
-        zoneId: selectedZoneId === "ALL" ? undefined : selectedZoneId,
+      let type = "EXECUTIVE_SUMMARY";
+      if (activeTab === "rider_operational") type = "RIDER_OPERATIONAL";
+      else if (activeTab === "zone_performance") type = "ZONE_PERFORMANCE";
+      else if (activeTab === "fleet") type = "FLEET_REPORT";
+      else if (activeTab === "dss_accuracy") type = "DSS_ACCURACY";
+      else if (activeTab === "audit_logs") type = "AUDIT_LOGS";
+
+      await reportService.downloadReportExport({
+        type,
+        format,
+        startDate,
+        endDate,
+        zoneId: selectedZoneId,
       });
+
+      if (showToast) {
+        showToast(`Laporan ${type} berhasil diekspor (${format.toUpperCase()})`, "success");
+      }
     } catch (err) {
-      setExportError(err?.response?.data?.msg || "Gagal mengunduh file CSV laporan harian.");
+      if (showToast) {
+        showToast(err.message || "Gagal mengekspor laporan.", "error");
+      }
     } finally {
       setIsExporting(false);
     }
   };
 
-  // Safe Financial Display
-  const renderRevenue = (val, formattedVal) => {
-    if (formattedVal === "PROTECTED_ROLE" || isSupervisor) {
-      return (
-        <span className="inline-flex items-center gap-1 text-xs text-neutral-500 font-medium bg-neutral-100 px-2 py-0.5 rounded border border-neutral-200">
-          <Lock className="w-3 h-3 text-neutral-400" />
-          Protected (Supervisor)
-        </span>
-      );
-    }
-    if (val === null || val === undefined || formattedVal === "NO_DATA") {
-      return <span className="text-neutral-400 italic">N/A</span>;
-    }
-    return formatCurrency(val);
-  };
+  const kpis = executiveData?.kpis || {};
 
   return (
     <AppLayout>
-      <div className="flex flex-col h-full bg-[#FAFAFA] text-[#171717] font-sans">
-        {/* Workspace Top Header */}
-        <div className="bg-white border-b border-[#E5E5E5] px-6 py-4">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-[#2563EB]/10 text-[#2563EB] border border-[#2563EB]/20">
-                  ANALYTICS & REPORTING
-                </span>
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-neutral-100 text-neutral-700 border border-neutral-200 font-mono">
-                  SSOT ENGINE B-12
-                </span>
-              </div>
-              <h1 className="text-xl font-bold text-[#171717] mt-1 tracking-tight">
-                Reports & Historical Analytics Center
-              </h1>
-              <p className="text-xs text-neutral-500 mt-0.5">
-                Rekapitulasi komprehensif performa penjualan harian, utilisasi armada, kepatuhan spasial geofence, dan evaluasi efektivitas DSS TOPSIS.
-              </p>
+      <div className="space-y-6 pb-12 font-sans">
+        {/* Header Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-neutral-200 dark:border-neutral-800">
+          <div>
+            <div className="text-[11px] font-semibold text-primary-600 dark:text-primary-400 uppercase tracking-wider flex items-center gap-1.5">
+              <span>Pusat Laporan & Analitika</span>
+              <span>•</span>
+              <span className="text-neutral-500">Ekspor Dokumen Resmi</span>
             </div>
-
-            {/* Filter & Export Bar */}
-            <div className="flex items-center gap-2.5">
-              <div className="flex items-center gap-1.5 bg-neutral-50 px-2.5 py-1 rounded border border-[#E5E5E5]">
-                <Calendar className="w-3.5 h-3.5 text-neutral-500" />
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="bg-transparent text-xs text-neutral-800 font-mono focus:outline-none"
-                />
-              </div>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  refetchOverview();
-                  refetchOperational();
-                  refetchCompliance();
-                  refetchSales();
-                  refetchDss();
-                  refetchDaily();
-                }}
-                className="h-8.5 px-3 border-[#E5E5E5] bg-white hover:bg-neutral-50 text-neutral-700 text-xs font-medium rounded-md shadow-2xs"
-              >
-                <RefreshCw className="w-3.5 h-3.5 mr-1.5 text-neutral-500" />
-                Refresh
-              </Button>
-
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleExportCsv}
-                loading={isExporting}
-                className="h-8.5 px-3.5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-medium rounded-md shadow-2xs transition-all"
-              >
-                <Download className="w-3.5 h-3.5 mr-1.5" />
-                Ekspor Laporan CSV
-              </Button>
-            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-neutral-900 dark:text-white tracking-tight leading-tight mt-1">
+              Laporan Analitika & Audit Sistem
+            </h1>
           </div>
 
-          {/* Export Error Alert */}
-          {exportError && (
-            <div className="mt-3">
-              <Alert variant="danger" title="Gagal Mengekspor Laporan" onClose={() => setExportError(null)}>
-                {exportError}
-              </Alert>
-            </div>
-          )}
-
-          {/* Macro KPI Strip */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-3 border-t border-neutral-100">
-            <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-md p-2.5 flex items-center justify-between">
-              <div>
-                <div className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
-                  Total Pendapatan
-                </div>
-                <div className="text-lg font-bold text-[#0F172A] mt-0.5">
-                  {renderRevenue(
-                    overview?.sales?.summary?.total_revenue?.raw ?? sales?.summary?.total_revenue,
-                    overview?.sales?.summary?.total_revenue?.formatted
-                  )}
-                </div>
-              </div>
-              <div className="w-8 h-8 rounded bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
-                <DollarSign className="w-4 h-4" />
-              </div>
-            </div>
-
-            <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-md p-2.5 flex items-center justify-between">
-              <div>
-                <div className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
-                  Total Cup Terjual
-                </div>
-                <div className="text-lg font-bold text-[#0F172A] mt-0.5 font-mono">
-                  {overview?.sales?.summary?.total_cups ?? sales?.summary?.total_cups ?? 0} Cup
-                </div>
-              </div>
-              <div className="w-8 h-8 rounded bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100">
-                <BarChart3 className="w-4 h-4" />
-              </div>
-            </div>
-
-            <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-md p-2.5 flex items-center justify-between">
-              <div>
-                <div className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
-                  Rata-rata Kepatuhan
-                </div>
-                <div className="text-lg font-bold text-neutral-900 mt-0.5 font-mono">
-                  {compliance?.compliance_rate_percent !== undefined
-                    ? `${Number(compliance.compliance_rate_percent).toFixed(1)}%`
-                    : "100%"}
-                </div>
-              </div>
-              <div className="w-8 h-8 rounded bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100">
-                <ShieldCheck className="w-4 h-4" />
-              </div>
-            </div>
-
-            <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-md p-2.5 flex items-center justify-between">
-              <div>
-                <div className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
-                  Sesi Shift Aktif
-                </div>
-                <div className="text-lg font-bold text-neutral-900 mt-0.5 font-mono">
-                  {operational?.active_sessions_count ?? 0} Rider
-                </div>
-              </div>
-              <div className="w-8 h-8 rounded bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100">
-                <Bike className="w-4 h-4" />
-              </div>
-            </div>
+          {/* Quick Action Buttons */}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/dss")}
+              className="flex items-center gap-1.5"
+            >
+              <Compass className="w-4 h-4 text-purple-500" />
+              <span>Konfigurasi DSS</span>
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => navigate("/superadmin/dashboard")}
+              className="flex items-center gap-1.5"
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span>Dashboard</span>
+            </Button>
           </div>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="bg-white border-b border-[#E5E5E5] px-6 flex items-center justify-between">
-          <div className="flex items-center gap-1 -mb-px">
-            <button
-              onClick={() => setActiveTab("overview")}
-              className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-all flex items-center gap-2 ${
-                activeTab === "overview"
-                  ? "border-[#2563EB] text-[#2563EB] bg-blue-50/30"
-                  : "border-transparent text-neutral-600 hover:text-neutral-900 hover:border-neutral-300"
-              }`}
-            >
-              <BarChart3 className="w-3.5 h-3.5" />
-              Ringkasan & Penjualan
-            </button>
+        {/* Global Filter Bar & Export Actions */}
+        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 p-4 rounded-2xl shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 text-xs font-semibold text-neutral-600 dark:text-neutral-300">
+              <Calendar className="w-4 h-4 text-primary-600" />
+              <span>Periode:</span>
+            </div>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="px-3 py-1.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-xs text-neutral-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary-500"
+            />
+            <span className="text-neutral-400 text-xs">s/d</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="px-3 py-1.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-xs text-neutral-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary-500"
+            />
 
-            <button
-              onClick={() => setActiveTab("operational")}
-              className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-all flex items-center gap-2 ${
-                activeTab === "operational"
-                  ? "border-[#2563EB] text-[#2563EB] bg-blue-50/30"
-                  : "border-transparent text-neutral-600 hover:text-neutral-900 hover:border-neutral-300"
-              }`}
-            >
-              <Bike className="w-3.5 h-3.5" />
-              Operasional & Armada
-            </button>
+            {activeTab === "zone_performance" && (
+              <select
+                value={selectedZoneId}
+                onChange={(e) => setSelectedZoneId(e.target.value)}
+                className="px-3 py-1.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-xs text-neutral-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary-500"
+              >
+                <option value="ALL">Semua Zona Wilayah</option>
+                {zones.map((z) => (
+                  <option key={z.id} value={z.id}>
+                    {z.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
 
-            <button
-              onClick={() => setActiveTab("compliance")}
-              className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-all flex items-center gap-2 ${
-                activeTab === "compliance"
-                  ? "border-[#2563EB] text-[#2563EB] bg-blue-50/30"
-                  : "border-transparent text-neutral-600 hover:text-neutral-900 hover:border-neutral-300"
-              }`}
-            >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              Kepatuhan Spasial
-            </button>
-
-            <button
-              onClick={() => setActiveTab("dss")}
-              className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-all flex items-center gap-2 ${
-                activeTab === "dss"
-                  ? "border-[#2563EB] text-[#2563EB] bg-blue-50/30"
-                  : "border-transparent text-neutral-600 hover:text-neutral-900 hover:border-neutral-300"
-              }`}
-            >
-              <Target className="w-3.5 h-3.5" />
-              DSS Plan vs Actual
-            </button>
-
-            <button
-              onClick={() => setActiveTab("daily")}
-              className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-all flex items-center gap-2 ${
-                activeTab === "daily"
-                  ? "border-[#2563EB] text-[#2563EB] bg-blue-50/30"
-                  : "border-transparent text-neutral-600 hover:text-neutral-900 hover:border-neutral-300"
-              }`}
+          {/* Export Dropdown / Action Buttons */}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isExporting}
+              onClick={() => handleExport("csv")}
+              className="flex items-center gap-1.5 text-xs text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/40 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
-              Laporan Harian & CSV
-            </button>
+              <span>Ekspor CSV / Excel</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isExporting}
+              onClick={() => handleExport("pdf")}
+              className="flex items-center gap-1.5 text-xs text-rose-600 hover:text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800/40 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Cetak / PDF</span>
+            </Button>
           </div>
         </div>
 
-        {/* Workspace Body */}
-        <div className="flex-1 p-6 overflow-y-auto space-y-4">
-          {/* TAB 1: OVERVIEW & SALES */}
-          {activeTab === "overview" && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {/* Sales Breakdown by Product */}
-                <div className="bg-white rounded-md border border-[#E5E5E5] shadow-2xs p-4 space-y-3">
-                  <div className="flex items-center justify-between border-b border-neutral-100 pb-2.5">
-                    <h3 className="font-bold text-xs text-[#171717] flex items-center gap-2">
-                      <BarChart3 className="w-4 h-4 text-[#2563EB]" />
-                      Kontribusi Penjualan per Produk Menu
-                    </h3>
-                  </div>
+        {/* 6-Tab Navigation Bar */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 border-b border-neutral-200 dark:border-neutral-800">
+          <button
+            type="button"
+            onClick={() => setActiveTab("executive")}
+            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer flex items-center gap-2 shrink-0 border ${
+              activeTab === "executive"
+                ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 border-transparent shadow-sm"
+                : "bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border-neutral-200 dark:border-neutral-800 hover:border-neutral-300"
+            }`}
+          >
+            <TrendingUp className="w-4 h-4 text-primary-500" />
+            <span>1. Ringkasan Eksekutif & KPI</span>
+          </button>
 
-                  <TableContainer>
-                    <Table>
-                      <thead>
-                        <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0] text-[10px] font-semibold text-neutral-500 uppercase tracking-wider text-left">
-                          <th className="py-2 px-3">Produk</th>
-                          <th className="py-2 px-3 text-center">Volume (Cup)</th>
-                          <th className="py-2 px-3 text-right">Total Revenue</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#E5E5E5] text-xs">
-                        {(sales?.by_product || overview?.sales?.by_product || []).length === 0 ? (
-                          <tr><td colSpan={3} className="py-6 text-center text-neutral-400">Belum ada transaksi menu.</td></tr>
-                        ) : (
-                          (sales?.by_product || overview?.sales?.by_product || []).map((p, idx) => (
-                            <tr key={idx} className="hover:bg-neutral-50/70">
-                              <td className="py-2 px-3 font-semibold text-neutral-900">{p.product_name || p.name}</td>
-                              <td className="py-2 px-3 text-center font-mono">{p.total_cups || p.qty || 0}</td>
-                              <td className="py-2 px-3 text-right font-mono font-bold text-neutral-900">
-                                {renderRevenue(p.total_revenue, isSupervisor ? "PROTECTED_ROLE" : undefined)}
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </Table>
-                  </TableContainer>
-                </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab("rider_operational")}
+            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer flex items-center gap-2 shrink-0 border ${
+              activeTab === "rider_operational"
+                ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 border-transparent shadow-sm"
+                : "bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border-neutral-200 dark:border-neutral-800 hover:border-neutral-300"
+            }`}
+          >
+            <UserCheck className="w-4 h-4 text-blue-500" />
+            <span>2. Kinerja & Absensi Rider</span>
+          </button>
 
-                {/* Sales Breakdown by Zone */}
-                <div className="bg-white rounded-md border border-[#E5E5E5] shadow-2xs p-4 space-y-3">
-                  <div className="flex items-center justify-between border-b border-neutral-100 pb-2.5">
-                    <h3 className="font-bold text-xs text-[#171717] flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-emerald-600" />
-                      Kontribusi Revenue per Zona Operasional
-                    </h3>
-                  </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab("zone_performance")}
+            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer flex items-center gap-2 shrink-0 border ${
+              activeTab === "zone_performance"
+                ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 border-transparent shadow-sm"
+                : "bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border-neutral-200 dark:border-neutral-800 hover:border-neutral-300"
+            }`}
+          >
+            <MapPin className="w-4 h-4 text-amber-500" />
+            <span>3. Efektivitas Zona</span>
+          </button>
 
-                  <TableContainer>
-                    <Table>
-                      <thead>
-                        <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0] text-[10px] font-semibold text-neutral-500 uppercase tracking-wider text-left">
-                          <th className="py-2 px-3">Zona</th>
-                          <th className="py-2 px-3 text-center">Volume</th>
-                          <th className="py-2 px-3 text-right">Revenue</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#E5E5E5] text-xs">
-                        {(sales?.by_zone || overview?.sales?.by_zone || []).length === 0 ? (
-                          <tr><td colSpan={3} className="py-6 text-center text-neutral-400">Belum ada transaksi zona.</td></tr>
-                        ) : (
-                          (sales?.by_zone || overview?.sales?.by_zone || []).map((z, idx) => (
-                            <tr key={idx} className="hover:bg-neutral-50/70">
-                              <td className="py-2 px-3 font-semibold text-neutral-900">{z.zone_name || z.name}</td>
-                              <td className="py-2 px-3 text-center font-mono">{z.total_cups || 0}</td>
-                              <td className="py-2 px-3 text-right font-mono font-bold text-emerald-700">
-                                {renderRevenue(z.total_revenue, isSupervisor ? "PROTECTED_ROLE" : undefined)}
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </Table>
-                  </TableContainer>
-                </div>
-              </div>
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={() => setActiveTab("fleet")}
+            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer flex items-center gap-2 shrink-0 border ${
+              activeTab === "fleet"
+                ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 border-transparent shadow-sm"
+                : "bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border-neutral-200 dark:border-neutral-800 hover:border-neutral-300"
+            }`}
+          >
+            <Bike className="w-4 h-4 text-emerald-500" />
+            <span>4. Status & Utilisasi Armada</span>
+          </button>
 
-          {/* TAB 2: OPERATIONAL & FLEET */}
-          {activeTab === "operational" && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="bg-white p-3.5 rounded-md border border-[#E5E5E5] shadow-2xs">
-                  <div className="text-[11px] font-medium text-neutral-500 uppercase">Total Sesi Shift</div>
-                  <div className="text-xl font-bold text-neutral-900 mt-1 font-mono">
-                    {operational?.total_sessions_count ?? 0} Sesi
-                  </div>
-                </div>
-                <div className="bg-white p-3.5 rounded-md border border-[#E5E5E5] shadow-2xs">
-                  <div className="text-[11px] font-medium text-neutral-500 uppercase">Sesi Checkout Selesai</div>
-                  <div className="text-xl font-bold text-emerald-600 mt-1 font-mono">
-                    {operational?.completed_sessions_count ?? 0} Sesi
-                  </div>
-                </div>
-                <div className="bg-white p-3.5 rounded-md border border-[#E5E5E5] shadow-2xs">
-                  <div className="text-[11px] font-medium text-neutral-500 uppercase">Rata-rata Durasi Shift</div>
-                  <div className="text-xl font-bold text-neutral-900 mt-1 font-mono">
-                    {operational?.average_duration_hours ? `${operational.average_duration_hours} Jam` : "N/A"}
-                  </div>
-                </div>
-              </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab("dss_accuracy")}
+            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer flex items-center gap-2 shrink-0 border ${
+              activeTab === "dss_accuracy"
+                ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 border-transparent shadow-sm"
+                : "bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border-neutral-200 dark:border-neutral-800 hover:border-neutral-300"
+            }`}
+          >
+            <Cpu className="w-4 h-4 text-purple-500" />
+            <span>5. Akurasi Rekomendasi DSS</span>
+          </button>
 
-              {/* Fleet Status Breakdown */}
-              <div className="bg-white rounded-md border border-[#E5E5E5] shadow-2xs p-4 space-y-3">
-                <h3 className="font-bold text-xs text-[#171717] flex items-center gap-2 border-b border-neutral-100 pb-2.5">
-                  <Bike className="w-4 h-4 text-[#2563EB]" />
-                  Status Utilisasi Unit Armada Sepeda Listrik
-                </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                  <div className="p-3 bg-neutral-50 rounded border border-neutral-200">
-                    <div className="text-neutral-500 text-[10px] uppercase font-semibold">Tersedia di Hub</div>
-                    <div className="text-lg font-bold text-emerald-600 mt-0.5">{fleet?.available_count ?? 0} Unit</div>
-                  </div>
-                  <div className="p-3 bg-neutral-50 rounded border border-neutral-200">
-                    <div className="text-neutral-500 text-[10px] uppercase font-semibold">Sedang Bertugas</div>
-                    <div className="text-lg font-bold text-blue-600 mt-0.5">{fleet?.in_use_count ?? 0} Unit</div>
-                  </div>
-                  <div className="p-3 bg-neutral-50 rounded border border-neutral-200">
-                    <div className="text-neutral-500 text-[10px] uppercase font-semibold">Hold 5-Menit</div>
-                    <div className="text-lg font-bold text-amber-600 mt-0.5">{fleet?.held_count ?? 0} Unit</div>
-                  </div>
-                  <div className="p-3 bg-neutral-50 rounded border border-neutral-200">
-                    <div className="text-neutral-500 text-[10px] uppercase font-semibold">Perlu Maintenance</div>
-                    <div className="text-lg font-bold text-rose-600 mt-0.5">{fleet?.maintenance_count ?? 0} Unit</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 3: SPATIAL COMPLIANCE */}
-          {activeTab === "compliance" && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="bg-white p-3.5 rounded-md border border-[#E5E5E5] shadow-2xs">
-                  <div className="text-[11px] font-medium text-neutral-500 uppercase">Geofence Compliance Rate</div>
-                  <div className="text-xl font-bold text-emerald-600 mt-1 font-mono">
-                    {compliance?.compliance_rate_percent ? `${compliance.compliance_rate_percent}%` : "100%"}
-                  </div>
-                </div>
-                <div className="bg-white p-3.5 rounded-md border border-[#E5E5E5] shadow-2xs">
-                  <div className="text-[11px] font-medium text-neutral-500 uppercase">Total Ping Telemetri Ingest</div>
-                  <div className="text-xl font-bold text-neutral-900 mt-1 font-mono">
-                    {compliance?.total_telemetry_points ?? 0} Pings
-                  </div>
-                </div>
-                <div className="bg-white p-3.5 rounded-md border border-[#E5E5E5] shadow-2xs">
-                  <div className="text-[11px] font-medium text-neutral-500 uppercase">Pelanggaran Jalur Protokol</div>
-                  <div className="text-xl font-bold text-rose-600 mt-1 font-mono">
-                    {compliance?.road_violations_count ?? 0} Kali
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 4: DSS PLAN VS ACTUAL */}
-          {activeTab === "dss" && (
-            <div className="space-y-4">
-              <div className="bg-blue-50/60 border border-blue-200/80 rounded-md p-3.5 flex items-start gap-3">
-                <Info className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
-                <div className="text-xs text-blue-900 leading-relaxed">
-                  <strong>Evaluasi Model DSS TOPSIS:</strong> Membandingkan ranking rekomendasi analitik TOPSIS dengan perolehan omzet nyata harian per zona untuk mengukur tingkat keselarasan (*Rank Order Alignment*).
-                </div>
-              </div>
-
-              <div className="bg-white rounded-md border border-[#E5E5E5] shadow-2xs p-4 space-y-3">
-                <div className="flex items-center justify-between border-b border-neutral-100 pb-2.5">
-                  <h3 className="font-bold text-xs text-[#171717] flex items-center gap-2">
-                    <Target className="w-4 h-4 text-[#2563EB]" />
-                    Tabel Evaluasi Plan vs Actual per Zona
-                  </h3>
-                  <div className="text-xs font-semibold text-neutral-700">
-                    Status Keselarasan:{" "}
-                    <span className="font-mono text-[#2563EB] bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                      {dssPerformance?.rank_order_alignment || "INSUFFICIENT_DATA"}
-                    </span>
-                  </div>
-                </div>
-
-                <TableContainer>
-                  <Table>
-                    <thead>
-                      <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0] text-[10px] font-semibold text-neutral-500 uppercase tracking-wider text-left">
-                        <th className="py-2 px-3">Nama Zona</th>
-                        <th className="py-2 px-3 text-center">Rank Prediksi TOPSIS</th>
-                        <th className="py-2 px-3 text-center">Rank Realisasi Omzet</th>
-                        <th className="py-2 px-3 text-right">Revenue Aktual</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#E5E5E5] text-xs">
-                      {(dssPerformance?.zones || []).length === 0 ? (
-                        <tr><td colSpan={4} className="py-6 text-center text-neutral-400">Belum ada snapshot evaluasi DSS harian.</td></tr>
-                      ) : (
-                        (dssPerformance?.zones || []).map((z, idx) => (
-                          <tr key={idx} className="hover:bg-neutral-50/70">
-                            <td className="py-2 px-3 font-semibold text-neutral-900">{z.zone_name}</td>
-                            <td className="py-2 px-3 text-center font-mono font-bold text-[#2563EB]">#{z.predicted_rank || idx + 1}</td>
-                            <td className="py-2 px-3 text-center font-mono font-bold text-emerald-600">#{z.realized_rank || idx + 1}</td>
-                            <td className="py-2 px-3 text-right font-mono font-bold text-neutral-900">
-                              {renderRevenue(z.actual_revenue, isSupervisor ? "PROTECTED_ROLE" : undefined)}
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </Table>
-                </TableContainer>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 5: DETAILED DAILY REPORT & CSV */}
-          {activeTab === "daily" && (
-            <div className="space-y-4">
-              {/* Zone Filter Toolbar */}
-              <div className="bg-white p-3 rounded-md border border-[#E5E5E5] shadow-2xs flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-neutral-500">Filter Zona:</span>
-                  <select
-                    value={selectedZoneId}
-                    onChange={(e) => setSelectedZoneId(e.target.value)}
-                    className="bg-white border border-[#E5E5E5] rounded px-2.5 py-1 text-xs text-neutral-800 focus:outline-none focus:ring-1 focus:ring-[#2563EB]"
-                  >
-                    <option value="ALL">Semua Zona</option>
-                    {zones.map((z) => (
-                      <option key={z.id} value={z.id}>{z.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="text-xs text-neutral-500">
-                  Total Baris Rekapitulasi: <strong className="text-neutral-900">{dailyRows.length}</strong> sesi
-                </div>
-              </div>
-
-              {/* Daily Report Table */}
-              <div className="bg-white rounded-md border border-[#E5E5E5] shadow-2xs overflow-hidden">
-                <TableContainer>
-                  <Table>
-                    <thead>
-                      <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0] text-[10px] font-semibold text-neutral-500 uppercase tracking-wider text-left">
-                        <th className="py-2.5 px-3 w-10 text-center">#</th>
-                        <th className="py-2.5 px-3">Nama Rider</th>
-                        <th className="py-2.5 px-3">Zona Bertugas</th>
-                        <th className="py-2.5 px-3">Kode Armada</th>
-                        <th className="py-2.5 px-3 text-center">Mulai Shift</th>
-                        <th className="py-2.5 px-3 text-center">Status Sesi</th>
-                        <th className="py-2.5 px-3 text-right">Revenue</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#E5E5E5] text-xs">
-                      {isLoadingDaily ? (
-                        <tr><td colSpan={7} className="py-8 text-center text-neutral-400">Memuat laporan harian...</td></tr>
-                      ) : dailyRows.length === 0 ? (
-                        <tr><td colSpan={7} className="py-8 text-center text-neutral-400">Tidak ada data sesi operasional pada tanggal terpilih.</td></tr>
-                      ) : (
-                        dailyRows.map((r, idx) => (
-                          <tr key={r.session_id || idx} className="hover:bg-neutral-50/70">
-                            <td className="py-2 px-3 text-center text-neutral-400 font-mono text-[11px]">{idx + 1}</td>
-                            <td className="py-2 px-3 font-semibold text-neutral-900">{r.rider_name || r.name}</td>
-                            <td className="py-2 px-3 font-medium text-neutral-700">{r.zone_name || "N/A"}</td>
-                            <td className="py-2 px-3 font-mono text-[11px] text-neutral-600">{r.armada_code || r.armada_id || "N/A"}</td>
-                            <td className="py-2 px-3 text-center text-neutral-500 font-mono text-[11px]">
-                              {r.start_time ? new Date(r.start_time).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "N/A"}
-                            </td>
-                            <td className="py-2 px-3 text-center">
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                {r.status || "ACTIVE"}
-                              </span>
-                            </td>
-                            <td className="py-2 px-3 text-right font-mono font-bold text-neutral-900">
-                              {renderRevenue(r.total_revenue, isSupervisor ? "PROTECTED_ROLE" : undefined)}
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </Table>
-                </TableContainer>
-              </div>
-            </div>
+          {isSuperAdmin && (
+            <button
+              type="button"
+              onClick={() => setActiveTab("audit_logs")}
+              className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer flex items-center gap-2 shrink-0 border ${
+                activeTab === "audit_logs"
+                  ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 border-transparent shadow-sm"
+                  : "bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border-neutral-200 dark:border-neutral-800 hover:border-neutral-300"
+              }`}
+            >
+              <ShieldAlert className="w-4 h-4 text-rose-500" />
+              <span>6. Log Audit Keamanan</span>
+            </button>
           )}
         </div>
+
+        {/* TAB 1: EXECUTIVE SUMMARY */}
+        {activeTab === "executive" && (
+          <div className="space-y-6">
+            {isLoadingExecutive ? (
+              <div className="flex justify-center p-12">
+                <div className="w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <Card className="p-5 border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 rounded-2xl">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Pendapatan Hari Ini</span>
+                      <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 flex items-center justify-center text-emerald-600">
+                        <DollarSign className="w-4 h-4" />
+                      </div>
+                    </div>
+                    <div className="text-2xl font-bold text-neutral-900 dark:text-white mt-2">
+                      {formatCurrency(kpis.revenue_today || 0)}
+                    </div>
+                    <p className="text-xs text-neutral-500 mt-1">Bulan Ini: {formatCurrency(kpis.revenue_this_month || 0)}</p>
+                  </Card>
+
+                  <Card className="p-5 border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 rounded-2xl">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Cup Terjual Hari Ini</span>
+                      <div className="w-8 h-8 rounded-xl bg-primary-50 dark:bg-primary-950/50 flex items-center justify-center text-primary-600">
+                        <Activity className="w-4 h-4" />
+                      </div>
+                    </div>
+                    <div className="text-2xl font-bold text-neutral-900 dark:text-white mt-2">
+                      {kpis.cups_sold_today || 0} <span className="text-sm font-normal text-neutral-500">Cup</span>
+                    </div>
+                    <p className="text-xs text-neutral-500 mt-1">Sesi Aktif: {kpis.active_sessions_today || 0} Rider</p>
+                  </Card>
+
+                  <Card className="p-5 border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 rounded-2xl">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Utilisasi Armada</span>
+                      <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/50 flex items-center justify-center text-blue-600">
+                        <Bike className="w-4 h-4" />
+                      </div>
+                    </div>
+                    <div className="text-2xl font-bold text-neutral-900 dark:text-white mt-2">
+                      {kpis.fleet_utilization_percent || 0}%
+                    </div>
+                    <p className="text-xs text-neutral-500 mt-1">{kpis.deployed_fleet || 0} dari {kpis.active_fleet || 0} Armada Beroperasi</p>
+                  </Card>
+
+                  <Card className="p-5 border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 rounded-2xl">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Kepatuhan Check-In</span>
+                      <div className="w-8 h-8 rounded-xl bg-purple-50 dark:bg-purple-950/50 flex items-center justify-center text-purple-600">
+                        <ShieldCheck className="w-4 h-4" />
+                      </div>
+                    </div>
+                    <div className="text-2xl font-bold text-neutral-900 dark:text-white mt-2">
+                      {kpis.check_in_compliance_percent || 0}%
+                    </div>
+                    <p className="text-xs text-neutral-500 mt-1">Eksekusi DSS Hari Ini: {kpis.dss_runs_today || 0} kali</p>
+                  </Card>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* TAB 2: RIDER OPERATIONAL & ATTENDANCE */}
+        {activeTab === "rider_operational" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-neutral-900 dark:text-white">
+                Log Absensi & Rekapitulasi Dinas Rider
+              </h3>
+              <Badge variant="primary">{riderData?.total_riders_analyzed || 0} Rider Teranalisis</Badge>
+            </div>
+
+            <TableContainer>
+              <Table>
+                <thead>
+                  <tr className="bg-neutral-50 dark:bg-neutral-800/60 border-b border-neutral-200 dark:border-neutral-700 text-left text-xs font-bold text-neutral-500 uppercase">
+                    <th className="py-3.5 px-4">Nama Rider</th>
+                    <th className="py-3.5 px-4">Status</th>
+                    <th className="py-3.5 px-4">Hari Aktif</th>
+                    <th className="py-3.5 px-4">Penugasan</th>
+                    <th className="py-3.5 px-4">Check-In</th>
+                    <th className="py-3.5 px-4">Rata Jam Kerja</th>
+                    <th className="py-3.5 px-4">Cup Terjual</th>
+                    <th className="py-3.5 px-4">Total Omzet</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800 text-xs">
+                  {isLoadingRider ? (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-neutral-500">Memuat data kinerja rider...</td>
+                    </tr>
+                  ) : (riderData?.riders || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-neutral-500">Tidak ada riwayat penugasan pada periode yang dipilih.</td>
+                    </tr>
+                  ) : (
+                    (riderData?.riders || []).map((r) => (
+                      <tr key={r.rider_id} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/30">
+                        <td className="py-3 px-4 font-semibold text-neutral-900 dark:text-white">
+                          {r.rider_name}
+                          <div className="text-[10px] text-neutral-400 font-normal">{r.rider_email}</div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <Badge variant={r.is_active ? "success" : "danger"}>
+                            {r.is_active ? "Aktif" : "Nonaktif"}
+                          </Badge>
+                        </td>
+                        <td className="py-3 px-4 font-medium">{r.total_days_active || 0} hari</td>
+                        <td className="py-3 px-4">{r.total_assignments || 0}</td>
+                        <td className="py-3 px-4 text-emerald-600 font-semibold">{r.total_check_ins || 0}</td>
+                        <td className="py-3 px-4">{r.avg_working_hours ? `${r.avg_working_hours} jam` : "-"}</td>
+                        <td className="py-3 px-4 font-medium">{r.total_cups_sold || 0} cup</td>
+                        <td className="py-3 px-4 font-bold text-neutral-900 dark:text-emerald-400">
+                          {formatCurrency(r.total_revenue || 0)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </Table>
+            </TableContainer>
+          </div>
+        )}
+
+        {/* TAB 3: ZONE PERFORMANCE & EFFECTIVENESS */}
+        {activeTab === "zone_performance" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-neutral-900 dark:text-white">
+                Efektivitas & Kepatuhan Penjualan per Zona Operasional
+              </h3>
+              <Badge variant="primary">{zoneData?.total_zones_analyzed || 0} Zona Teranalisis</Badge>
+            </div>
+
+            <TableContainer>
+              <Table>
+                <thead>
+                  <tr className="bg-neutral-50 dark:bg-neutral-800/60 border-b border-neutral-200 dark:border-neutral-700 text-left text-xs font-bold text-neutral-500 uppercase">
+                    <th className="py-3.5 px-4">Nama Zona</th>
+                    <th className="py-3.5 px-4">Status</th>
+                    <th className="py-3.5 px-4">Kapasitas</th>
+                    <th className="py-3.5 px-4">Rider Ditugaskan</th>
+                    <th className="py-3.5 px-4">Check-In</th>
+                    <th className="py-3.5 px-4">Kepatuhan (%)</th>
+                    <th className="py-3.5 px-4">Cup Terjual</th>
+                    <th className="py-3.5 px-4">Total Omzet</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800 text-xs">
+                  {isLoadingZone ? (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-neutral-500">Memuat data zona...</td>
+                    </tr>
+                  ) : (zoneData?.zones || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-neutral-500">Tidak ada data operasional zona pada periode yang dipilih.</td>
+                    </tr>
+                  ) : (
+                    (zoneData?.zones || []).map((z) => (
+                      <tr key={z.zone_id} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/30">
+                        <td className="py-3 px-4 font-bold text-neutral-900 dark:text-white">{z.zone_name}</td>
+                        <td className="py-3 px-4">
+                          <Badge variant={z.zone_status === "ACTIVE" ? "success" : "warning"}>
+                            {z.zone_status}
+                          </Badge>
+                        </td>
+                        <td className="py-3 px-4">{z.max_capacity} Unit</td>
+                        <td className="py-3 px-4">{z.total_assigned_riders || 0}</td>
+                        <td className="py-3 px-4 text-emerald-600 font-semibold">{z.total_check_ins || 0}</td>
+                        <td className="py-3 px-4">
+                          <span className={`font-bold ${z.execution_compliance_rate >= 80 ? "text-emerald-600" : "text-amber-500"}`}>
+                            {z.execution_compliance_rate}%
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 font-medium">{z.total_cups_sold || 0} cup</td>
+                        <td className="py-3 px-4 font-bold text-neutral-900 dark:text-emerald-400">
+                          {formatCurrency(z.total_revenue || 0)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </Table>
+            </TableContainer>
+          </div>
+        )}
+
+        {/* TAB 4: FLEET REPORT */}
+        {activeTab === "fleet" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-neutral-900 dark:text-white">
+                Status Armada Gerobak & Motor Listrik
+              </h3>
+              <Badge variant="primary">Utilisasi: {fleetData?.summary?.utilization_rate || 0}%</Badge>
+            </div>
+
+            <TableContainer>
+              <Table>
+                <thead>
+                  <tr className="bg-neutral-50 dark:bg-neutral-800/60 border-b border-neutral-200 dark:border-neutral-700 text-left text-xs font-bold text-neutral-500 uppercase">
+                    <th className="py-3.5 px-4">Kode Unit</th>
+                    <th className="py-3.5 px-4">Tipe Armada</th>
+                    <th className="py-3.5 px-4">Status</th>
+                    <th className="py-3.5 px-4">Rider yang Mengoperasikan</th>
+                    <th className="py-3.5 px-4">Riwayat Penugasan</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800 text-xs">
+                  {isLoadingFleet ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-neutral-500">Memuat data armada...</td>
+                    </tr>
+                  ) : (fleetData?.armadas || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-neutral-500">Belum ada unit armada terdaftar.</td>
+                    </tr>
+                  ) : (
+                    (fleetData?.armadas || []).map((a) => (
+                      <tr key={a.armada_id} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/30">
+                        <td className="py-3 px-4 font-mono font-bold text-neutral-900 dark:text-white">{a.code}</td>
+                        <td className="py-3 px-4">{a.type}</td>
+                        <td className="py-3 px-4">
+                          <Badge variant={a.status === "ACTIVE" ? "success" : a.status === "MAINTENANCE" ? "danger" : "warning"}>
+                            {a.status}
+                          </Badge>
+                        </td>
+                        <td className="py-3 px-4 font-medium text-neutral-700 dark:text-neutral-300">
+                          {a.current_rider_name || <span className="text-neutral-400 italic">Standby di Hub</span>}
+                        </td>
+                        <td className="py-3 px-4">{a.historical_deployments_count || 0} kali</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </Table>
+            </TableContainer>
+          </div>
+        )}
+
+        {/* TAB 5: DSS ACCURACY & PLAN-VS-ACTUAL */}
+        {activeTab === "dss_accuracy" && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Card className="p-5 border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 rounded-2xl">
+                <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Tingkat Penerimaan Rekomendasi (AUTO)</span>
+                <div className="text-3xl font-extrabold text-emerald-600 mt-2">
+                  {dssData?.metrics?.acceptance_rate || 0}%
+                </div>
+                <p className="text-xs text-neutral-500 mt-1">
+                  {dssData?.metrics?.accepted_recommendations || 0} dari {dssData?.metrics?.total_assignments || 0} penugasan disetujui tanpa perubahan.
+                </p>
+              </Card>
+
+              <Card className="p-5 border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 rounded-2xl">
+                <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Penyesuaian Manual Supervisor (OVERRIDE)</span>
+                <div className="text-3xl font-extrabold text-amber-500 mt-2">
+                  {dssData?.metrics?.override_rate || 0}%
+                </div>
+                <p className="text-xs text-neutral-500 mt-1">
+                  {dssData?.metrics?.supervisor_overrides || 0} penugasan disesuaikan manual berdasarkan pertimbangan lapangan.
+                </p>
+              </Card>
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="text-base font-bold text-neutral-900 dark:text-white">Riwayat Eksekusi Rekomendasi DSS</h3>
+              <TableContainer>
+                <Table>
+                  <thead>
+                    <tr className="bg-neutral-50 dark:bg-neutral-800/60 border-b border-neutral-200 dark:border-neutral-700 text-left text-xs font-bold text-neutral-500 uppercase">
+                      <th className="py-3 px-4">Waktu Eksekusi</th>
+                      <th className="py-3 px-4">Dieksekusi Oleh</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4">Rasio Konsistensi (CR)</th>
+                      <th className="py-3 px-4">Zona Direkomendasikan</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800 text-xs">
+                    {isLoadingDss ? (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-neutral-500">Memuat riwayat eksekusi DSS...</td>
+                      </tr>
+                    ) : (dssData?.recent_runs || []).length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-neutral-500">Belum ada riwayat eksekusi DSS tercatat.</td>
+                      </tr>
+                    ) : (
+                      (dssData?.recent_runs || []).map((run) => (
+                        <tr key={run.dss_history_id} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/30">
+                          <td className="py-3 px-4 font-mono">{formatDate(run.execution_date)}</td>
+                          <td className="py-3 px-4 font-semibold">{run.executed_by_name || "System"}</td>
+                          <td className="py-3 px-4">
+                            <Badge variant={run.status === "COMPLETED" ? "success" : "warning"}>
+                              {run.status}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4 font-mono">{run.consistency_ratio ? parseFloat(run.consistency_ratio).toFixed(4) : "-"}</td>
+                          <td className="py-3 px-4">{run.recommended_zones_count || 0} Zona</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </Table>
+              </TableContainer>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 6: AUDIT LOGS (SuperAdmin Only) */}
+        {activeTab === "audit_logs" && isSuperAdmin && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-neutral-900 dark:text-white">
+                Log Audit & Jejak Keamanan Sistem
+              </h3>
+              <Badge variant="primary">{auditData?.total || 0} Aktivitas Tercatat</Badge>
+            </div>
+
+            <TableContainer>
+              <Table>
+                <thead>
+                  <tr className="bg-neutral-50 dark:bg-neutral-800/60 border-b border-neutral-200 dark:border-neutral-700 text-left text-xs font-bold text-neutral-500 uppercase">
+                    <th className="py-3 px-4">Waktu</th>
+                    <th className="py-3 px-4">Pengguna</th>
+                    <th className="py-3 px-4">Role</th>
+                    <th className="py-3 px-4">Aksi</th>
+                    <th className="py-3 px-4">Entitas</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4">IP Address</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800 text-xs">
+                  {isLoadingAudit ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-neutral-500">Memuat log audit...</td>
+                    </tr>
+                  ) : (auditData?.logs || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-neutral-500">Belum ada aktivitas audit tercatat.</td>
+                    </tr>
+                  ) : (
+                    (auditData?.logs || []).map((log) => (
+                      <tr key={log.id} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/30">
+                        <td className="py-3 px-4 font-mono text-neutral-500">{formatDate(log.created_at)}</td>
+                        <td className="py-3 px-4 font-semibold text-neutral-900 dark:text-white">
+                          {log.user_name || log.user_email || "System"}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300">
+                            {log.user_role || "-"}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 font-mono text-primary-600 dark:text-primary-400 font-bold">{log.action}</td>
+                        <td className="py-3 px-4">{log.entity_type || "-"}</td>
+                        <td className="py-3 px-4">
+                          <Badge variant={log.status === "SUCCESS" ? "success" : "danger"}>
+                            {log.status}
+                          </Badge>
+                        </td>
+                        <td className="py-3 px-4 font-mono text-neutral-400">{log.ip_address || "-"}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </Table>
+            </TableContainer>
+          </div>
+        )}
       </div>
     </AppLayout>
   );
 }
+
+export default ReportsPage;

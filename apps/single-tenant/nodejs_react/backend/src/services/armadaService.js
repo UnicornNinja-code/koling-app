@@ -158,6 +158,20 @@ export class ArmadaService {
     console.log(`🗑️ Unit Armada [${deleted.code}] Berhasil Dihapus.`);
     return deleted;
   }
+
+  /**
+   * Shift armada to maintenance
+   */
+  async setMaintenance(id, { notes, cost } = {}) {
+    return await this.updateArmada(id, { status: "MAINTENANCE" });
+  }
+
+  /**
+   * Release armada from maintenance back to available / active
+   */
+  async releaseMaintenance(id) {
+    return await this.updateArmada(id, { status: "ACTIVE", current_rider_id: null });
+  }
 }
 
 export const armadaService = ArmadaService.getInstance();

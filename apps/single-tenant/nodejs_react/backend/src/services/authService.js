@@ -24,18 +24,71 @@ const REFRESH_TOKEN_DAYS = parseInt(process.env.REFRESH_TOKEN_DAYS || "30", 10);
 const ALLOWED_PUBLIC_ROLES = ["RIDER"];
 
 /**
- * Register a new user (Public Registration — always RIDER)
+ * Register or Activate user account (Supports token-based activation with birth_date or legacy public registration)
  */
-export const registerService = async ({ username, name, email, password }) => {
+export const registerService = async ({ token, username, name, email, password, birth_date }) => {
+    if (token) {
+        if (!password) {
+            const error = new Error("Kata sandi baru wajib diisi untuk aktivasi.");
+            error.statusCode = 400;
+            throw error;
+        }
+
+        const resetRecord = await PasswordResetTokenModel.findByToken(token);
+        if (!resetRecord || resetRecord.used) {
+            const error = new Error("Token aktivasi tidak valid atau telah kedaluwarsa.");
+            error.statusCode = 400;
+            throw error;
+        }
+
+        const now = new Date();
+        const expiresAt = new Date(resetRecord.expires_at || resetRecord.expiresAt);
+        if (expiresAt < now) {
+            const error = new Error("Token aktivasi telah kedaluwarsa.");
+            error.statusCode = 400;
+            throw error;
+        }
+
+        const userId = resetRecord.user_id || resetRecord.userId;
+        const targetUser = await UserModel.findById(userId);
+        if (!targetUser) {
+            const error = new Error("Pengguna tidak ditemukan.");
+            error.statusCode = 404;
+            throw error;
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const activatedUser = await UserModel.activateUser(userId, {
+            hashedPassword,
+            name: name || targetUser.name,
+            birth_date: birth_date || null,
+        });
+
+        await PasswordResetTokenModel.markAsUsed(token);
+        await RefreshTokenModel.revokeAllForUser(userId);
+
+        return {
+            id: activatedUser.id,
+            username: activatedUser.username,
+            name: activatedUser.name,
+            email: activatedUser.email,
+            role: activatedUser.role,
+            is_active: activatedUser.is_active,
+            first_login: activatedUser.first_login,
+            birth_date: activatedUser.birth_date,
+        };
+    }
+
+    // Legacy fallback
     if (!username || !name || !email || !password) {
-        const error = new Error("Please fill in all required fields");
+        const error = new Error("Semua field wajib diisi: username, nama, email, dan kata sandi.");
         error.statusCode = 400;
         throw error;
     }
 
     const existingUser = await UserModel.findByEmail(email);
     if (existingUser) {
-        const error = new Error("Email is already registered");
+        const error = new Error("Email sudah terdaftar di sistem.");
         error.statusCode = 400;
         throw error;
     }
@@ -48,6 +101,8 @@ export const registerService = async ({ username, name, email, password }) => {
         email,
         role: ALLOWED_PUBLIC_ROLES[0],
         password: hashedPassword,
+        is_active: true,
+        first_login: false,
     });
 
     return {
@@ -56,6 +111,9 @@ export const registerService = async ({ username, name, email, password }) => {
         name: newUser.name,
         email: newUser.email,
         role: newUser.role,
+        is_active: newUser.is_active,
+        first_login: newUser.first_login,
+        birth_date: newUser.birth_date,
     };
 };
 
@@ -64,27 +122,27 @@ export const registerService = async ({ username, name, email, password }) => {
  */
 export const loginService = async ({ identifier, password }) => {
     if (!identifier || !password) {
-        const error = new Error("Please provide email/username and password");
+        const error = new Error("Mohon masukkan email/username dan kata sandi.");
         error.statusCode = 400;
         throw error;
     }
 
     const user = await UserModel.findByEmailOrUsername(identifier);
     if (!user) {
-        const error = new Error("Invalid credentials");
+        const error = new Error("Kredensial login tidak valid.");
         error.statusCode = 400;
         throw error;
     }
 
     if (user.is_active === false) {
-        const error = new Error("Account is deactivated. Please contact administrator.");
+        const error = new Error("Akun Anda berstatus nonaktif. Silakan hubungi Administrator.");
         error.statusCode = 403;
         throw error;
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-        const error = new Error("Invalid credentials");
+        const error = new Error("Kredensial login tidak valid.");
         error.statusCode = 400;
         throw error;
     }
@@ -114,6 +172,9 @@ export const loginService = async ({ identifier, password }) => {
             email: user.email,
             name: user.name,
             role: user.role,
+            is_active: user.is_active,
+            first_login: !!user.first_login,
+            birth_date: user.birth_date || null,
         },
     };
 };
@@ -233,30 +294,76 @@ export const resetPasswordService = async ({ token, password }) => {
 };
 
 /**
- * Verify if a password reset token is still valid
- * Used by frontend to check token validity before showing the reset form
+ * Verify if a password reset / activation token is still valid
+ * Used by frontend to check token validity before showing the reset/activation form
  */
 export const verifyResetTokenService = async (token) => {
     if (!token) {
-        return { valid: false, reason: "Token is required" };
+        return { valid: false, reason: "Token wajib disertakan" };
     }
 
     const resetRecord = await PasswordResetTokenModel.findByToken(token);
 
     if (!resetRecord) {
-        return { valid: false, reason: "Token not found" };
+        return { valid: false, reason: "Token aktivasi tidak ditemukan" };
     }
 
     if (resetRecord.used) {
-        return { valid: false, reason: "Token has already been used" };
+        return { valid: false, reason: "Token aktivasi sudah pernah digunakan" };
     }
 
     const expiresAt = new Date(resetRecord.expires_at || resetRecord.expiresAt);
     if (expiresAt < new Date()) {
-        return { valid: false, reason: "Token has expired" };
+        return { valid: false, reason: "Token aktivasi telah kedaluwarsa" };
     }
 
-    return { valid: true };
+    const userId = resetRecord.user_id || resetRecord.userId;
+    const user = await UserModel.findById(userId);
+
+    return {
+        valid: true,
+        userId: user ? user.id : userId,
+        email: user ? user.email : null,
+        name: user ? user.name : null,
+        role: user ? user.role : null,
+    };
+};
+
+/**
+ * Complete First Login by setting new password for the first time
+ */
+export const firstLoginService = async ({ userId, newPassword }) => {
+    if (!userId || !newPassword) {
+        const error = new Error("User ID dan password baru wajib diisi.");
+        error.statusCode = 400;
+        throw error;
+    }
+
+    if (newPassword.length < 8) {
+        const error = new Error("Password baru minimal 8 karakter.");
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const user = await UserModel.findById(userId);
+    if (!user) {
+        const error = new Error("Pengguna tidak ditemukan.");
+        error.statusCode = 404;
+        throw error;
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const updatedUser = await UserModel.updateFirstLoginPassword(userId, hashedPassword);
+
+    return {
+        id: updatedUser.id,
+        username: updatedUser.username,
+        email: updatedUser.email,
+        name: updatedUser.name,
+        role: updatedUser.role,
+        is_active: updatedUser.is_active,
+        first_login: false,
+    };
 };
 
 /**

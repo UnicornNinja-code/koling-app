@@ -46,6 +46,12 @@ router.get(
   checkRole(["SUPERADMIN", "MANAGEMENT", "SUPERVISOR"]),
   getDistributionOverview
 );
+router.get(
+  "/daily-status",
+  authenticateToken,
+  checkRole(["SUPERADMIN", "MANAGEMENT", "SUPERVISOR"]),
+  getDistributionOverview
+);
 
 // 4. Trigger Automatic Distribution (SPV, SUPERADMIN)
 router.post(
@@ -61,7 +67,7 @@ router.post(
   autoDistribute
 );
 
-// 5. Trigger Manual Distribution (SPV, SUPERADMIN)
+// 5. Trigger Manual Distribution & Supervisor Override (SPV, SUPERADMIN)
 router.post(
   "/manual-assign",
   authenticateToken,
@@ -70,6 +76,12 @@ router.post(
 );
 router.post(
   "/manual",
+  authenticateToken,
+  checkRole(["SUPERADMIN", "SUPERVISOR"]),
+  manualDistribute
+);
+router.post(
+  "/override",
   authenticateToken,
   checkRole(["SUPERADMIN", "SUPERVISOR"]),
   manualDistribute

@@ -1,6 +1,7 @@
 import {
     registerService,
     loginService,
+    firstLoginService,
     forgotPasswordService,
     resetPasswordService,
     verifyResetTokenService,
@@ -27,13 +28,32 @@ const getRefreshCookieOptions = () => ({
 
 export const register = async (req, res) => {
     try {
-        const { username, name, email, password } = req.body;
-        const user = await registerService({ username, name, email, password });
-        return res.status(201).json({ msg: "User registered successfully", user });
+        const { token, username, name, email, password, birth_date } = req.body;
+        const user = await registerService({ token, username, name, email, password, birth_date });
+        return res.status(201).json({
+            msg: token ? "Akun berhasil diaktifkan" : "User registered successfully",
+            user,
+        });
     } catch (error) {
         if (error.code === "23505") {
             return res.status(400).json({ msg: "Email or username already exists" });
         }
+        const statusCode = error.statusCode || 500;
+        return res.status(statusCode).json({ msg: error.message || "Internal server error" });
+    }
+};
+
+export const completeFirstLogin = async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { newPassword, password } = req.body;
+        const result = await firstLoginService({ userId, newPassword: newPassword || password });
+        return res.status(200).json({
+            success: true,
+            msg: "Password berhasil diperbarui. Akun Anda siap digunakan.",
+            user: result,
+        });
+    } catch (error) {
         const statusCode = error.statusCode || 500;
         return res.status(statusCode).json({ msg: error.message || "Internal server error" });
     }
@@ -84,12 +104,15 @@ export const resetPassword = async (req, res) => {
 
 export const verifyResetToken = async (req, res) => {
     try {
-        const { token } = req.params;
+        const token = req.params.token || req.query.token;
+        if (!token) {
+            return res.status(400).json({ valid: false, msg: "Token parameter is required" });
+        }
         const result = await verifyResetTokenService(token);
         return res.status(200).json(result);
     } catch (error) {
         const statusCode = error.statusCode || 500;
-        return res.status(statusCode).json({ msg: error.message || "Internal server error" });
+        return res.status(statusCode).json({ valid: false, msg: error.message || "Internal server error" });
     }
 };
 

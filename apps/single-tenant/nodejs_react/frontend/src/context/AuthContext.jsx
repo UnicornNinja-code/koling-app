@@ -77,6 +77,15 @@ export function AuthProvider({ children }) {
     return safeUser;
   };
 
+  // Update user in state & storage
+  const updateUser = (updatedFields) => {
+    setUser((prev) => {
+      const updated = { ...prev, ...updatedFields };
+      localStorage.setItem("user", JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -85,6 +94,7 @@ export function AuthProvider({ children }) {
         loading,
         login,
         logout,
+        updateUser,
         isAuthenticated: !!token,
         role: user?.role || "GUEST",
         getRoleLandingPath,

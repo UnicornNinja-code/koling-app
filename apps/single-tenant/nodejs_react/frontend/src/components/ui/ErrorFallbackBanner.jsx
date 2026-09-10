@@ -20,17 +20,17 @@ export function ErrorFallbackBanner({
   return (
     <div
       className={cn(
-        "p-4 rounded-[6px] bg-rose-50 border border-rose-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs",
+        "p-4 rounded-[6px] bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs transition-colors",
         className
       )}
     >
       <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-[4px] bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 border border-rose-200">
+        <div className="w-8 h-8 rounded-[4px] bg-rose-100 dark:bg-rose-900/50 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 border border-rose-200 dark:border-rose-800/40">
           <AlertTriangle className="w-4 h-4" />
         </div>
         <div className="space-y-0.5">
-          <h4 className="text-xs font-bold text-rose-900">{title}</h4>
-          <p className="text-xs text-rose-700 leading-tight">{errorMessage}</p>
+          <h4 className="text-xs font-bold text-rose-900 dark:text-rose-200">{title}</h4>
+          <p className="text-xs text-rose-700 dark:text-rose-300 leading-tight">{errorMessage}</p>
         </div>
       </div>
 
@@ -48,3 +48,4 @@ export function ErrorFallbackBanner({
     </div>
   );
 }
+

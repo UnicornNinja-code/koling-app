@@ -29,6 +29,12 @@ router.post(
   checkRole(["SUPERADMIN"]),
   calculateBwmWeights
 );
+router.post(
+  "/calculate-bwm",
+  authenticateToken,
+  checkRole(["SUPERADMIN"]),
+  calculateBwmWeights
+);
 
 // Preview / Simulate BWM Weight Impact on TOPSIS Zone Rankings without saving (RBAC: SUPERADMIN, SUPERVISOR, MANAGEMENT)
 router.post(
@@ -37,14 +43,39 @@ router.post(
   checkRole(["SUPERADMIN", "SUPERVISOR", "MANAGEMENT"]),
   previewBwmImpact
 );
+router.post(
+  "/simulate-recommendation",
+  authenticateToken,
+  checkRole(["SUPERADMIN", "SUPERVISOR", "MANAGEMENT"]),
+  previewBwmImpact
+);
 
-// Fetch Active DSS Configuration (RBAC: SUPERADMIN, SUPERVISOR)
+// Fetch Active DSS Configuration (RBAC: SUPERADMIN, SUPERVISOR, MANAGEMENT)
 router.get(
   "/bwm/active",
   authenticateToken,
-  checkRole(["SUPERADMIN", "SUPERVISOR"]),
   getActiveDssConfig
 );
+router.get(
+  "/active-config",
+  authenticateToken,
+  getActiveDssConfig
+);
+
+// Fetch 6 Master DSS Criteria List
+router.get("/criteria", authenticateToken, (req, res) => {
+  return res.status(200).json({
+    success: true,
+    criteria: [
+      { id: "1", code: "C1", name: "Potensi Pasar & Kepadatan POI", type: "BENEFIT", default_weight: 0.382 },
+      { id: "2", code: "C2", name: "Kesesuaian Cuaca Lapangan", type: "BENEFIT", default_weight: 0.224 },
+      { id: "3", code: "C3", name: "Aksesibilitas Jaringan Jalan", type: "BENEFIT", default_weight: 0.165 },
+      { id: "4", code: "C4", name: "Kepadatan Kompetitor Sekitar", type: "COST", default_weight: 0.112 },
+      { id: "5", code: "C5", name: "Jarak Tempuh ke Central Hub", type: "COST", default_weight: 0.076 },
+      { id: "6", code: "C6", name: "Kepatuhan Regulasi & Non-Tol", type: "BENEFIT", default_weight: 0.041 },
+    ],
+  });
+});
 
 // Fetch All Saved BWM Configurations (RBAC: SUPERADMIN, SUPERVISOR)
 router.get(

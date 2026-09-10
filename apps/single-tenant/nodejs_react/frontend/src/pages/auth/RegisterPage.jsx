@@ -4,11 +4,13 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { authService } from "../../services/authService.js";
-import { User, Lock, CheckCircle2, ArrowLeft, ArrowRight, ShieldCheck, KeyRound, Mail } from "lucide-react";
+import { User, Lock, CheckCircle2, ArrowLeft, ArrowRight, ShieldCheck, KeyRound, Mail, Calendar } from "lucide-react";
 import { Button, Input, Alert, Card, MovaLogo } from "../../components/ui";
 
 const tokenActivationSchema = z
   .object({
+    name: z.string().optional(),
+    birth_date: z.string().min(1, "Tanggal lahir wajib diisi sebagai identitas resmi personel"),
     password: z
       .string()
       .min(8, "Password minimal 8 karakter")
@@ -106,9 +108,11 @@ export function AccountActivationPage() {
     setLoading(true);
     setErrorMsg(null);
     try {
-      await authService.resetPassword({
+      await authService.activateAccount({
         token: tokenFromUrl,
         password: data.password,
+        name: data.name || tokenUserData?.name,
+        birth_date: data.birth_date,
       });
       setSuccessMsg("Akun berhasil diaktifkan! Silakan masuk menggunakan kata sandi baru.");
       setStep(3);
@@ -181,15 +185,25 @@ export function AccountActivationPage() {
             </form>
           )}
 
-          {/* STEP 2: SET PASSWORD */}
+          {/* STEP 2: SET PASSWORD & BIRTH DATE */}
           {step === 2 && (
             <form onSubmit={handleSubmitPassword(onSetPassword)} className="space-y-4">
               <div className="p-3 bg-emerald-50/80 rounded-[6px] border border-emerald-200 text-xs text-emerald-900 flex items-start gap-2.5">
                 <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                <p className="leading-relaxed">
-                  Tautan aktivasi terverifikasi. Silakan buat kata sandi baru untuk mengamankan akun Anda.
-                </p>
+                <div className="leading-relaxed">
+                  <p className="font-semibold">Tautan aktivasi terverifikasi untuk {tokenUserData?.email || "Personel MOVA"}.</p>
+                  <p className="text-[11px] text-emerald-700 mt-0.5">Lengkapi tanggal lahir dan buat kata sandi baru untuk mengaktifkan akun.</p>
+                </div>
               </div>
+
+              <Input
+                label="Tanggal Lahir Personel"
+                type="date"
+                leftIcon={Calendar}
+                required
+                error={passwordErrors.birth_date?.message}
+                {...registerPassword("birth_date")}
+              />
 
               <Input
                 label="Kata Sandi Baru (Min. 8 Karakter)"
@@ -220,7 +234,7 @@ export function AccountActivationPage() {
                 className="w-full py-2.5 font-bold"
                 rightIcon={ArrowRight}
               >
-                {loading ? "Menyimpan Sandi..." : "Aktifkan Akun Saya"}
+                {loading ? "Mengaktifkan Akun..." : "Aktifkan Akun Saya"}
               </Button>
             </form>
           )}

@@ -308,6 +308,50 @@ export class POIEltPipelineService {
     const { poiCronDetectionService } = await import("./poi/POICronDetectionService.js");
     return await poiCronDetectionService.detectNewPois(hubCity);
   }
+
+  async getQualitySummary() {
+    const { rows: rawCount } = await pool.query("SELECT COUNT(*)::int AS count FROM pois_raw");
+    const { rows: poiStats } = await pool.query(`
+      SELECT 
+        COUNT(*)::int AS total_pois,
+        COUNT(CASE WHEN status = 'APPROVED' AND operational_status <> 'EXCLUDED' THEN 1 END)::int AS valid_count,
+        COUNT(CASE WHEN duplicate_of IS NOT NULL OR status = 'DUPLICATE' THEN 1 END)::int AS duplicate_count,
+        COUNT(CASE WHEN status = 'PENDING' OR category = 'Lainnya' THEN 1 END)::int AS anomaly_count
+      FROM pois
+    `);
+
+    const rawTotal = rawCount[0]?.count || 0;
+    const stats = poiStats[0] || { total_pois: 0, valid_count: 0, duplicate_count: 0, anomaly_count: 0 };
+    const totalFound = Math.max(rawTotal, stats.total_pois);
+    const validCount = stats.valid_count;
+    const duplicateCount = stats.duplicate_count;
+    const anomalyCount = stats.anomaly_count;
+
+    let qualityStatus = "VALID";
+    if (validCount === 0 && totalFound === 0) {
+      qualityStatus = "INVALID";
+    } else if (anomalyCount > 0) {
+      qualityStatus = "DEGRADED";
+    }
+
+    return {
+      total_found: totalFound,
+      valid_count: validCount,
+      duplicate_count: duplicateCount,
+      anomaly_count: anomalyCount,
+      status: qualityStatus,
+      last_sync_at: new Date().toISOString(),
+    };
+  }
+
+  async resolveAnomaly(poiId, resolvedCategory, action = "APPROVE", userId = null) {
+    if (action === "EXCLUDE") {
+      await pool.query("UPDATE pois SET operational_status = 'EXCLUDED', status = 'REJECTED' WHERE id = $1", [poiId]);
+      return { success: true, message: "POI berhasil dikecualikan dari operasional" };
+    }
+    await pool.query("UPDATE pois SET category = COALESCE($1, category), status = 'APPROVED', operational_status = 'OPERATIONAL' WHERE id = $2", [resolvedCategory, poiId]);
+    return { success: true, message: "Anomali POI berhasil dipetakan dan disetujui" };
+  }
 }
 
 // Singleton Instance Export
@@ -337,6 +381,8 @@ export const getDensitasDanDiversitasC1C2Service = (zoneId) => poiEltPipelineSer
 export const getLeakageReportService = () => poiEltPipelineService.getLeakageReport();
 
 // New POI Approval Workflow Exports
+export const getQualitySummaryService = () => poiEltPipelineService.getQualitySummary();
+export const resolveAnomalyService = (poiId, category, action, userId) => poiEltPipelineService.resolveAnomaly(poiId, category, action, userId);
 export const getPendingPoisService = () => poiEltPipelineService.getPendingPois();
 export const approveOrRejectPoiService = (poiId, status, userId, notes) => poiEltPipelineService.approveOrRejectPoi(poiId, status, userId, notes);
 export const getApprovalLogsService = (limit) => poiEltPipelineService.getApprovalLogs(limit);

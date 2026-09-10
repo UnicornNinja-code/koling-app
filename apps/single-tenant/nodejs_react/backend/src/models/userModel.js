@@ -17,5 +17,7 @@ export const UserModel = {
   updateStatus: (id, isActive) => userRepository.updateUserStatus(id, isActive),
   updateRole: (id, newRole) => userRepository.updateUserRole(id, newRole),
   updatePassword: (id, hashedPassword) => userRepository.updatePassword(id, hashedPassword),
+  updateFirstLoginPassword: (id, hashedPassword) => userRepository.updateFirstLoginPassword(id, hashedPassword),
+  activateUser: (id, data) => userRepository.activateUser(id, data),
   delete: (id) => userRepository.deleteUser(id),
 };

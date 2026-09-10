@@ -175,6 +175,60 @@ paths:
         200:
           description: Password Reset Successfully
 
+  /auth/first-login:
+    post:
+      tags: [Auth]
+      summary: Force Password Change on First Superadmin Login
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [new_password]
+              properties:
+                new_password:
+                  type: string
+                  format: password
+                  example: SuperSecureAdmin2026!
+      responses:
+        200:
+          description: Password Updated and first_login flag set to false
+        400:
+          description: Validation Error
+
+  /auth/activate:
+    post:
+      tags: [Auth]
+      summary: Activate User Account via Invitation Token with Birth Date
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, email, password, birth_date]
+              properties:
+                token:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+                birth_date:
+                  type: string
+                  format: date
+                  example: "1995-08-17"
+      responses:
+        200:
+          description: Account Activated Successfully
+        400:
+          description: Invalid or Expired Activation Token
+
   # ==========================================================================
   # USER ACCOUNT DOMAIN (HIERARCHY GUARD)
   # ==========================================================================
@@ -2189,6 +2243,145 @@ paths:
         200:
           description: Cron job triggered successfully
 
+  # ==========================================================================
+  # REPORTING & EXPORT SUITE DOMAIN
+  # ==========================================================================
+  /reports/executive-summary:
+    get:
+      tags: [Dashboard & Analytics]
+      summary: Get Executive Summary KPI Report
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: startDate
+          schema: { type: string, format: date }
+        - in: query
+          name: endDate
+          schema: { type: string, format: date }
+      responses:
+        200:
+          description: Executive Summary Report
+
+  /reports/rider-operational:
+    get:
+      tags: [Dashboard & Analytics]
+      summary: Get Rider Operational Performance Report
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: startDate
+          schema: { type: string, format: date }
+        - in: query
+          name: endDate
+          schema: { type: string, format: date }
+      responses:
+        200:
+          description: Rider Operational Report
+
+  /reports/zone-effectiveness:
+    get:
+      tags: [Dashboard & Analytics]
+      summary: Get Zone Effectiveness and Revenue Density Report
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: startDate
+          schema: { type: string, format: date }
+        - in: query
+          name: endDate
+          schema: { type: string, format: date }
+      responses:
+        200:
+          description: Zone Effectiveness Report
+
+  /reports/fleet:
+    get:
+      tags: [Dashboard & Analytics]
+      summary: Get Fleet Utilization and Maintenance Report
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: startDate
+          schema: { type: string, format: date }
+        - in: query
+          name: endDate
+          schema: { type: string, format: date }
+      responses:
+        200:
+          description: Fleet Utilization Report
+
+  /reports/dss-accuracy:
+    get:
+      tags: [Dashboard & Analytics]
+      summary: Get DSS Recommendation Accuracy & Supervisor Override Report
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: startDate
+          schema: { type: string, format: date }
+        - in: query
+          name: endDate
+          schema: { type: string, format: date }
+      responses:
+        200:
+          description: DSS Accuracy Report
+
+  /reports/audit-logs:
+    get:
+      tags: [Audit & Settings]
+      summary: Get Filtered Audit Trail Report
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: actor_role
+          schema: { type: string }
+        - in: query
+          name: action
+          schema: { type: string }
+        - in: query
+          name: startDate
+          schema: { type: string, format: date }
+        - in: query
+          name: endDate
+          schema: { type: string, format: date }
+      responses:
+        200:
+          description: Audit Trail Report
+
+  /reports/export/{reportType}:
+    get:
+      tags: [Dashboard & Analytics]
+      summary: Multi-Format Export Engine (CSV or Printable PDF / HTML)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: reportType
+          required: true
+          schema:
+            type: string
+            enum: [executive-summary, rider-operational, zone-effectiveness, fleet, dss-accuracy, audit-logs]
+        - in: query
+          name: format
+          schema:
+            type: string
+            enum: [csv, pdf, print]
+            default: csv
+        - in: query
+          name: startDate
+          schema: { type: string, format: date }
+        - in: query
+          name: endDate
+          schema: { type: string, format: date }
+      responses:
+        200:
+          description: Binary / Stream Document File Generated Successfully
 
 components:
   securitySchemes:

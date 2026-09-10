@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth, getRoleLandingPath } from "./context/AuthContext.jsx";
 import { ThemeProvider } from "./context/ThemeContext.jsx";
+import { ConfirmProvider } from "./context/ConfirmContext.jsx";
 import { ProtectedRoute } from "./components/guards/ProtectedRoute.jsx";
 import { RoleGuard } from "./components/guards/RoleGuard.jsx";
 import { ToastProvider } from "./components/ui/Toast.jsx";
@@ -19,6 +20,7 @@ const queryClient = new QueryClient({
 
 // Lazy-loaded pages
 const LoginPage = lazy(() => import("./pages/auth/LoginPage.jsx").then((m) => ({ default: m.LoginPage })));
+const FirstLoginPage = lazy(() => import("./pages/auth/FirstLoginPage.jsx").then((m) => ({ default: m.FirstLoginPage })));
 const AccountActivationPage = lazy(() => import("./pages/auth/RegisterPage.jsx").then((m) => ({ default: m.AccountActivationPage })));
 const ForgotPasswordPage = lazy(() => import("./pages/auth/ForgotPasswordPage.jsx").then((m) => ({ default: m.ForgotPasswordPage })));
 const ResetPasswordPage = lazy(() => import("./pages/auth/ResetPasswordPage.jsx").then((m) => ({ default: m.ResetPasswordPage })));
@@ -58,6 +60,9 @@ function RootRedirect() {
     if (user.is_active === false) {
       return <Navigate to="/inactive" replace />;
     }
+    if (user.first_login) {
+      return <Navigate to="/first-login" replace />;
+    }
     return <Navigate to={getRoleLandingPath(user.role)} replace />;
   }
   return <Navigate to="/login" replace />;
@@ -70,9 +75,27 @@ function PublicAuthRoute({ children }) {
     if (user.is_active === false) {
       return <Navigate to="/inactive" replace />;
     }
+    if (user.first_login) {
+      return <Navigate to="/first-login" replace />;
+    }
     return <Navigate to={getRoleLandingPath(user.role)} replace />;
   }
   return children;
+}
+
+function FirstLoginRoute() {
+  const { isAuthenticated, user, loading } = useAuth();
+  if (loading) return <PageFallback />;
+  if (!isAuthenticated || !user) {
+    return <Navigate to="/login" replace />;
+  }
+  if (user.is_active === false) {
+    return <Navigate to="/inactive" replace />;
+  }
+  if (!user.first_login) {
+    return <Navigate to={getRoleLandingPath(user.role)} replace />;
+  }
+  return <FirstLoginPage />;
 }
 
 export default function App() {
@@ -82,14 +105,18 @@ export default function App() {
         <Router>
           <AuthProvider>
             <ToastProvider>
-              <Suspense fallback={<PageFallback />}>
-                <Routes>
+              <ConfirmProvider>
+                <Suspense fallback={<PageFallback />}>
+                  <Routes>
                   {/* Root Dynamic Redirect */}
                   <Route path="/" element={<RootRedirect />} />
 
                   {/* Component Showcase Route (Accessible for design system review) */}
                   <Route path="/showcase" element={<ShowcasePage />} />
                   <Route path="/components-showcase" element={<ShowcasePage />} />
+
+                  {/* First Login Route */}
+                  <Route path="/first-login" element={<FirstLoginRoute />} />
 
                   {/* Public Auth & Activation Routes */}
                   <Route
@@ -275,7 +302,8 @@ export default function App() {
                   <Route path="*" element={<NotFoundPage />} />
                 </Routes>
               </Suspense>
-            </ToastProvider>
+            </ConfirmProvider>
+          </ToastProvider>
           </AuthProvider>
         </Router>
       </ThemeProvider>

@@ -46,6 +46,22 @@ export const authService = {
   },
 
   /**
+   * Complete First Login by updating initial password
+   */
+  completeFirstLogin: async ({ newPassword }) => {
+    const res = await axiosInstance.post("/auth/first-login", { newPassword });
+    return res.data;
+  },
+
+  /**
+   * Activate account using token and set initial password & optional birth_date
+   */
+  activateAccount: async ({ token, password, name, birth_date }) => {
+    const res = await axiosInstance.post("/auth/activate", { token, password, name, birth_date });
+    return res.data;
+  },
+
+  /**
    * Refresh JWT authentication token
    */
   refreshToken: async () => {

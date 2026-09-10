@@ -24,7 +24,7 @@ export const Input = forwardRef(function Input(
       {label && (
         <label
           htmlFor={inputId}
-          className="block text-xs font-semibold text-slate-700"
+          className="block text-xs font-semibold text-slate-700 dark:text-slate-200"
         >
           {label}
           {required && <span className="text-[#EF4444] ml-0.5">*</span>}
@@ -33,7 +33,7 @@ export const Input = forwardRef(function Input(
 
       <div className="relative flex items-center">
         {LeftIcon && (
-          <div className="absolute left-3 text-slate-400 pointer-events-none flex items-center justify-center">
+          <div className="absolute left-3 text-slate-400 dark:text-slate-500 pointer-events-none flex items-center justify-center">
             {typeof LeftIcon === "string" ? (
               <i className={`bx ${LeftIcon.startsWith("bx-") ? LeftIcon : `bx-${LeftIcon}`} text-sm`} />
             ) : (
@@ -49,20 +49,20 @@ export const Input = forwardRef(function Input(
           disabled={disabled}
           required={required}
           className={cn(
-            "w-full bg-white text-slate-900 placeholder:text-slate-400 border border-slate-300 rounded-[6px]",
+            "w-full bg-white dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 border border-slate-300 dark:border-[#1E293B] rounded-[6px]",
             "px-3 py-1.5 min-h-[36px] text-xs md:text-sm transition-colors outline-none shadow-2xs",
-            "focus:border-[#EA580C] focus:ring-1 focus:ring-[#EA580C]",
-            "disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed",
+            "focus:border-[#EA580C] focus:ring-1 focus:ring-[#EA580C] dark:focus:border-[#EA580C]",
+            "disabled:bg-slate-100 dark:disabled:bg-[#131822] disabled:text-slate-400 dark:disabled:text-slate-600 disabled:cursor-not-allowed",
             LeftIcon && "pl-9",
             RightIcon && "pr-9",
-            error && "border-[#EF4444] focus:border-[#EF4444] focus:ring-[#EF4444]",
+            error && "border-[#EF4444] dark:border-[#EF4444] focus:border-[#EF4444] focus:ring-[#EF4444]",
             className
           )}
           {...props}
         />
 
         {RightIcon && (
-          <div className="absolute right-3 text-slate-400 pointer-events-none flex items-center justify-center">
+          <div className="absolute right-3 text-slate-400 dark:text-slate-500 pointer-events-none flex items-center justify-center">
             {typeof RightIcon === "string" ? (
               <i className={`bx ${RightIcon.startsWith("bx-") ? RightIcon : `bx-${RightIcon}`} text-sm`} />
             ) : (
@@ -79,8 +79,9 @@ export const Input = forwardRef(function Input(
       )}
 
       {!error && helperText && (
-        <p className="text-[11px] text-slate-500 font-normal">{helperText}</p>
+        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-normal">{helperText}</p>
       )}
     </div>
   );
 });
+

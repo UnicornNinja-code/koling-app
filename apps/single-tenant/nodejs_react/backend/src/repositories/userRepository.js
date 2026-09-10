@@ -28,7 +28,7 @@ export class UserRepository {
 
   async findAll() {
     const query = `
-      SELECT id, email, username, name, role, is_active, created_at, updated_at
+      SELECT id, email, username, name, phone, role, is_active, first_login, birth_date, created_at, updated_at
       FROM users
       ORDER BY created_at DESC;
     `;
@@ -38,7 +38,7 @@ export class UserRepository {
 
   async findById(id) {
     const query = `
-      SELECT id, email, username, name, role, is_active, created_at, updated_at
+      SELECT id, email, username, name, phone, role, is_active, first_login, birth_date, created_at, updated_at
       FROM users
       WHERE id = $1;
     `;
@@ -48,7 +48,7 @@ export class UserRepository {
 
   async findByIdWithPassword(id) {
     const query = `
-      SELECT id, email, username, password, name, role, is_active, created_at, updated_at
+      SELECT id, email, username, password, name, phone, role, is_active, first_login, birth_date, created_at, updated_at
       FROM users
       WHERE id = $1;
     `;
@@ -65,13 +65,13 @@ export class UserRepository {
     return rows[0] || null;
   }
 
-  async createUser({ email, username, password, name, role = 'RIDER' }) {
+  async createUser({ email, username, password, name, phone, role = 'RIDER', is_active = true, first_login = false, birth_date = null }) {
     const query = `
-      INSERT INTO users (email, username, password, name, role)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING id, email, username, name, role, is_active, created_at, updated_at;
+      INSERT INTO users (email, username, password, name, phone, role, is_active, first_login, birth_date)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING id, email, username, name, phone, role, is_active, first_login, birth_date, created_at, updated_at;
     `;
-    const values = [email, username, password, name, role];
+    const values = [email, username, password, name, phone || null, role, is_active, first_login, birth_date];
     const { rows } = await this.pool.query(query, values);
     return rows[0];
   }
@@ -81,7 +81,7 @@ export class UserRepository {
       UPDATE users
       SET role = $1, updated_at = CURRENT_TIMESTAMP
       WHERE id = $2
-      RETURNING id, email, username, name, role, is_active, updated_at;
+      RETURNING id, email, username, name, phone, role, is_active, first_login, birth_date, updated_at;
     `;
     const { rows } = await this.pool.query(query, [newRole, userId]);
     return rows[0] || null;
@@ -92,7 +92,7 @@ export class UserRepository {
       UPDATE users
       SET is_active = $1, updated_at = CURRENT_TIMESTAMP
       WHERE id = $2
-      RETURNING id, email, username, name, role, is_active, updated_at;
+      RETURNING id, email, username, name, phone, role, is_active, first_login, birth_date, updated_at;
     `;
     const { rows } = await this.pool.query(query, [isActive, userId]);
     return rows[0] || null;
@@ -119,17 +119,19 @@ export class UserRepository {
     await this.pool.query(query, [token]);
   }
 
-  async updateUser(id, { name, email, role }) {
+  async updateUser(id, { name, email, phone, role, birth_date }) {
     const query = `
       UPDATE users
       SET name = COALESCE($1, name),
           email = COALESCE($2, email),
-          role = COALESCE($3, role),
+          phone = COALESCE($3, phone),
+          role = COALESCE($4, role),
+          birth_date = COALESCE($5, birth_date),
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $4
-      RETURNING id, email, username, name, role, is_active, updated_at;
+      WHERE id = $6
+      RETURNING id, email, username, name, phone, role, is_active, first_login, birth_date, updated_at;
     `;
-    const { rows } = await this.pool.query(query, [name, email, role, id]);
+    const { rows } = await this.pool.query(query, [name, email, phone, role, birth_date, id]);
     return rows[0] || null;
   }
 
@@ -138,9 +140,36 @@ export class UserRepository {
       UPDATE users
       SET password = $1, updated_at = CURRENT_TIMESTAMP
       WHERE id = $2
-      RETURNING id, email, username, name, role, is_active, updated_at;
+      RETURNING id, email, username, name, phone, role, is_active, first_login, birth_date, updated_at;
     `;
     const { rows } = await this.pool.query(query, [hashedPassword, userId]);
+    return rows[0] || null;
+  }
+
+  async updateFirstLoginPassword(userId, hashedPassword) {
+    const query = `
+      UPDATE users
+      SET password = $1, first_login = false, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $2
+      RETURNING id, email, username, name, phone, role, is_active, first_login, birth_date, updated_at;
+    `;
+    const { rows } = await this.pool.query(query, [hashedPassword, userId]);
+    return rows[0] || null;
+  }
+
+  async activateUser(userId, { hashedPassword, name, birth_date }) {
+    const query = `
+      UPDATE users
+      SET password = COALESCE($1, password),
+          name = COALESCE($2, name),
+          birth_date = COALESCE($3, birth_date),
+          is_active = true,
+          first_login = false,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $4
+      RETURNING id, email, username, name, phone, role, is_active, first_login, birth_date, updated_at;
+    `;
+    const { rows } = await this.pool.query(query, [hashedPassword, name, birth_date, userId]);
     return rows[0] || null;
   }
 

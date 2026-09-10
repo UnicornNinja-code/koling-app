@@ -31,6 +31,14 @@ export function ToastProvider({ children }) {
     error: (message, title = "Terjadi Kesalahan") => addToast({ message, title, variant: "danger" }),
     warning: (message, title = "Peringatan") => addToast({ message, title, variant: "warning" }),
     info: (message, title = "Informasi") => addToast({ message, title, variant: "info" }),
+    showToast: (message, variant = "info", title) => {
+      const v = variant === "error" ? "danger" : variant;
+      return addToast({
+        message,
+        variant: v,
+        title: title || (v === "success" ? "Berhasil" : v === "danger" ? "Peringatan Sistem" : v === "warning" ? "Peringatan" : "Informasi"),
+      });
+    },
     custom: addToast,
     dismiss: removeToast,
   };
@@ -69,31 +77,31 @@ export function useToast() {
 function ToastItem({ toast, onDismiss }) {
   const configs = {
     success: {
-      border: "border-emerald-200",
-      bg: "bg-white",
+      border: "border-emerald-200 dark:border-emerald-800/60",
+      bg: "bg-white dark:bg-[#131822]",
       icon: CheckCircle2,
-      iconColor: "text-emerald-600",
+      iconColor: "text-emerald-600 dark:text-emerald-400",
       barColor: "bg-emerald-600",
     },
     warning: {
-      border: "border-amber-200",
-      bg: "bg-white",
+      border: "border-amber-200 dark:border-amber-800/60",
+      bg: "bg-white dark:bg-[#131822]",
       icon: AlertTriangle,
-      iconColor: "text-amber-600",
+      iconColor: "text-amber-600 dark:text-amber-400",
       barColor: "bg-amber-600",
     },
     danger: {
-      border: "border-rose-200",
-      bg: "bg-white",
+      border: "border-rose-200 dark:border-rose-800/60",
+      bg: "bg-white dark:bg-[#131822]",
       icon: AlertCircle,
-      iconColor: "text-rose-600",
+      iconColor: "text-rose-600 dark:text-rose-400",
       barColor: "bg-rose-600",
     },
     info: {
-      border: "border-blue-200",
-      bg: "bg-white",
+      border: "border-blue-200 dark:border-blue-800/60",
+      bg: "bg-white dark:bg-[#131822]",
       icon: Info,
-      iconColor: "text-blue-600",
+      iconColor: "text-blue-600 dark:text-blue-400",
       barColor: "bg-blue-600",
     },
   };
@@ -113,14 +121,14 @@ function ToastItem({ toast, onDismiss }) {
     >
       <Icon className={cn("w-5 h-5 shrink-0 mt-0.5", config.iconColor)} />
       <div className="flex-1 space-y-0.5 pr-2">
-        {toast.title && <h5 className="font-heading font-bold text-xs text-slate-900 leading-tight">{toast.title}</h5>}
-        {toast.message && <p className="text-xs text-slate-600 leading-relaxed">{toast.message}</p>}
+        {toast.title && <h5 className="font-heading font-bold text-xs text-slate-900 dark:text-white leading-tight">{toast.title}</h5>}
+        {toast.message && <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{toast.message}</p>}
       </div>
       <button
         type="button"
         onClick={onDismiss}
         aria-label="Tutup notifikasi"
-        className="p-1 rounded-[4px] text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
+        className="p-1 rounded-[4px] text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#1E293B] transition-colors cursor-pointer shrink-0"
       >
         <X className="w-4 h-4" />
       </button>

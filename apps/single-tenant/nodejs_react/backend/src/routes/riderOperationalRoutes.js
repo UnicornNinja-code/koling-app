@@ -11,6 +11,7 @@ import {
   cancelHoldArmada,
   confirmClaimArmada,
   checkInZone,
+  lockSpot,
   recordSale,
   getMySales,
   checkoutSession,
@@ -21,6 +22,7 @@ const router = express.Router();
 
 // 1. Fetch rider active operational session
 router.get("/active-session", authenticateToken, getActiveSession);
+router.get("/my-assignment", authenticateToken, getActiveSession);
 
 // 2. Fetch all armadas in Hub with claimable / faded_out flags for UI rendering
 router.get("/hub-armadas", authenticateToken, getHubArmadas);
@@ -36,6 +38,9 @@ router.post("/claim-armada", authenticateToken, confirmClaimArmada);
 
 // 6. PostGIS Spatial GPS Check-in to assigned zone polygon
 router.post("/check-in", authenticateToken, checkInZone);
+
+// 6.1 Lock Candidate Selling Spot inside zone
+router.post("/lock-spot", authenticateToken, lockSpot);
 
 // 7. Record daily product sale log
 router.post("/record-sale", authenticateToken, recordSale);

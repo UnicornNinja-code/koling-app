@@ -35,14 +35,14 @@ export function Drawer({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:justify-end bg-slate-900/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:justify-end bg-slate-900/60 dark:bg-black/75 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose?.();
       }}
     >
       <div
         className={cn(
-          "bg-white text-slate-900 w-full flex flex-col shadow-2xl border-slate-200 transition-transform duration-200",
+          "bg-white dark:bg-[#131822] text-slate-900 dark:text-slate-100 w-full flex flex-col shadow-2xl border-slate-200 dark:border-[#1E293B] transition-transform duration-200",
           position === "bottom"
             ? "rounded-t-[8px] max-h-[85vh] border-t safe-bottom-padding animate-in slide-in-from-bottom-5"
             : "sm:h-full sm:max-w-md sm:border-l h-[85vh] rounded-t-[8px] sm:rounded-none animate-in slide-in-from-right-5",
@@ -51,19 +51,19 @@ export function Drawer({
       >
         {/* Mobile Pull Handle Indicator */}
         <div className="sm:hidden w-full flex items-center justify-center pt-2.5 pb-1">
-          <div className="w-10 h-1 rounded-full bg-slate-300" />
+          <div className="w-10 h-1 rounded-full bg-slate-300 dark:bg-[#334155]" />
         </div>
 
         {/* Drawer Header */}
-        <div className="p-4 md:p-5 border-b border-slate-200 flex items-center justify-between gap-3 shrink-0 bg-white">
+        <div className="p-4 md:p-5 border-b border-slate-200 dark:border-[#1E293B] flex items-center justify-between gap-3 shrink-0 bg-white dark:bg-[#131822]">
           <div>
             {title && (
-              <h3 className="font-heading font-extrabold text-sm md:text-base text-slate-900 leading-tight">
+              <h3 className="font-heading font-extrabold text-sm md:text-base text-slate-900 dark:text-white leading-tight">
                 {title}
               </h3>
             )}
             {description && (
-              <p className="text-[11px] md:text-xs text-slate-500 mt-0.5">{description}</p>
+              <p className="text-[11px] md:text-xs text-slate-500 dark:text-slate-400 mt-0.5">{description}</p>
             )}
           </div>
 
@@ -71,14 +71,14 @@ export function Drawer({
             type="button"
             onClick={onClose}
             aria-label="Tutup panel"
-            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-[4px] transition-colors cursor-pointer shrink-0"
+            className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#1E293B] rounded-[4px] transition-colors cursor-pointer shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Drawer Content */}
-        <div className="p-4 md:p-6 overflow-y-auto flex-1 text-xs md:text-sm text-slate-700">
+        <div className="p-4 md:p-6 overflow-y-auto flex-1 text-xs md:text-sm text-slate-700 dark:text-slate-300">
           {children}
         </div>
       </div>
@@ -88,3 +88,4 @@ export function Drawer({
 
 // Alias export for Sheet
 export const Sheet = Drawer;
+

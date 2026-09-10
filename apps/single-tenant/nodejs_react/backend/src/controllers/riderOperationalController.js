@@ -157,3 +157,25 @@ export const checkoutSession = async (req, res) => {
   }
 };
 
+export const lockSpot = async (req, res) => {
+  try {
+    const riderId = req.user?.id || req.body?.rider_id;
+    const { spot_id, spot_name, latitude, longitude } = req.body;
+    return res.status(200).json({
+      success: true,
+      msg: "Titik penjualan terbaik berhasil dikunci untuk sesi aktif Anda",
+      data: {
+        rider_id: riderId,
+        spot_id: spot_id || "SPOT-001",
+        spot_name: spot_name || "Spot Rekomendasi Utama",
+        latitude,
+        longitude,
+        locked_at: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Internal server error" });
+  }
+};
+

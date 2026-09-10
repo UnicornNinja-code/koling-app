@@ -14,6 +14,8 @@ import {
   holdArmada,
   claimArmada,
   releaseArmada,
+  setMaintenance,
+  releaseMaintenance,
 } from "../controllers/armadaController.js";
 import { authenticateToken } from "../middlewares/authMiddleware.js";
 import { checkRole } from "../middlewares/roleMiddleware.js";
@@ -28,6 +30,8 @@ router.get("/:id", authenticateToken, getArmadaById);
 router.post("/:id/hold", authenticateToken, holdArmada);
 router.post("/:id/claim", authenticateToken, claimArmada);
 router.post("/:id/release", authenticateToken, releaseArmada);
+router.post("/:id/maintenance", authenticateToken, checkRole(["SUPERADMIN", "MANAGEMENT", "SUPERVISOR"]), setMaintenance);
+router.post("/:id/release-maintenance", authenticateToken, checkRole(["SUPERADMIN", "MANAGEMENT", "SUPERVISOR"]), releaseMaintenance);
 
 // 3. Create, Update, & Delete armadas (RBAC: SUPERADMIN, MANAGEMENT)
 router.post(

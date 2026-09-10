@@ -14,6 +14,8 @@ import {
     approveOrRejectPoi,
     getApprovalLogs,
     triggerCronDetection,
+    getQualitySummary,
+    resolveAnomaly,
 } from "../controllers/poiController.js";
 import { authenticateToken } from "../middlewares/authMiddleware.js";
 import { checkRole } from "../middlewares/roleMiddleware.js";
@@ -23,6 +25,9 @@ const router = express.Router();
 
 // Operational Area Approved POIs Retrieval
 router.get("/operational-area", authenticateToken, getOperationalAreaPois);
+router.get("/quality-summary", authenticateToken, getQualitySummary);
+router.post("/resolve-anomaly", authenticateToken, checkRole(["SUPERADMIN", "SUPERVISOR"]), resolveAnomaly);
+router.post("/sync-overpass", authenticateToken, citySyncLimiter, checkRole(["SUPERADMIN"]), syncCityPois);
 
 // Master Data Full City POI Synchronization (ELT Stage 1 & 2: Extract, Load & Transform)
 router.post(

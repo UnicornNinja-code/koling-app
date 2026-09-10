@@ -4,8 +4,11 @@
  */
 
 import bcrypt from "bcrypt";
+import crypto from "crypto";
 import { UserModel } from "../models/userModel.js";
 import { RefreshTokenModel } from "../models/refreshTokenModel.js";
+import { PasswordResetTokenModel } from "../models/passwordResetTokenModel.js";
+import { env } from "../config/env.js";
 
 /**
  * Get current user profile by user ID
@@ -70,18 +73,24 @@ export const getUserByIdService = async (id, currentUser) => {
 
 /**
  * Create a new user account with strict RBAC Hierarchy Guard
+ * Supports invitation workflow: if password is omitted, creates inactive account and issues invitation token
  */
 export const createUserService = async (
-    { username, name, email, password, phone, role },
+    { username, name, email, password, phone, role, birth_date },
     currentUser
 ) => {
-    if (!username || !name || !email || !password || !role) {
+    if (!name || !email || !role) {
         const error = new Error(
-            "Semua field wajib diisi: username, nama lengkap, email, password, dan peran (role)."
+            "Semua field wajib diisi: nama lengkap, email, dan peran (role)."
         );
         error.statusCode = 400;
         throw error;
     }
+
+    // Auto-generate username from email if not provided
+    const resolvedUsername = (username || email.split("@")[0] + "_" + Date.now().toString().slice(-4))
+        .toLowerCase()
+        .trim();
 
     const validRoles = ["SUPERADMIN", "MANAGEMENT", "SUPERVISOR", "RIDER"];
     const targetRole = role.toUpperCase();
@@ -119,24 +128,52 @@ export const createUserService = async (
         throw error;
     }
 
-    const existingUsername = await UserModel.findByEmailOrUsername(username);
+    const existingUsername = await UserModel.findByEmailOrUsername(resolvedUsername);
     if (existingUsername) {
         const error = new Error("Username ini sudah digunakan oleh akun lain.");
         error.statusCode = 400;
         throw error;
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const isInvite = !password;
+    const initialPassword = password || crypto.randomBytes(16).toString("hex");
+    const hashedPassword = await bcrypt.hash(initialPassword, 10);
+
     const newUser = await UserModel.create({
-        username: username.toLowerCase().trim(),
+        username: resolvedUsername,
         name: name.trim(),
         email: email.toLowerCase().trim(),
         phone: phone || null,
         role: targetRole,
         password: hashedPassword,
+        is_active: !isInvite,
+        first_login: false,
+        birth_date: birth_date || null,
     });
 
-    return newUser;
+    let invitation_token = null;
+    let invitation_link = null;
+
+    if (isInvite) {
+        invitation_token = crypto.randomBytes(32).toString("hex");
+        const resetId = crypto.randomUUID();
+        const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
+
+        await PasswordResetTokenModel.create({
+            id: resetId,
+            token: invitation_token,
+            userId: newUser.id,
+            expiresAt,
+        });
+
+        const frontendBaseUrl = env.FRONTEND_URL || "http://localhost:5173";
+        invitation_link = `${frontendBaseUrl}/activate?token=${invitation_token}&email=${encodeURIComponent(newUser.email)}`;
+    }
+
+    return {
+        ...newUser,
+        ...(isInvite && { invitation_token, invitation_link }),
+    };
 };
 
 /**

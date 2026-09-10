@@ -2,7 +2,7 @@ import { io } from "socket.io-client";
 import { SOCKET_EVENTS } from "./socketEvents.js";
 import { defaultDeduplicator } from "./eventDeduplicator.js";
 
-const SOCKET_URL = (typeof import.meta !== "undefined" && import.meta.env?.VITE_SOCKET_URL) || "http://localhost:9000";
+const SOCKET_URL = (typeof import.meta !== "undefined" && import.meta.env?.VITE_SOCKET_URL) || "http://localhost:8090";
 
 class SocketManager {
   constructor() {

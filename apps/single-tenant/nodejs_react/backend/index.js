@@ -27,6 +27,8 @@ import salesRoutes from "./src/routes/salesRoutes.js";
 import dashboardRoutes from "./src/routes/dashboardRoutes.js";
 import syncRoutes from "./src/routes/syncRoutes.js";
 import analyticsRoutes from "./src/routes/analyticsRoutes.js";
+import reportRoutes from "./src/routes/reportRoutes.js";
+import notificationRoutes from "./src/routes/notificationRoutes.js";
 
 // Initialize BullMQ Background Workers
 import "./src/workers/overpassWorker.js";
@@ -57,12 +59,19 @@ app.use(
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
       const allowedOrigins = [
+        process.env.FRONTEND_URL,
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+        "http://localhost:5175",
+        "http://127.0.0.1:5175",
+        "http://localhost:8090",
+        "http://127.0.0.1:8090",
         "http://localhost:3000",
         "http://localhost:9000",
         "http://localhost:5000",
-      ];
+      ].filter(Boolean);
       if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === "development") {
         return callback(null, true);
       }
@@ -139,6 +148,9 @@ app.use("/api/sales", salesRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/sync", syncRoutes);
 app.use("/api/analytics", analyticsRoutes);
+app.use("/api/reports", reportRoutes);
+app.use("/api/notifications", notificationRoutes);
+app.use("/api/system", systemSettingRoutes);
 
 // Global Centralized Error Handling Middleware
 app.use((err, req, res, next) => {

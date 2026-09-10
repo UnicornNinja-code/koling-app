@@ -42,10 +42,10 @@ export function Tooltip({
   };
 
   const arrows = {
-    top: "top-full left-1/2 -translate-x-1/2 border-t-slate-800 border-x-transparent border-b-transparent border-t-4 border-x-4 border-b-0",
-    bottom: "bottom-full left-1/2 -translate-x-1/2 border-b-slate-800 border-x-transparent border-t-transparent border-b-4 border-x-4 border-t-0",
-    left: "left-full top-1/2 -translate-y-1/2 border-l-slate-800 border-y-transparent border-r-transparent border-l-4 border-y-4 border-r-0",
-    right: "right-full top-1/2 -translate-y-1/2 border-r-slate-800 border-y-transparent border-l-transparent border-r-4 border-y-4 border-l-0",
+    top: "top-full left-1/2 -translate-x-1/2 border-t-slate-800 dark:border-t-slate-700 border-x-transparent border-b-transparent border-t-4 border-x-4 border-b-0",
+    bottom: "bottom-full left-1/2 -translate-x-1/2 border-b-slate-800 dark:border-b-slate-700 border-x-transparent border-t-transparent border-b-4 border-x-4 border-t-0",
+    left: "left-full top-1/2 -translate-y-1/2 border-l-slate-800 dark:border-l-slate-700 border-y-transparent border-r-transparent border-l-4 border-y-4 border-r-0",
+    right: "right-full top-1/2 -translate-y-1/2 border-r-slate-800 dark:border-r-slate-700 border-y-transparent border-l-transparent border-r-4 border-y-4 border-r-0",
   };
 
   return (
@@ -61,7 +61,7 @@ export function Tooltip({
         <div
           role="tooltip"
           className={cn(
-            "absolute z-50 px-2.5 py-1 text-[11px] font-medium text-white bg-slate-800 border border-slate-700 rounded-[4px] shadow-lg whitespace-nowrap pointer-events-none transition-opacity duration-150 animate-in fade-in-0 zoom-in-95",
+            "absolute z-50 px-2.5 py-1 text-[11px] font-medium text-white bg-slate-800 dark:bg-slate-700 border border-slate-700 dark:border-slate-600 rounded-[4px] shadow-lg whitespace-nowrap pointer-events-none transition-opacity duration-150 animate-in fade-in-0 zoom-in-95",
             positions[position] || positions.top,
             className
           )}
@@ -73,3 +73,4 @@ export function Tooltip({
     </div>
   );
 }
+

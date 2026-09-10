@@ -13,9 +13,13 @@
     "db:migrate": "node src/scripts/migrate.js",
     "db:reset": "node src/scripts/reset-db.js",
     "db:seed": "node src/scripts/seed.js",
+    "db:seed:fresh": "node src/scripts/seed-fresh.js",
+    "db:fresh:dev": "node src/scripts/reset-db.js && node src/scripts/migrate.js && node src/scripts/seed-fresh.js && nodemon index.js",
     "db:setup": "node src/scripts/setup-db.js",
     "db:init": "node src/scripts/setup-db.js",
     "db:recluster": "node src/scripts/recluster-poi.js",
+    "test:onboarding": "node src/scripts/test-onboarding.js",
+    "test:reports": "node src/scripts/test-reports-suite.js",
     "test:unit": "node src/scripts/test-runner.js unit",
     "test:integration": "node src/scripts/test-runner.js integration",
     "test:e2e": "node src/scripts/test-runner.js e2e",
@@ -23,7 +27,7 @@
     "fetch:weather": "node src/scripts/fetch-weather.js",
     "sync:toll-roads": "node src/scripts/sync-toll-roads.js",
     "test:op-rules": "node src/scripts/test-operational-rules.js",
-    "test:all": "npm run test:integration"
+    "test:all": "npm run test:integration && npm run test:reports"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
