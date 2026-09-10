@@ -3,6 +3,7 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import compression from "compression";
+import helmet from "helmet";
 
 import { pool, env, redisClient } from "./src/config/index.js";
 import authRoutes from "./src/routes/authRoutes.js";
