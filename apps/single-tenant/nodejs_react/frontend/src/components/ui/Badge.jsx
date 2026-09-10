@@ -1,128 +1,71 @@
 import React from "react";
-import { cn } from "../../lib/utils.js";
 
 /**
- * MOVA Badge Component — Design System v3.0 SSOT
- * Exact reference match from assets/img (dashboard.png, operational rider.png, dss.png):
- * - Status pills: Aktif, Dalam Tugas, Tersedia, Offline
- * - Ranking pills: Terbaik, Sangat Baik, Baik, Cukup
- * - Live Tracking badge with pulsating indicator
+ * MOVA Design System v3.0 Badge Component
+ * Variants: primary, accent, success, warning, danger, neutral, outline
+ * Sizes: sm, md
  */
 export function Badge({
   children,
-  variant = "primary", // 'primary' | 'orange' | 'success' | 'warning' | 'danger' | 'info' | 'purple' | 'neutral' | 'live'
+  variant = "primary",
   size = "md",
-  shape = "pill",
-  withDot = false,
+  icon: Icon,
+  dot = false,
   className = "",
   ...props
 }) {
-  const variants = {
-    // Primary / Blue (Dalam Tugas / Assigned / Active Filter)
+  const baseStyles =
+    "inline-flex items-center font-semibold font-['Inter'] rounded-full whitespace-nowrap transition-colors";
+
+  const sizeStyles = {
+    sm: "text-[10px] px-2 py-0.5 gap-1",
+    md: "text-xs px-2.5 py-0.5 gap-1.5",
+  };
+
+  const variantStyles = {
     primary:
-      "bg-[#EFF6FF] dark:bg-blue-950/60 text-[#2563EB] dark:text-[#60A5FA] border-[#DBEAFE] dark:border-blue-900/50",
-    tugas:
-      "bg-[#EFF6FF] dark:bg-blue-950/60 text-[#2563EB] dark:text-[#60A5FA] border-[#DBEAFE] dark:border-blue-900/50",
-
-    // Accent Orange (MOVA Brand Accent / Highlight)
-    orange:
-      "bg-[#FFF7ED] dark:bg-orange-950/60 text-[#EA580C] dark:text-[#FB923C] border-[#FFEDD5] dark:border-orange-900/50",
-
-    // Success / Green (Aktif / Terbaik / On Time / Compliant)
+      "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800",
+    accent:
+      "bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800",
     success:
-      "bg-[#ECFDF5] dark:bg-emerald-950/60 text-[#059669] dark:text-[#34D399] border-[#A7F3D0] dark:border-emerald-900/50",
-    aktif:
-      "bg-[#ECFDF5] dark:bg-emerald-950/60 text-[#059669] dark:text-[#34D399] border-[#A7F3D0] dark:border-emerald-900/50",
-    terbaik:
-      "bg-[#ECFDF5] dark:bg-emerald-950/60 text-[#059669] dark:text-[#34D399] border-[#A7F3D0] dark:border-emerald-900/50",
-
-    // Warning / Amber (Tersedia / Cukup / Deviasi)
+      "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800",
     warning:
-      "bg-[#FFFBEB] dark:bg-amber-950/60 text-[#D97706] dark:text-[#FBBF24] border-[#FDE68A] dark:border-amber-900/50",
-    tersedia:
-      "bg-[#FFFBEB] dark:bg-amber-950/60 text-[#D97706] dark:text-[#FBBF24] border-[#FDE68A] dark:border-amber-900/50",
-    cukup:
-      "bg-[#FFFBEB] dark:bg-amber-950/60 text-[#D97706] dark:text-[#FBBF24] border-[#FDE68A] dark:border-amber-900/50",
-
-    // Danger / Red (Offline / Terlambat / Alert)
+      "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800",
     danger:
-      "bg-[#FEF2F2] dark:bg-rose-950/60 text-[#DC2626] dark:text-[#F87171] border-[#FECACA] dark:border-rose-900/50",
-    offline:
-      "bg-[#FEF2F2] dark:bg-rose-950/60 text-[#DC2626] dark:text-[#F87171] border-[#FECACA] dark:border-rose-900/50",
-
-    // Info / Sky
-    info:
-      "bg-[#E0F2FE] dark:bg-sky-950/60 text-[#0284C7] dark:text-[#38BDF8] border-[#BAE6FD] dark:border-sky-900/50",
-
-    // Purple / POI
-    purple:
-      "bg-[#F3E8FF] dark:bg-purple-950/60 text-[#8B5CF6] dark:text-[#C084FC] border-[#DDD6FE] dark:border-purple-900/50",
-
-    // Neutral
+      "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800",
     neutral:
-      "bg-[#F5F5F5] dark:bg-neutral-800 text-[#525252] dark:text-neutral-300 border-[#E5E5E5] dark:border-neutral-700",
-
-    // Live Tracking Badge (Green with white text or pill)
-    live:
-      "bg-[#059669] text-white border-[#047857] shadow-2xs font-bold",
+      "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700",
+    purple:
+      "bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800",
+    cyan:
+      "bg-cyan-50 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800",
   };
 
   const dotColors = {
-    primary: "bg-[#2563EB]",
-    tugas: "bg-[#2563EB]",
-    orange: "bg-[#EA580C]",
-    success: "bg-[#10B981]",
-    aktif: "bg-[#10B981]",
-    terbaik: "bg-[#10B981]",
-    warning: "bg-[#F59E0B]",
-    tersedia: "bg-[#F59E0B]",
-    cukup: "bg-[#F59E0B]",
-    danger: "bg-[#EF4444]",
-    offline: "bg-[#EF4444]",
-    info: "bg-[#0284C7]",
-    purple: "bg-[#8B5CF6]",
-    neutral: "bg-[#737373]",
-    live: "bg-white animate-pulse",
-  };
-
-  const shapes = {
-    pill: "rounded-full",
-    rect: "rounded-[4px]",
-  };
-
-  const sizes = {
-    xs: "px-1.5 py-0.5 text-[9px] leading-none",
-    sm: "px-2 py-0.5 text-[10px] leading-tight font-medium",
-    md: "px-2.5 py-0.5 text-[11px] leading-tight font-semibold",
-    lg: "px-3 py-1 text-xs leading-tight font-semibold",
+    primary: "bg-blue-500",
+    accent: "bg-orange-500",
+    success: "bg-emerald-500",
+    warning: "bg-amber-500",
+    danger: "bg-red-500",
+    neutral: "bg-slate-400",
+    purple: "bg-purple-500",
+    cyan: "bg-cyan-500",
   };
 
   return (
     <span
-      className={cn(
-        "inline-flex items-center gap-1.5 font-semibold tracking-wide border select-none transition-colors",
-        variants[variant] || variants.primary,
-        shapes[shape] || shapes.pill,
-        sizes[size] || sizes.md,
-        className
-      )}
+      className={`${baseStyles} ${sizeStyles[size] || sizeStyles.md} ${
+        variantStyles[variant] || variantStyles.primary
+      } ${className}`}
       {...props}
     >
-      {withDot && (
+      {dot && (
         <span
-          className={cn(
-            "w-1.5 h-1.5 rounded-full shrink-0",
-            dotColors[variant] || dotColors.primary
-          )}
+          className={`w-1.5 h-1.5 rounded-full ${dotColors[variant] || "bg-current"}`}
         />
       )}
-      {variant === "live" && !withDot && (
-        <span className="w-1.5 h-1.5 rounded-full bg-white shrink-0 animate-pulse" />
-      )}
-      <span>{children}</span>
+      {Icon && <Icon className="w-3 h-3" />}
+      {children}
     </span>
   );
 }
-
-export const StatusBadge = Badge;
-export default Badge;

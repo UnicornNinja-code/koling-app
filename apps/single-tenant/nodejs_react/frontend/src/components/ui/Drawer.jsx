@@ -1,91 +1,85 @@
 import React, { useEffect } from "react";
-import { cn } from "../../lib/utils.js";
 import { X } from "lucide-react";
 
+/**
+ * MOVA Design System v3.0 Slide-over Drawer Component
+ */
 export function Drawer({
-  isOpen,
+  isOpen = false,
   onClose,
   title,
-  description,
+  subtitle,
   children,
-  position = "bottom", // 'bottom' for mobile sheet | 'right' for desktop side drawer
+  footer,
+  width = "w-full max-w-md", // max-w-sm, max-w-md, max-w-lg, max-w-xl
   className = "",
 }) {
-  // ESC key listener & body scroll lock
   useEffect(() => {
-    if (!isOpen) return;
-
     const handleKeyDown = (e) => {
-      if (e.key === "Escape") onClose?.();
+      if (e.key === "Escape" && isOpen && onClose) {
+        onClose();
+      }
     };
-
-    window.addEventListener("keydown", handleKeyDown);
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+      window.addEventListener("keydown", handleKeyDown);
+    }
     return () => {
+      document.body.style.overflow = "unset";
       window.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = originalOverflow;
     };
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:justify-end bg-slate-900/60 dark:bg-black/75 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose?.();
-      }}
-    >
+    <div className="fixed inset-0 z-50 overflow-hidden">
+      {/* Backdrop */}
       <div
-        className={cn(
-          "bg-white dark:bg-[#131822] text-slate-900 dark:text-slate-100 w-full flex flex-col shadow-2xl border-slate-200 dark:border-[#1E293B] transition-transform duration-200",
-          position === "bottom"
-            ? "rounded-t-[8px] max-h-[85vh] border-t safe-bottom-padding animate-in slide-in-from-bottom-5"
-            : "sm:h-full sm:max-w-md sm:border-l h-[85vh] rounded-t-[8px] sm:rounded-none animate-in slide-in-from-right-5",
-          className
-        )}
-      >
-        {/* Mobile Pull Handle Indicator */}
-        <div className="sm:hidden w-full flex items-center justify-center pt-2.5 pb-1">
-          <div className="w-10 h-1 rounded-full bg-slate-300 dark:bg-[#334155]" />
-        </div>
+        onClick={onClose}
+        className="fixed inset-0 bg-slate-950/50 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+      />
 
-        {/* Drawer Header */}
-        <div className="p-4 md:p-5 border-b border-slate-200 dark:border-[#1E293B] flex items-center justify-between gap-3 shrink-0 bg-white dark:bg-[#131822]">
-          <div>
-            {title && (
-              <h3 className="font-heading font-extrabold text-sm md:text-base text-slate-900 dark:text-white leading-tight">
-                {title}
-              </h3>
-            )}
-            {description && (
-              <p className="text-[11px] md:text-xs text-slate-500 dark:text-slate-400 mt-0.5">{description}</p>
+      <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
+        <div
+          className={`relative ${width} bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col z-10 animate-in slide-in-from-right duration-250 ${className}`}
+        >
+          {/* Drawer Header */}
+          <div className="flex items-start justify-between p-5 border-b border-slate-100 dark:border-slate-800">
+            <div>
+              {title && (
+                <h3 className="text-base font-bold text-slate-900 dark:text-white font-['Inter']">
+                  {title}
+                </h3>
+              )}
+              {subtitle && (
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-['Inter']">
+                  {subtitle}
+                </p>
+              )}
+            </div>
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-1 rounded-[6px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
             )}
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Tutup panel"
-            className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#1E293B] rounded-[4px] transition-colors cursor-pointer shrink-0"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+          {/* Drawer Body */}
+          <div className="p-5 flex-1 overflow-y-auto">{children}</div>
 
-        {/* Drawer Content */}
-        <div className="p-4 md:p-6 overflow-y-auto flex-1 text-xs md:text-sm text-slate-700 dark:text-slate-300">
-          {children}
+          {/* Drawer Footer */}
+          {footer && (
+            <div className="p-4 bg-slate-50/70 dark:bg-slate-850/70 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2.5">
+              {footer}
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
-
-// Alias export for Sheet
-export const Sheet = Drawer;
-

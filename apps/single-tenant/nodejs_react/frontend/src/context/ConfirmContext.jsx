@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from "react";
-import { ConfirmModal } from "../components/ui/ConfirmModal.jsx";
 
 const ConfirmContext = createContext(null);
 
@@ -10,7 +9,7 @@ export function ConfirmProvider({ children }) {
     message: "",
     confirmText: "Konfirmasi",
     cancelText: "Batal",
-    type: "primary", // 'primary' | 'danger' | 'warning' | 'info'
+    type: "primary",
     entityDetails: null,
   });
 
@@ -58,19 +57,8 @@ export function ConfirmProvider({ children }) {
   }, []);
 
   return (
-    <ConfirmContext.Provider value={{ confirm }}>
+    <ConfirmContext.Provider value={{ confirm, confirmState, handleConfirm, handleCancel }}>
       {children}
-      <ConfirmModal
-        isOpen={confirmState.isOpen}
-        title={confirmState.title}
-        message={confirmState.message}
-        confirmText={confirmState.confirmText}
-        cancelText={confirmState.cancelText}
-        type={confirmState.type}
-        entityDetails={confirmState.entityDetails}
-        onConfirm={handleConfirm}
-        onCancel={handleCancel}
-      />
     </ConfirmContext.Provider>
   );
 }

@@ -37,6 +37,15 @@ export const riderService = {
     return res.data;
   },
 
+  lockSpot: async ({ candidate_location_id, latitude, longitude }) => {
+    const res = await axiosInstance.post("/rider/lock-spot", {
+      candidate_location_id,
+      latitude,
+      longitude,
+    });
+    return res.data;
+  },
+
   recordSale: async ({ product_id, quantity, latitude, longitude }) => {
     const payload = {
       product_id,

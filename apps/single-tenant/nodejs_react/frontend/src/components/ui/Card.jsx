@@ -1,17 +1,24 @@
 import React from "react";
-import { cn } from "../../lib/utils.js";
 
 /**
- * MOVA Card Component — Design System v3.0 SSOT
- * Border-first (1px solid var(--border)), radius 12px (rounded-lg), subtle shadow
+ * MOVA Design System v3.0 Card Component
  */
-export function Card({ className, children, ...props }) {
+export function Card({
+  children,
+  className = "",
+  hoverable = false,
+  padding = "p-5",
+  onClick,
+  ...props
+}) {
   return (
     <div
-      className={cn(
-        "bg-card text-card-foreground rounded-lg border border-border transition-colors overflow-hidden shadow-xs",
-        className
-      )}
+      onClick={onClick}
+      className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[12px] shadow-xs ${padding} ${
+        hoverable
+          ? "hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-md transition-all duration-200 cursor-pointer"
+          : ""
+      } ${className}`}
       {...props}
     >
       {children}
@@ -19,65 +26,35 @@ export function Card({ className, children, ...props }) {
   );
 }
 
-export function CardHeader({ className, children, ...props }) {
+export function CardHeader({ children, className = "", action, title, subtitle }) {
+  return (
+    <div className={`flex items-start justify-between gap-4 mb-4 ${className}`}>
+      <div>
+        {title && (
+          <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 tracking-tight">
+            {title}
+          </h3>
+        )}
+        {subtitle && (
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{subtitle}</p>
+        )}
+        {children}
+      </div>
+      {action && <div className="shrink-0">{action}</div>}
+    </div>
+  );
+}
+
+export function CardContent({ children, className = "" }) {
+  return <div className={`${className}`}>{children}</div>;
+}
+
+export function CardFooter({ children, className = "" }) {
   return (
     <div
-      className={cn(
-        "px-5 py-4 flex flex-col space-y-1 border-b border-border bg-card",
-        className
-      )}
-      {...props}
+      className={`mt-4 pt-4 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 ${className}`}
     >
       {children}
     </div>
   );
 }
-
-export function CardTitle({ className, children, ...props }) {
-  return (
-    <h3
-      className={cn(
-        "font-heading font-bold text-sm md:text-base text-foreground leading-tight tracking-tight",
-        className
-      )}
-      {...props}
-    >
-      {children}
-    </h3>
-  );
-}
-
-export function CardDescription({ className, children, ...props }) {
-  return (
-    <p
-      className={cn("text-xs text-muted-foreground font-normal leading-relaxed", className)}
-      {...props}
-    >
-      {children}
-    </p>
-  );
-}
-
-export function CardContent({ className, children, ...props }) {
-  return (
-    <div className={cn("p-5", className)} {...props}>
-      {children}
-    </div>
-  );
-}
-
-export function CardFooter({ className, children, ...props }) {
-  return (
-    <div
-      className={cn(
-        "px-5 py-3.5 bg-muted/20 border-t border-border flex items-center justify-between gap-3 text-xs text-muted-foreground",
-        className
-      )}
-      {...props}
-    >
-      {children}
-    </div>
-  );
-}
-
-export default Card;

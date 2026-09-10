@@ -1,145 +1,108 @@
 import React, { createContext, useContext, useState, useCallback } from "react";
-import { cn } from "../../lib/utils.js";
-import { CheckCircle2, AlertTriangle, AlertCircle, Info, X } from "lucide-react";
+import { CheckCircle2, AlertCircle, AlertTriangle, Info, X } from "lucide-react";
 
 const ToastContext = createContext(null);
 
+/**
+ * MOVA Design System v3.0 Toast Provider & Component
+ */
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
 
-  const addToast = useCallback(({ title, message, variant = "info", duration = 4000 }) => {
-    const id = Date.now().toString() + Math.random().toString(36).substring(2, 5);
-    const newToast = { id, title, message, variant, duration };
+  const addToast = useCallback(
+    ({ title, description, type = "info", duration = 4000 }) => {
+      const id = Date.now() + Math.random();
+      setToasts((prev) => [...prev, { id, title, description, type }]);
 
-    setToasts((prev) => [...prev, newToast]);
-
-    if (duration > 0) {
-      setTimeout(() => {
-        removeToast(id);
-      }, duration);
-    }
-
-    return id;
-  }, []);
+      if (duration > 0) {
+        setTimeout(() => {
+          removeToast(id);
+        }, duration);
+      }
+      return id;
+    },
+    []
+  );
 
   const removeToast = useCallback((id) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const toast = {
-    success: (message, title = "Berhasil") => addToast({ message, title, variant: "success" }),
-    error: (message, title = "Terjadi Kesalahan") => addToast({ message, title, variant: "danger" }),
-    warning: (message, title = "Peringatan") => addToast({ message, title, variant: "warning" }),
-    info: (message, title = "Informasi") => addToast({ message, title, variant: "info" }),
-    showToast: (message, variant = "info", title) => {
-      const v = variant === "error" ? "danger" : variant;
-      return addToast({
-        message,
-        variant: v,
-        title: title || (v === "success" ? "Berhasil" : v === "danger" ? "Peringatan Sistem" : v === "warning" ? "Peringatan" : "Informasi"),
-      });
+  const toast = useCallback(
+    {
+      success: (title, description) =>
+        addToast({ title, description, type: "success" }),
+      error: (title, description) =>
+        addToast({ title, description, type: "danger" }),
+      warning: (title, description) =>
+        addToast({ title, description, type: "warning" }),
+      info: (title, description) =>
+        addToast({ title, description, type: "info" }),
     },
-    custom: addToast,
-    dismiss: removeToast,
-  };
+    [addToast]
+  );
 
   return (
-    <ToastContext.Provider value={toast}>
+    <ToastContext.Provider value={{ toast, addToast, removeToast }}>
       {children}
-      {/* Toast Floating Viewport (Top-Right SSOT) */}
-      <div
-        aria-live="polite"
-        className="fixed top-4 right-4 z-50 flex flex-col gap-2.5 max-w-[360px] w-full pointer-events-none p-2 sm:p-0"
-      >
+      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2.5 max-w-sm w-full pointer-events-none">
         {toasts.map((t) => (
-          <ToastItem key={t.id} toast={t} onDismiss={() => removeToast(t.id)} />
+          <ToastItem key={t.id} toast={t} onClose={() => removeToast(t.id)} />
         ))}
       </div>
     </ToastContext.Provider>
   );
 }
 
-export function useToast() {
-  const context = useContext(ToastContext);
-  if (!context) {
-    return {
-      success: (msg) => console.log("[Toast Success]", msg),
-      error: (msg) => console.error("[Toast Error]", msg),
-      warning: (msg) => console.warn("[Toast Warning]", msg),
-      info: (msg) => console.info("[Toast Info]", msg),
-      custom: () => {},
-      dismiss: () => {},
-    };
-  }
-  return context;
-}
-
-function ToastItem({ toast, onDismiss }) {
-  const configs = {
-    success: {
-      border: "border-emerald-500/30",
-      bg: "bg-card/95",
-      icon: CheckCircle2,
-      iconColor: "text-emerald-500",
-      barColor: "bg-emerald-500",
-    },
-    warning: {
-      border: "border-amber-500/30",
-      bg: "bg-card/95",
-      icon: AlertTriangle,
-      iconColor: "text-amber-500",
-      barColor: "bg-amber-500",
-    },
-    danger: {
-      border: "border-destructive/30",
-      bg: "bg-card/95",
-      icon: AlertCircle,
-      iconColor: "text-destructive",
-      barColor: "bg-destructive",
-    },
-    info: {
-      border: "border-primary/30",
-      bg: "bg-card/95",
-      icon: Info,
-      iconColor: "text-primary",
-      barColor: "bg-primary",
-    },
+function ToastItem({ toast, onClose }) {
+  const icons = {
+    success: <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />,
+    warning: <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />,
+    danger: <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />,
+    info: <Info className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />,
   };
 
-  const current = configs[toast.variant] || configs.info;
-  const IconComponent = current.icon;
+  const borders = {
+    success: "border-emerald-200 dark:border-emerald-800/80",
+    warning: "border-amber-200 dark:border-amber-800/80",
+    danger: "border-red-200 dark:border-red-800/80",
+    info: "border-blue-200 dark:border-blue-800/80",
+  };
 
   return (
     <div
-      className={cn(
-        "pointer-events-auto w-full rounded-md border shadow-lg overflow-hidden backdrop-blur-md transition-all duration-200",
-        "animate-in fade-in slide-in-from-top-2",
-        current.bg,
-        current.border
-      )}
+      className={`pointer-events-auto bg-white dark:bg-slate-900 border rounded-[10px] p-3.5 shadow-lg flex items-start gap-3 animate-in slide-in-from-bottom-3 duration-200 font-['Inter'] ${
+        borders[toast.type] || "border-slate-200 dark:border-slate-800"
+      }`}
     >
-      <div className="p-3 flex items-start gap-3">
-        <IconComponent className={cn("w-4 h-4 mt-0.5 shrink-0", current.iconColor)} />
-
-        <div className="flex-1 min-w-0">
-          {toast.title && (
-            <h4 className="font-heading font-semibold text-xs text-foreground leading-tight">
-              {toast.title}
-            </h4>
-          )}
-          <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
-            {toast.message}
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="text-muted-foreground hover:text-foreground p-0.5 rounded cursor-pointer transition-colors shrink-0"
-        >
-          <X className="w-3.5 h-3.5" />
-        </button>
+      {icons[toast.type] || icons.info}
+      <div className="flex-1 min-w-0">
+        {toast.title && (
+          <div className="text-xs font-bold text-slate-900 dark:text-slate-100">
+            {toast.title}
+          </div>
+        )}
+        {toast.description && (
+          <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+            {toast.description}
+          </div>
+        )}
       </div>
+      <button
+        type="button"
+        onClick={onClose}
+        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-0.5 rounded transition-colors"
+      >
+        <X className="w-3.5 h-3.5" />
+      </button>
     </div>
   );
+}
+
+export function useToast() {
+  const context = useContext(ToastContext);
+  if (!context) {
+    throw new Error("useToast must be used within a ToastProvider");
+  }
+  return context;
 }

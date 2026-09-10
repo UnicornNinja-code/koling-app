@@ -1,92 +1,87 @@
 import React, { forwardRef } from "react";
-import { cn } from "../../lib/utils.js";
 import { ChevronDown } from "lucide-react";
 
 /**
- * MOVA Select Component — Design System v3.0 SSOT
- * Height: 36-40px, Radius: 8px (rounded-md), Font: 14px, Focus: ring-primary
+ * MOVA Design System v3.0 Select Component
  */
 export const Select = forwardRef(function Select(
   {
     label,
+    options = [],
     error,
     helperText,
-    required = false,
-    disabled = false,
+    icon: Icon,
     className = "",
-    options = [],
-    placeholder = "-- Pilih Opsi --",
+    containerClassName = "",
     id,
+    disabled = false,
+    required = false,
     children,
     ...props
   },
   ref
 ) {
-  const selectId = id || (label ? `select-${label.toLowerCase().replace(/\s+/g, "-")}` : undefined);
+  const selectId = id || (label ? label.toLowerCase().replace(/\s+/g, "-") : undefined);
 
   return (
-    <div className="w-full space-y-1.5 text-left font-sans">
+    <div className={`w-full flex flex-col gap-1.5 ${containerClassName}`}>
       {label && (
         <label
           htmlFor={selectId}
-          className="block text-xs font-semibold text-foreground/90"
+          className="text-xs font-semibold text-slate-700 dark:text-slate-300 font-['Inter'] flex items-center justify-between"
         >
-          {label}
-          {required && <span className="text-destructive ml-0.5">*</span>}
+          <span>
+            {label}
+            {required && <span className="text-red-500 ml-0.5">*</span>}
+          </span>
         </label>
       )}
 
       <div className="relative flex items-center">
+        {Icon && (
+          <div className="absolute left-3 text-slate-400 dark:text-slate-500 pointer-events-none flex items-center justify-center">
+            <Icon className="w-4 h-4" />
+          </div>
+        )}
+
         <select
           ref={ref}
           id={selectId}
           disabled={disabled}
           required={required}
-          className={cn(
-            "w-full bg-background text-foreground border border-input rounded-md appearance-none shadow-xs",
-            "px-3 py-1.5 pr-8 min-h-[36px] h-9 text-xs md:text-sm transition-colors outline-none",
-            "focus:border-primary focus:ring-1 focus:ring-primary/20",
-            "disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed cursor-pointer",
-            error && "border-destructive focus:border-destructive focus:ring-destructive/20",
-            className
-          )}
+          className={`w-full text-sm font-['Inter'] rounded-[8px] bg-white dark:bg-slate-900 border text-slate-900 dark:text-slate-100 transition-all duration-150 appearance-none focus:outline-none focus:ring-2 disabled:bg-slate-50 dark:disabled:bg-slate-800 disabled:text-slate-400 disabled:cursor-not-allowed ${
+            Icon ? "pl-9" : "pl-3.5"
+          } pr-9 py-2 h-9.5 ${
+            error
+              ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
+              : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 focus:border-blue-500 focus:ring-blue-500/20"
+          } ${className}`}
           {...props}
         >
-          {placeholder && (
-            <option value="" className="text-muted-foreground bg-card">
-              {placeholder}
-            </option>
-          )}
           {options.length > 0
             ? options.map((opt) => (
-                <option
-                  key={opt.value}
-                  value={opt.value}
-                  disabled={opt.disabled}
-                  className="text-foreground bg-card"
-                >
+                <option key={opt.value} value={opt.value} disabled={opt.disabled}>
                   {opt.label}
                 </option>
               ))
             : children}
         </select>
 
-        <div className="absolute right-3 text-muted-foreground pointer-events-none flex items-center justify-center">
+        <div className="absolute right-3 text-slate-400 dark:text-slate-500 pointer-events-none flex items-center justify-center">
           <ChevronDown className="w-4 h-4" />
         </div>
       </div>
 
       {error && (
-        <p className="text-[11px] font-medium text-destructive flex items-center gap-1">
-          <span>{error}</span>
-        </p>
+        <span className="text-xs text-red-500 font-medium font-['Inter']">
+          {error}
+        </span>
       )}
-
       {!error && helperText && (
-        <p className="text-[11px] text-muted-foreground font-normal">{helperText}</p>
+        <span className="text-xs text-slate-400 dark:text-slate-500 font-['Inter']">
+          {helperText}
+        </span>
       )}
     </div>
   );
 });
-
-export default Select;

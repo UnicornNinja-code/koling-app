@@ -1,130 +1,103 @@
 import React from "react";
-import { useAuth } from "../../context/AuthContext.jsx";
+import {
+  Search,
+  Bell,
+  Sun,
+  Moon,
+  Radio,
+  Clock,
+  Menu,
+} from "lucide-react";
 import { useTheme } from "../../context/ThemeContext.jsx";
-import { Search, Bell, Sun, Moon, MapPin } from "lucide-react";
-import { NavLink, useLocation } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext.jsx";
+import { Avatar } from "../ui/Avatar.jsx";
 
-/**
- * MOVA Topbar Component — Design System v3.0 SSOT
- * Exact match with assets/img (dss.png, map ops.png, operational rider.png):
- * - Left: Dynamic Breadcrumb + Live indicator
- * - Center/Right: Search bar (Ctrl + K)
- * - Right: Red badge notification bell (3), theme switch, and user badge
- */
-export function Topbar({ title, breadcrumb }) {
+export function Topbar({ onToggleSidebar }) {
+  const { theme, toggleTheme } = useTheme();
   const { user } = useAuth();
-  const { isDark, toggleTheme } = useTheme();
-  const location = useLocation();
-  const role = user?.role || "SUPERADMIN";
-
-  // Compute breadcrumbs matching screenshot conventions
-  const getBreadcrumbs = () => {
-    if (breadcrumb) return breadcrumb;
-    const p = location.pathname;
-    if (p.includes("/dss")) return { parent: "DSS", current: "Manajemen" };
-    if (p.includes("/map-ops")) return { parent: "MOVA", current: "Map Ops", isLive: true };
-    if (p.includes("/rider")) return { parent: "MOVA", current: "Operasional Rider" };
-    if (p.includes("/distribution")) return { parent: "MOVA", current: "Distribusi" };
-    if (p.includes("/fleet")) return { parent: "MOVA", current: "Armada" };
-    if (p.includes("/zones")) return { parent: "Master Data", current: "Zona" };
-    if (p.includes("/pois")) return { parent: "Master Data", current: "POI" };
-    if (p.includes("/users")) return { parent: "Master Data", current: "Pengguna" };
-    if (p.includes("/reports")) return { parent: "Reporting", current: "Laporan" };
-    if (p.includes("/settings")) return { parent: "System", current: "Pengaturan" };
-    if (p.includes("/profile")) return { parent: "Akun", current: "Profil" };
-    return { parent: "MOVA", current: "Overview" };
-  };
-
-  const bc = getBreadcrumbs();
 
   return (
-    <header className="h-14 bg-white dark:bg-[#131822] border-b border-[#E2E8F0] dark:border-[#1E293B] px-6 flex items-center justify-between sticky top-0 z-30 select-none font-sans transition-colors duration-150">
-      {/* 1. Left: Breadcrumbs & Status */}
-      <div className="flex items-center gap-2 text-xs">
-        <span className="font-semibold text-[#64748B] dark:text-[#94A3B8]">
-          {bc.parent}
-        </span>
-        <span className="text-[#94A3B8] dark:text-[#64748B]">/</span>
-        <span className="font-bold text-[#0F172A] dark:text-white">
-          {bc.current}
-        </span>
-
-        {bc.isLive && (
-          <div className="flex items-center gap-2 ml-2">
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-[#DCFCE7] dark:bg-emerald-950/40 text-[#16A34A] border border-[#BBF7D0] dark:border-emerald-800/60 px-2 py-0.5 rounded-full">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#16A34A] animate-pulse" />
-              LIVE
-            </span>
-            <span className="hidden lg:inline text-[11px] text-[#64748B] dark:text-[#94A3B8]">
-              • Sidoarjo Hub • Sinkronisasi 1 menit lalu
-            </span>
-          </div>
+    <header className="h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 sm:px-6 sticky top-0 z-30 font-['Inter']">
+      {/* Left: Mobile Toggle & Status Indicators */}
+      <div className="flex items-center gap-3">
+        {onToggleSidebar && (
+          <button
+            type="button"
+            onClick={onToggleSidebar}
+            className="p-1.5 rounded-[6px] text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 lg:hidden"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
         )}
+
+        {/* Live Status Hub Sidoarjo Pill */}
+        <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 bg-slate-100 dark:bg-slate-800 rounded-full text-xs font-semibold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span>Sidoarjo Hub</span>
+          <span className="text-emerald-600 dark:text-emerald-400 text-[11px] font-bold">• LIVE</span>
+        </div>
+
+        {/* Live Telemetry Ping indicator */}
+        <div className="hidden md:flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
+          <Clock className="w-3.5 h-3.5" />
+          <span>Sinkronisasi otomatis aktif</span>
+        </div>
       </div>
 
-      {/* 2. Middle: Search Input (Ctrl + K) */}
-      <div className="hidden md:flex items-center flex-1 max-w-md mx-6">
-        <div className="relative w-full">
-          <Search className="w-3.5 h-3.5 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+      {/* Center: Global Search Bar */}
+      <div className="flex-1 max-w-md mx-4 hidden lg:block">
+        <div className="relative flex items-center">
+          <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3 pointer-events-none" />
           <input
             type="text"
-            placeholder="Cari kriteria, zona, atau konfigurasi..."
-            className="w-full bg-[#F8FAFC] dark:bg-[#0B0F17] hover:bg-white dark:hover:bg-[#1E293B] focus:bg-white dark:focus:bg-[#0B0F17] text-xs text-[#0F172A] dark:text-white placeholder:text-[#94A3B8] pl-8 pr-12 py-1.5 rounded-lg border border-[#E2E8F0] dark:border-[#1E293B] focus:border-[#EA580C] focus:ring-1 focus:ring-[#EA580C]/30 focus:outline-none transition-all shadow-2xs font-sans"
+            placeholder="Cari zona, rider, armada, atau menu..."
+            className="w-full text-xs bg-slate-100/90 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-[8px] pl-9 pr-14 py-1.5 h-8.5 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
           />
-          <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-mono font-semibold text-[#64748B] dark:text-[#94A3B8] bg-[#F1F5F9] dark:bg-[#1E293B] border border-[#E2E8F0] dark:border-[#334155] px-1.5 py-0.5 rounded pointer-events-none">
-            Ctrl + K
+          <kbd className="absolute right-2 px-1.5 py-0.5 text-[10px] font-mono text-slate-400 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-[4px] pointer-events-none shadow-2xs">
+            Ctrl K
           </kbd>
         </div>
       </div>
 
-      {/* 3. Right: Notifications (3), Theme Switcher, and User Profile Badge */}
-      <div className="flex items-center gap-3 shrink-0">
-        {/* Notification Bell with Red Badge 3 */}
-        <button
-          type="button"
-          title="3 Notifikasi Sistem"
-          className="w-8 h-8 rounded-lg flex items-center justify-center text-[#64748B] dark:text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-white hover:bg-[#F1F5F9] dark:hover:bg-[#1E293B] transition-colors relative cursor-pointer"
-        >
-          <Bell className="w-4 h-4" />
-          <span className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-[#DC2626] text-white text-[9px] font-bold flex items-center justify-center leading-none">
-            3
-          </span>
-        </button>
-
-        {/* Theme Toggle Button */}
+      {/* Right: Actions & Profile */}
+      <div className="flex items-center gap-2">
+        {/* Dark/Light Theme Toggle */}
         <button
           type="button"
           onClick={toggleTheme}
-          title={isDark ? "Tema Terang" : "Tema Gelap"}
-          className="w-8 h-8 rounded-lg flex items-center justify-center text-[#64748B] dark:text-[#94A3B8] hover:text-[#0F172A] dark:hover:text-white hover:bg-[#F1F5F9] dark:hover:bg-[#1E293B] transition-colors cursor-pointer"
+          title="Toggle Mode Terang / Gelap"
+          className="p-2 rounded-[8px] text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
         >
-          {isDark ? (
-            <Sun className="w-4 h-4 text-amber-400" />
-          ) : (
-            <Sun className="w-4 h-4 text-[#64748B]" />
-          )}
+          {theme === "dark" ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
         </button>
 
-        {/* User Badge SA */}
-        <NavLink
-          to="/profile"
-          className="flex items-center gap-2 pl-2 pr-1 py-1 rounded-lg hover:bg-[#F1F5F9] dark:hover:bg-[#1E293B] transition-all group"
+        {/* Notifications Alert Bell */}
+        <button
+          type="button"
+          className="relative p-2 rounded-[8px] text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
         >
-          <div className="w-7 h-7 rounded-full bg-[#1D4ED8] text-white flex items-center justify-center text-xs font-bold shrink-0">
-            {user?.name ? user.name.slice(0, 2).toUpperCase() : "SA"}
+          <Bell className="w-4 h-4" />
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white dark:ring-slate-900" />
+        </button>
+
+        {/* User Pill */}
+        <div className="flex items-center gap-2.5 pl-2 border-l border-slate-200 dark:border-slate-800">
+          <Avatar
+            role={user?.role || "admin"}
+            name={user?.full_name || "Super Admin"}
+            size="sm"
+            status="online"
+          />
+          <div className="hidden sm:block text-left">
+            <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
+              {user?.full_name || "Super Admin"}
+            </div>
+            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+              {user?.role || "SUPERADMIN"}
+            </div>
           </div>
-          <div className="hidden sm:flex flex-col text-left pr-1 leading-tight">
-            <span className="text-xs font-bold text-[#0F172A] dark:text-white group-hover:text-[#EA580C] transition-colors">
-              {user?.name || "Super Admin"}
-            </span>
-            <span className="text-[9px] font-mono text-[#64748B] dark:text-[#94A3B8] uppercase">
-              {role}
-            </span>
-          </div>
-        </NavLink>
+        </div>
       </div>
     </header>
   );
 }
-
-export default Topbar;

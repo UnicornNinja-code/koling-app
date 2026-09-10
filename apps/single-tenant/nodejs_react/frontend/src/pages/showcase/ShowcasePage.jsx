@@ -1,920 +1,882 @@
 import React, { useState } from "react";
 import {
-  Alert,
-  Avatar,
-  Badge,
+  MapPin,
+  Bike,
+  Truck,
+  ShieldCheck,
+  BadgeDollarSign,
+  Plus,
+  Send,
+  Download,
+  Filter,
+  Check,
+  AlertTriangle,
+  Info,
+  Layers,
+  Sparkles,
+  Sliders,
+} from "lucide-react";
+import { AppLayout } from "../../components/layout/AppLayout.jsx";
+import {
   Button,
   Card,
   CardHeader,
-  CardTitle,
-  CardDescription,
   CardContent,
   CardFooter,
-  Checkbox,
-  Drawer,
-  EmptyState,
-  ErrorFallbackBanner,
+  MetricCard,
+  Badge,
+  StatusBadge,
   Input,
-  LoadingSkeleton,
-  Modal,
-  MovaLoading,
-  PageHeader,
-  Panel,
   Select,
-  StatCard,
   Switch,
-  Table,
+  Checkbox,
   TableContainer,
-  TableHeader,
+  Table,
+  TableHead,
   TableBody,
   TableRow,
-  TableHead,
+  TableHeaderCell,
   TableCell,
+  TablePagination,
+  Modal,
+  Drawer,
   Tabs,
-  TabsList,
-  TabsTrigger,
-  TabsContent,
+  Tooltip,
+  Skeleton,
+  MetricCardSkeleton,
+  TableSkeleton,
+  EmptyState,
+  PageHeader,
   useToast,
-  CriteriaProgressBar,
-  DonutChartWidget,
+  WeatherIcon,
+  Avatar,
+  ArmadaIcon,
 } from "../../components/ui/index.js";
-import {
-  WeatherCardWidget,
-  WeatherHeaderWidget,
-} from "../../components/dashboard/WeatherCardWidget.jsx";
-import {
-  Sparkles,
-  Layers,
-  BarChart3,
-  Coffee,
-  CheckCircle2,
-  AlertTriangle,
-  Flame,
-  Search,
-  Plus,
-  Trash2,
-  Edit,
-  Download,
-  Eye,
-  Shield,
-  MapPin,
-  Truck,
-  Activity,
-  Calendar,
-  ExternalLink,
-  CloudSun,
-  Sun,
-  Moon,
-  Info,
-  Check,
-  Compass,
-  Bike,
-  RefreshCw,
-  Clock,
-  Printer,
-  Navigation,
-  Cpu,
-  Users,
-  GerobakKopiIcon,
-  MotorListrikIcon,
-  Droplets,
-  WindSpeed,
-  CloudRain,
-  Visibility,
-  Thermometer,
-  MoreHorizontal,
-  ListFilter,
-} from "../../components/common/icons.jsx";
-import { useTheme } from "../../context/ThemeContext.jsx";
 
 export function ShowcasePage() {
-  const { theme, isDark, toggleTheme } = useTheme();
-  const { addToast } = useToast();
-  const [activeTab, setActiveTab] = useState("overview");
+  const { toast } = useToast();
 
-  // State for interactive table showcase
-  const [selectedRiders, setSelectedRiders] = useState([1, 2]);
-  const [searchRider, setSearchRider] = useState("");
-  const [filterStatus, setFilterStatus] = useState("all");
+  // State controls for showcase interactive testing
+  const [activeTab, setActiveTab] = useState("components");
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [switchVal, setSwitchVal] = useState(true);
+  const [checkboxVal, setCheckboxVal] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [selectedRows, setSelectedRows] = useState([]);
 
-  const sampleRiders = [
+  // Sample Table Data for Demonstration
+  const sampleTableData = [
     {
-      id: 1,
-      riderId: "R-012",
+      id: "R-012",
       name: "Budi Santoso",
-      avatarVariant: "primary",
-      avatarStatus: "online",
       zone: "ZON-SDA-01",
-      zoneColor: "text-orange-600 dark:text-orange-400",
-      status: "aktif",
-      statusLabel: "Aktif",
-      coords: "-7.3121, 112.7228",
-      task: "Antar pesanan",
+      location: "Jl. Alun-Alun Sidoarjo",
+      status: "AKTIF",
+      task: "Titik 1 - Alun-Alun",
       duration: "34 mnt",
-      vehicle: "Gerobak Kopi",
     },
     {
-      id: 2,
-      riderId: "R-018",
+      id: "R-018",
       name: "Citra Lestari",
-      avatarVariant: "success",
-      avatarStatus: "online",
       zone: "ZON-SDA-03",
-      zoneColor: "text-emerald-600 dark:text-emerald-400",
-      status: "aktif",
-      statusLabel: "Aktif",
-      coords: "-7.3156, 112.7281",
-      task: "Antar pesanan",
-      duration: "16 mnt",
-      vehicle: "Motor Listrik",
+      location: "Jl. RS Siti Hajar",
+      status: "AKTIF",
+      task: "Titik 2 - RS Siti Hajar",
+      duration: "18 mnt",
     },
     {
-      id: 3,
-      riderId: "R-021",
+      id: "R-021",
       name: "Dedi Kurniawan",
-      avatarVariant: "primary",
-      avatarStatus: "busy",
       zone: "ZON-SDA-04",
-      zoneColor: "text-red-600 dark:text-red-400",
-      status: "tugas",
-      statusLabel: "Dalam Tugas",
-      coords: "-7.3189, 112.7312",
-      task: "Ambil pesanan",
+      location: "Jl. Taman Pinang",
+      status: "TUGAS",
+      task: "Titik 5 - Taman Pinang",
       duration: "42 mnt",
-      vehicle: "Gerobak Kopi",
     },
     {
-      id: 4,
-      riderId: "R-027",
+      id: "R-030",
       name: "Eka Wahyuni",
-      avatarVariant: "warning",
-      avatarStatus: "warning",
       zone: "ZON-SDA-02",
-      zoneColor: "text-blue-600 dark:text-blue-400",
-      status: "tersedia",
-      statusLabel: "Tersedia",
-      coords: "-7.3102, 112.7198",
-      task: "Standby di Hub",
-      duration: "-",
-      vehicle: "Motor Listrik",
-    },
-    {
-      id: 5,
-      riderId: "R-033",
-      name: "Fajar Nugroho",
-      avatarVariant: "neutral",
-      avatarStatus: "offline",
-      zone: "ZON-SDA-01",
-      zoneColor: "text-orange-600 dark:text-orange-400",
-      status: "offline",
-      statusLabel: "Offline",
-      coords: "-",
+      location: "Jl. Gajah Mada",
+      status: "TERSEDIA",
       task: "-",
       duration: "-",
-      vehicle: "Gerobak Kopi",
     },
     {
-      id: 6,
-      riderId: "R-036",
-      name: "Gita Pratama",
-      avatarVariant: "purple",
-      avatarStatus: "online",
-      zone: "ZON-SDA-03",
-      zoneColor: "text-emerald-600 dark:text-emerald-400",
-      status: "aktif",
-      statusLabel: "Aktif",
-      coords: "-7.3147, 112.7256",
-      task: "Antar pesanan",
-      duration: "22 mnt",
-      vehicle: "Motor Listrik",
+      id: "R-041",
+      name: "Fajar Nugroho",
+      zone: "ZON-SDA-01",
+      location: "Jl. Kartini",
+      status: "OFFLINE",
+      task: "-",
+      duration: "-",
     },
   ];
 
-  const handleSelectAll = (e) => {
-    if (e.target.checked) {
-      setSelectedRiders(sampleRiders.map((r) => r.id));
-    } else {
-      setSelectedRiders([]);
-    }
+  const toggleRow = (id) => {
+    setSelectedRows((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
   };
 
-  const handleSelectOne = (id) => {
-    if (selectedRiders.includes(id)) {
-      setSelectedRiders(selectedRiders.filter((rId) => rId !== id));
+  const toggleAll = () => {
+    if (selectedRows.length === sampleTableData.length) {
+      setSelectedRows([]);
     } else {
-      setSelectedRiders([...selectedRiders, id]);
+      setSelectedRows(sampleTableData.map((d) => d.id));
     }
   };
-
-  const filteredRiders = sampleRiders.filter((rider) => {
-    const matchesSearch =
-      rider.name.toLowerCase().includes(searchRider.toLowerCase()) ||
-      rider.riderId.toLowerCase().includes(searchRider.toLowerCase());
-    const matchesStatus =
-      filterStatus === "all" || rider.status === filterStatus;
-    return matchesSearch && matchesStatus;
-  });
 
   return (
-    <div className="space-y-8 pb-16 font-sans">
-      {/* Top Header */}
+    <AppLayout>
       <PageHeader
-        title="MOVA Design System v3.0"
-        description="Living Component Showcase & Visual Style Guide — Sesuai referensi assets/img (dashboard.png & operational rider.png)"
-        badge="SSOT v3.0"
+        title="Design System v3.0 Showcase"
+        subtitle="Koleksi token, komponen atomik, dan pola antarmuka MOVA Single-Tenant SSOT."
+        breadcrumbs={[
+          { label: "MOVA", href: "#" },
+          { label: "Sistem Desain", href: "#" },
+          { label: "Showcase" },
+        ]}
         actions={
-          <div className="flex items-center gap-3">
-            {/* Header Weather Widget Replica */}
-            <WeatherHeaderWidget
-              temperature="31°C"
-              condition="Cerah Berawan"
-            />
-
+          <div className="flex items-center gap-2">
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
-              onClick={toggleTheme}
-              className="gap-2"
+              icon={Download}
+              onClick={() => toast.info("Ekspor", "Data desain sistem berhasil diunduh.")}
             >
-              {isDark ? (
-                <>
-                  <Sun className="w-4 h-4 text-amber-500" />
-                  <span>Light Mode</span>
-                </>
-              ) : (
-                <>
-                  <Moon className="w-4 h-4 text-blue-600" />
-                  <span>Dark Mode</span>
-                </>
-              )}
+              Export Tokens
+            </Button>
+            <Button
+              variant="accent"
+              size="sm"
+              icon={Plus}
+              onClick={() => setIsModalOpen(true)}
+            >
+              + Modal Preview
             </Button>
           </div>
         }
       />
 
-      {/* Showcase Navigation Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="bg-[#FAFAFA] dark:bg-[#18202F] p-1 border border-[#E5E5E5] dark:border-[#263244] rounded-xl flex-wrap">
-          <TabsTrigger value="overview">Design System & Colors</TabsTrigger>
-          <TabsTrigger value="weather_vehicles">Weather & Vehicles</TabsTrigger>
-          <TabsTrigger value="statcards">Metrics StatCards</TabsTrigger>
-          <TabsTrigger value="badges_avatars">Badges & Avatars</TabsTrigger>
-          <TabsTrigger value="rider_table">Daftar Rider Table</TabsTrigger>
-          <TabsTrigger value="controls">Form Controls</TabsTrigger>
-        </TabsList>
+      {/* Navigation Tabs */}
+      <div className="mb-6">
+        <Tabs
+          activeTab={activeTab}
+          onChange={setActiveTab}
+          tabs={[
+            { id: "components", label: "Komponen UI", icon: Layers },
+            { id: "graphic-assets", label: "Aset Gambar, Avatar & Gerobak", icon: Sparkles },
+            { id: "colors", label: "Token Warna & Status", icon: Sparkles },
+            { id: "tables", label: "Tabel & Data Grid", icon: Filter },
+            { id: "feedback", label: "Feedback & Toast", icon: Info },
+          ]}
+        />
+      </div>
 
-        {/* ====================================================================
-            TAB 1: DESIGN SYSTEM, COLORS & TYPOGRAPHY
-            ==================================================================== */}
-        <TabsContent value="overview" className="space-y-8 mt-6">
-          {/* 1. Color Palette Tokens from assets/img/desain color.png */}
-          <Panel title="Color Palette Tokens (SSOT: assets/img/desain color.png)">
-            <p className="text-xs text-[#525252] dark:text-[#CBD5E1] mb-4">
-              Palet warna resmi yang diekstrak langsung dari panduan desain sistem v3.0.
-            </p>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-              {/* Primary Blue */}
-              <div className="p-3 rounded-lg border border-[#E5E5E5] dark:border-[#263244] bg-white dark:bg-[#131822]">
-                <div className="w-full h-12 rounded bg-[#2563EB] mb-2 shadow-xs" />
-                <div className="text-xs font-bold text-[#171717] dark:text-white">Primary Blue</div>
-                <div className="text-[11px] font-mono text-[#737373] dark:text-[#94A3B8]">#2563EB</div>
-              </div>
-
-              {/* Primary Hover */}
-              <div className="p-3 rounded-lg border border-[#E5E5E5] dark:border-[#263244] bg-white dark:bg-[#131822]">
-                <div className="w-full h-12 rounded bg-[#1D4ED8] mb-2 shadow-xs" />
-                <div className="text-xs font-bold text-[#171717] dark:text-white">Primary Hover</div>
-                <div className="text-[11px] font-mono text-[#737373] dark:text-[#94A3B8]">#1D4ED8</div>
-              </div>
-
-              {/* Accent Orange */}
-              <div className="p-3 rounded-lg border border-[#E5E5E5] dark:border-[#263244] bg-white dark:bg-[#131822]">
-                <div className="w-full h-12 rounded bg-[#F97316] mb-2 shadow-xs" />
-                <div className="text-xs font-bold text-[#171717] dark:text-white">Accent Orange</div>
-                <div className="text-[11px] font-mono text-[#737373] dark:text-[#94A3B8]">#F97316</div>
-              </div>
-
-              {/* Success */}
-              <div className="p-3 rounded-lg border border-[#E5E5E5] dark:border-[#263244] bg-white dark:bg-[#131822]">
-                <div className="w-full h-12 rounded bg-[#10B981] mb-2 shadow-xs" />
-                <div className="text-xs font-bold text-[#171717] dark:text-white">Success</div>
-                <div className="text-[11px] font-mono text-[#737373] dark:text-[#94A3B8]">#10B981</div>
-              </div>
-
-              {/* Warning */}
-              <div className="p-3 rounded-lg border border-[#E5E5E5] dark:border-[#263244] bg-white dark:bg-[#131822]">
-                <div className="w-full h-12 rounded bg-[#F59E0B] mb-2 shadow-xs" />
-                <div className="text-xs font-bold text-[#171717] dark:text-white">Warning</div>
-                <div className="text-[11px] font-mono text-[#737373] dark:text-[#94A3B8]">#F59E0B</div>
-              </div>
-
-              {/* Danger */}
-              <div className="p-3 rounded-lg border border-[#E5E5E5] dark:border-[#263244] bg-white dark:bg-[#131822]">
-                <div className="w-full h-12 rounded bg-[#EF4444] mb-2 shadow-xs" />
-                <div className="text-xs font-bold text-[#171717] dark:text-white">Danger</div>
-                <div className="text-[11px] font-mono text-[#737373] dark:text-[#94A3B8]">#EF4444</div>
-              </div>
-
-              {/* Neutral 50 */}
-              <div className="p-3 rounded-lg border border-[#E5E5E5] dark:border-[#263244] bg-white dark:bg-[#131822]">
-                <div className="w-full h-12 rounded bg-[#FAFAFA] border border-[#E5E5E5] mb-2 shadow-xs" />
-                <div className="text-xs font-bold text-[#171717] dark:text-white">Neutral 50</div>
-                <div className="text-[11px] font-mono text-[#737373] dark:text-[#94A3B8]">#FAFAFA</div>
-              </div>
-
-              {/* Neutral 900 */}
-              <div className="p-3 rounded-lg border border-[#E5E5E5] dark:border-[#263244] bg-white dark:bg-[#131822]">
-                <div className="w-full h-12 rounded bg-[#171717] mb-2 shadow-xs" />
-                <div className="text-xs font-bold text-[#171717] dark:text-white">Neutral 900</div>
-                <div className="text-[11px] font-mono text-[#737373] dark:text-[#94A3B8]">#171717</div>
-              </div>
-
-              {/* Surface Light */}
-              <div className="p-3 rounded-lg border border-[#E5E5E5] dark:border-[#263244] bg-white dark:bg-[#131822]">
-                <div className="w-full h-12 rounded bg-[#FFFFFF] border border-[#E5E5E5] mb-2 shadow-xs" />
-                <div className="text-xs font-bold text-[#171717] dark:text-white">Surface Light</div>
-                <div className="text-[11px] font-mono text-[#737373] dark:text-[#94A3B8]">#FFFFFF</div>
-              </div>
-
-              {/* Surface Dark */}
-              <div className="p-3 rounded-lg border border-[#E5E5E5] dark:border-[#263244] bg-white dark:bg-[#131822]">
-                <div className="w-full h-12 rounded bg-[#131822] mb-2 shadow-xs" />
-                <div className="text-xs font-bold text-[#171717] dark:text-white">Surface Dark</div>
-                <div className="text-[11px] font-mono text-[#737373] dark:text-[#94A3B8]">#131822</div>
-              </div>
-            </div>
-          </Panel>
-
-          {/* 2. Typography Hierarchy (Inter) */}
-          <Panel title="Typography Hierarchy (Font: Inter)">
-            <div className="space-y-4">
-              <div className="flex items-baseline justify-between border-b border-[#F0F0F0] dark:border-[#1E293B] pb-2">
-                <div>
-                  <h1 className="text-3xl font-bold text-[#171717] dark:text-white font-heading">
-                    Heading 1 — 32px / Bold (700)
-                  </h1>
-                </div>
-                <span className="text-xs font-mono text-[#737373]">32px / 700</span>
-              </div>
-
-              <div className="flex items-baseline justify-between border-b border-[#F0F0F0] dark:border-[#1E293B] pb-2">
-                <div>
-                  <h2 className="text-2xl font-semibold text-[#171717] dark:text-white font-heading">
-                    Heading 2 — 24px / SemiBold (600)
-                  </h2>
-                </div>
-                <span className="text-xs font-mono text-[#737373]">24px / 600</span>
-              </div>
-
-              <div className="flex items-baseline justify-between border-b border-[#F0F0F0] dark:border-[#1E293B] pb-2">
-                <div>
-                  <h3 className="text-xl font-semibold text-[#171717] dark:text-white font-heading">
-                    Heading 3 — 20px / SemiBold (600)
-                  </h3>
-                </div>
-                <span className="text-xs font-mono text-[#737373]">20px / 600</span>
-              </div>
-
-              <div className="flex items-baseline justify-between border-b border-[#F0F0F0] dark:border-[#1E293B] pb-2">
-                <div>
-                  <p className="text-sm font-normal text-[#171717] dark:text-[#E2E8F0]">
-                    Body Regular — 14px / Regular (400) · Operational table data, form inputs, and descriptive texts.
-                  </p>
-                </div>
-                <span className="text-xs font-mono text-[#737373]">14px / 400</span>
-              </div>
-
-              <div className="flex items-baseline justify-between border-b border-[#F0F0F0] dark:border-[#1E293B] pb-2">
-                <div>
-                  <p className="text-xs font-normal text-[#525252] dark:text-[#CBD5E1]">
-                    Small Text — 12px / Regular (400) · Subtext, captions, and secondary metadata.
-                  </p>
-                </div>
-                <span className="text-xs font-mono text-[#737373]">12px / 400</span>
-              </div>
-
-              <div className="flex items-baseline justify-between">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-[#737373] dark:text-[#94A3B8]">
-                    Caption / Header — 11px / SemiBold (600) · Table headers, badges, metric labels.
-                  </p>
-                </div>
-                <span className="text-xs font-mono text-[#737373]">11px / 600</span>
-              </div>
-            </div>
-          </Panel>
-        </TabsContent>
-
-        {/* ====================================================================
-            TAB 2: WEATHER WIDGET & RIDER VEHICLES
-            ==================================================================== */}
-        <TabsContent value="weather_vehicles" className="space-y-8 mt-6">
-          {/* Weather Widget */}
-          <Panel title="Kondisi Cuaca & Lingkungan (assets/img/dashboard.png)">
-            <p className="text-xs text-[#525252] dark:text-[#CBD5E1] mb-4">
-              Komponen widget cuaca operasional lengkap dengan parameter suhu, kelembaban, curah hujan, angin, dan jarak pandang.
-            </p>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Full Card Widget */}
-              <WeatherCardWidget
-                city="Sidoarjo"
-                temperature="31°C"
-                condition="Cerah Berawan"
-                humidity="65%"
-                rainfall="20%"
-                windSpeed="12.5 km/j"
-                visibility="10.0 km"
-                onDetailClick={() => addToast("Membuka detail intelijen cuaca...", "info")}
-              />
-
-              {/* Mini Weather Header Variants */}
-              <div className="space-y-4 bg-white dark:bg-[#131822] border border-[#E5E5E5] dark:border-[#1E293B] rounded-xl p-4">
-                <h4 className="text-xs font-bold text-[#171717] dark:text-white">
-                  Header & Topbar Weather Badges
-                </h4>
-                <div className="flex flex-wrap gap-4 items-center">
-                  <WeatherHeaderWidget temperature="31°C" condition="Cerah Berawan" />
-                  <WeatherHeaderWidget temperature="28°C" condition="Hujan Ringan" />
-                  <WeatherHeaderWidget temperature="33°C" condition="Cerah Panas" />
-                </div>
-              </div>
-            </div>
-          </Panel>
-
-          {/* Rider Vehicle Icons */}
-          <Panel title="Ikon Kendaraan Operasional Rider (Gerobak Kopi & Motor Listrik)">
-            <p className="text-xs text-[#525252] dark:text-[#CBD5E1] mb-4">
-              Ikon custom SVG presisi tinggi untuk armada operasional MOVA (Gerobak Kopi keliling dan Motor Listrik ramah lingkungan).
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-              {/* Gerobak Kopi Light Card */}
-              <div className="p-4 bg-white dark:bg-[#131822] border border-[#E5E5E5] dark:border-[#1E293B] rounded-xl flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-orange-50 dark:bg-orange-950/40 text-[#EA580C] border border-orange-200 dark:border-orange-800/40 flex items-center justify-center">
-                  <GerobakKopiIcon className="w-7 h-7" />
-                </div>
-                <div>
-                  <div className="text-xs font-bold text-[#171717] dark:text-white">Gerobak Kopi</div>
-                  <div className="text-[11px] text-[#737373]">Coffee Cart Portable</div>
-                </div>
-              </div>
-
-              {/* Motor Listrik Card */}
-              <div className="p-4 bg-white dark:bg-[#131822] border border-[#E5E5E5] dark:border-[#1E293B] rounded-xl flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-[#2563EB] border border-blue-200 dark:border-blue-800/40 flex items-center justify-center">
-                  <MotorListrikIcon className="w-7 h-7" />
-                </div>
-                <div>
-                  <div className="text-xs font-bold text-[#171717] dark:text-white">Motor Listrik</div>
-                  <div className="text-[11px] text-[#737373]">Electric Vehicle (EV)</div>
-                </div>
-              </div>
-
-              {/* Gerobak Kopi Green Card */}
-              <div className="p-4 bg-white dark:bg-[#131822] border border-[#E5E5E5] dark:border-[#1E293B] rounded-xl flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-[#10B981] border border-emerald-200 dark:border-emerald-800/40 flex items-center justify-center">
-                  <GerobakKopiIcon className="w-7 h-7" />
-                </div>
-                <div>
-                  <div className="text-xs font-bold text-[#171717] dark:text-white">Gerobak Aktif</div>
-                  <div className="text-[11px] text-[#10B981] font-semibold">12 Unit Bertugas</div>
-                </div>
-              </div>
-
-              {/* Motor Listrik Sky Card */}
-              <div className="p-4 bg-white dark:bg-[#131822] border border-[#E5E5E5] dark:border-[#1E293B] rounded-xl flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-sky-50 dark:bg-sky-950/40 text-[#0284C7] border border-sky-200 dark:border-sky-800/40 flex items-center justify-center">
-                  <MotorListrikIcon className="w-7 h-7" />
-                </div>
-                <div>
-                  <div className="text-xs font-bold text-[#171717] dark:text-white">Motor EV Aktif</div>
-                  <div className="text-[11px] text-[#0284C7] font-semibold">8 Unit Bertugas</div>
-                </div>
-              </div>
-            </div>
-          </Panel>
-        </TabsContent>
-
-        {/* ====================================================================
-            TAB 3: METRICS STATCARDS
-            ==================================================================== */}
-        <TabsContent value="statcards" className="space-y-8 mt-6">
-          {/* Dashboard Stats */}
-          <Panel title="Dashboard Top StatCards (assets/img/dashboard.png)">
-            <p className="text-xs text-[#525252] dark:text-[#CBD5E1] mb-4">
-              Kartu metrik dashboard 5-kolom dengan icon badge, denominator, dan tren operasional.
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-              <StatCard
-                label="Zona Aktif"
+      {/* TAB 1: Core Components & Cards */}
+      {activeTab === "components" && (
+        <div className="space-y-8">
+          {/* Section 1: KPI Metric Cards (As seen in Reference Mockups) */}
+          <div>
+            <h2 className="text-base font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+              <span>1. Top KPI Metric Cards</span>
+              <span className="text-xs text-slate-400 font-normal">(Sesuai superadmin-dashboard.png & mapops.png)</span>
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              <MetricCard
+                title="Zona Aktif"
                 value="12"
-                denominator="dari 17 zona"
-                trend="↑ 2 zona"
-                trendType="success"
+                subtext="dari 17 zona"
+                trend="↑ 2"
+                trendDirection="up"
+                trendText="zona"
                 icon={MapPin}
-                iconVariant="success"
+                iconColor="text-emerald-600 dark:text-emerald-400"
+                iconBg="bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800"
               />
-              <StatCard
-                label="Rider Aktif"
+              <MetricCard
+                title="Rider Aktif"
                 value="8"
-                denominator="dari 12 rider"
-                trend="↑ 1 rider"
-                trendType="success"
-                icon={Users}
-                iconVariant="primary"
+                subtext="dari 12 rider"
+                trend="↑ 1"
+                trendDirection="up"
+                trendText="rider"
+                icon={Bike}
+                iconColor="text-blue-600 dark:text-blue-400"
+                iconBg="bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800"
               />
-              <StatCard
-                label="Armada Tersedia"
+              <MetricCard
+                title="Armada Tersedia"
                 value="5"
-                denominator="dari 8 unit"
-                trend="→ 0 unit"
-                trendType="neutral"
+                subtext="dari 8 unit"
+                trend="→ 0"
+                trendDirection="neutral"
+                trendText="unit"
                 icon={Truck}
-                iconVariant="purple"
+                iconColor="text-purple-600 dark:text-purple-400"
+                iconBg="bg-purple-50 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800"
               />
-              <StatCard
-                label="Tingkat Kepatuhan Zona"
+              <MetricCard
+                title="Tingkat Kepatuhan Zona"
                 value="87%"
                 subtext="berdasarkan GPS & geofence"
                 trend="↑ 5%"
-                trendType="success"
-                icon={Shield}
-                iconVariant="orange"
+                trendDirection="up"
+                icon={ShieldCheck}
+                iconColor="text-orange-600 dark:text-orange-400"
+                iconBg="bg-orange-50 dark:bg-orange-950/40 border-orange-200 dark:border-orange-800"
               />
-              <StatCard
-                label="Penjualan Hari Ini"
+              <MetricCard
+                title="Penjualan Hari Ini"
                 value="Rp 2.450.000"
-                denominator="dari 163 transaksi"
+                subtext="dari 163 transaksi"
                 trend="↑ 12%"
-                trendType="success"
-                icon={BarChart3}
-                iconVariant="info"
+                trendDirection="up"
+                icon={BadgeDollarSign}
+                iconColor="text-cyan-600 dark:text-cyan-400"
+                iconBg="bg-cyan-50 dark:bg-cyan-950/40 border-cyan-200 dark:border-cyan-800"
               />
             </div>
-          </Panel>
+          </div>
 
-          {/* Operational Rider Stats */}
-          <Panel title="Operasional Rider StatCards (assets/img/operational rider.png)">
-            <p className="text-xs text-[#525252] dark:text-[#CBD5E1] mb-4">
-              Metrik khusus untuk halaman Operasional Rider dengan indikator status kehadiran dan rata-rata durasi.
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-              <StatCard
-                label="Total Rider"
-                value="48"
-                trend="↑ 12%"
-                trendLabel="dari kemarin"
-                trendType="success"
-                icon={Users}
-                iconVariant="orange"
-              />
-              <StatCard
-                label="Rider Aktif"
-                value="42"
-                denominator="/ 48"
-                subtext="• 87.5%"
-                icon={Users}
-                iconVariant="primary"
-              />
-              <StatCard
-                label="Dalam Tugas"
-                value="36"
-                trend="↑ 75.0%"
-                trendType="info"
-                icon={Bike}
-                iconVariant="info"
-              />
-              <StatCard
-                label="Offline"
-                value="6"
-                subtext="• 12.5%"
-                icon={AlertTriangle}
-                iconVariant="danger"
-              />
-              <StatCard
-                label="Rata-rata Waktu Tugas"
-                value="28 mnt"
-                trend="↓ 18%"
-                trendLabel="dari kemarin"
-                trendType="success"
-                icon={Clock}
-                iconVariant="warning"
-              />
-            </div>
-          </Panel>
-        </TabsContent>
-
-        {/* ====================================================================
-            TAB 4: BADGES & AVATARS
-            ==================================================================== */}
-        <TabsContent value="badges_avatars" className="space-y-8 mt-6">
-          {/* Avatars */}
-          <Panel title="Avatar System & Status Indicators">
-            <p className="text-xs text-[#525252] dark:text-[#CBD5E1] mb-4">
-              Avatar dengan inisial fallback dinamis, variasi warna peran, dan status dot indikator (online, busy, warning, offline).
-            </p>
-
-            <div className="space-y-6">
-              {/* Sizes */}
-              <div>
-                <h4 className="text-xs font-bold text-[#171717] dark:text-white mb-3">
-                  Ukuran Avatar (xs: 20px, sm: 24px, md: 32px, lg: 40px, xl: 48px)
-                </h4>
-                <div className="flex items-center gap-4">
-                  <Avatar fallback="SA" size="xs" status="online" />
-                  <Avatar fallback="BS" size="sm" status="online" />
-                  <Avatar fallback="CL" size="md" status="busy" />
-                  <Avatar fallback="DK" size="lg" status="warning" />
-                  <Avatar fallback="EW" size="xl" status="offline" />
-                </div>
+          {/* Section 2: Buttons */}
+          <Card>
+            <CardHeader
+              title="2. Tombol (Buttons) & Variasi Aksi"
+              subtitle="Warna primary biru #2563EB, accent orange #F97316, secondary outline, dan ghost."
+            />
+            <CardContent>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button variant="primary">Primary Blue</Button>
+                <Button variant="accent">Accent Orange</Button>
+                <Button variant="secondary">Secondary Outline</Button>
+                <Button variant="ghost">Ghost Button</Button>
+                <Button variant="success">Success</Button>
+                <Button variant="danger">Danger</Button>
+                <Button variant="primary" icon={Plus}>With Icon</Button>
+                <Button variant="accent" iconRight={Send}>Next Step</Button>
+                <Button variant="primary" isLoading>Loading State</Button>
+                <Button variant="primary" disabled>Disabled</Button>
               </div>
 
-              {/* Status Indicator Dots */}
-              <div>
-                <h4 className="text-xs font-bold text-[#171717] dark:text-white mb-3">
-                  Status Indicator Dots
-                </h4>
-                <div className="flex flex-wrap gap-6 items-center">
-                  <div className="flex items-center gap-2">
-                    <Avatar fallback="BS" status="online" variant="success" />
-                    <span className="text-xs text-[#525252] dark:text-[#CBD5E1]">Online / Aktif</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Avatar fallback="DK" status="busy" variant="primary" />
-                    <span className="text-xs text-[#525252] dark:text-[#CBD5E1]">Dalam Tugas</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Avatar fallback="EW" status="warning" variant="warning" />
-                    <span className="text-xs text-[#525252] dark:text-[#CBD5E1]">Tersedia / Standby</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Avatar fallback="FN" status="offline" variant="neutral" />
-                    <span className="text-xs text-[#525252] dark:text-[#CBD5E1]">Offline</span>
-                  </div>
-                </div>
+              <div className="flex flex-wrap items-center gap-3 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                <span className="text-xs text-slate-400">Ukuran:</span>
+                <Button variant="primary" size="sm">Small (sm)</Button>
+                <Button variant="primary" size="md">Medium (md)</Button>
+                <Button variant="primary" size="lg">Large (lg)</Button>
               </div>
-            </div>
-          </Panel>
+            </CardContent>
+          </Card>
 
-          {/* Badges & Status Pills */}
-          <Panel title="Badges & Semantic Status Pills (assets/img)">
-            <div className="space-y-6">
-              {/* Status Pills */}
-              <div>
-                <h4 className="text-xs font-bold text-[#171717] dark:text-white mb-3">
-                  Operational Status Pills
-                </h4>
-                <div className="flex flex-wrap gap-3 items-center">
-                  <Badge variant="live">Live Tracking</Badge>
-                  <Badge variant="aktif" withDot>Aktif</Badge>
-                  <Badge variant="tugas" withDot>Dalam Tugas</Badge>
-                  <Badge variant="tersedia" withDot>Tersedia</Badge>
-                  <Badge variant="offline" withDot>Offline</Badge>
-                  <Badge variant="orange" withDot>Pending Sync</Badge>
-                </div>
-              </div>
+          {/* Section 3: Form Controls */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader title="3. Form Input & Controls" subtitle="Input field, select dropdown, dan state error." />
+              <CardContent className="space-y-4">
+                <Input
+                  label="Nama Zona Geofence"
+                  placeholder="Contoh: Alun-Alun Sidoarjo"
+                  required
+                  helperText="Nama unik untuk identifikasi poligon wilayah operasional."
+                />
+                <Input
+                  label="Pencarian Rider"
+                  placeholder="Ketik nama atau ID..."
+                  icon={Filter}
+                />
+                <Input
+                  label="Input dengan Validasi Error"
+                  defaultValue="Invalid Value"
+                  error="Kapasitas maksimal harus lebih besar dari 0."
+                />
+                <Select
+                  label="Pilih Status Operasional"
+                  options={[
+                    { value: "ACTIVE", label: "Aktif (Beroperasi)" },
+                    { value: "INACTIVE", label: "Nonaktif" },
+                    { value: "MAINTENANCE", label: "Dalam Pemeliharaan" },
+                  ]}
+                />
+              </CardContent>
+            </Card>
 
-              {/* TOPSIS & Ranking Badges */}
-              <div>
-                <h4 className="text-xs font-bold text-[#171717] dark:text-white mb-3">
-                  DSS & TOPSIS Ranking Badges
-                </h4>
-                <div className="flex flex-wrap gap-3 items-center">
-                  <Badge variant="success">Terbaik</Badge>
-                  <Badge variant="success">Sangat Baik</Badge>
-                  <Badge variant="info">Baik</Badge>
-                  <Badge variant="warning">Cukup</Badge>
-                  <Badge variant="danger">Kurang</Badge>
-                </div>
-              </div>
-            </div>
-          </Panel>
-        </TabsContent>
+            <Card>
+              <CardHeader title="4. Switches, Checkboxes, & Tooltips" subtitle="Kontrol interaktif seleksi dan toggling." />
+              <CardContent className="space-y-5">
+                <Switch
+                  checked={switchVal}
+                  onChange={setSwitchVal}
+                  label="Aktifkan Geofence GPS Auto-Tracking"
+                  description="Kirim sinyal telemetri lokasi rider setiap 10 detik."
+                />
 
-        {/* ====================================================================
-            TAB 5: OPERATIONAL RIDER DATA TABLE
-            ==================================================================== */}
-        <TabsContent value="rider_table" className="space-y-8 mt-6">
-          <Panel title="Daftar Rider Table (assets/img/operational rider.png)">
-            <p className="text-xs text-[#525252] dark:text-[#CBD5E1] mb-4">
-              Replika presisi komponen tabel Daftar Rider dengan search, filter status, checkbox multi-select, avatar, zona badge, dan font typography Inter.
-            </p>
+                <Switch
+                  checked={false}
+                  label="Kunci Spot Penjualan Otomatis"
+                  description="Cegah rider lain masuk ke radius 100m dari spot yang sedang ditempati."
+                />
 
-            {/* Table Control Bar */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
-              <div className="flex items-center gap-2">
-                <div className="relative w-64">
-                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#737373]" />
-                  <input
-                    type="text"
-                    placeholder="Cari rider..."
-                    value={searchRider}
-                    onChange={(e) => setSearchRider(e.target.value)}
-                    className="w-full pl-9 pr-3 py-1.5 text-xs bg-white dark:bg-[#131822] border border-[#E5E5E5] dark:border-[#263244] rounded-lg text-[#171717] dark:text-white placeholder:text-[#A3A3A3] focus:outline-none focus:border-[#2563EB]"
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                  <Checkbox
+                    checked={checkboxVal}
+                    onChange={setCheckboxVal}
+                    label="Pilih seluruh rider di zona ini untuk penugasan massal"
+                  />
+                  <Checkbox
+                    checked={false}
+                    label="Kirim notifikasi push ke aplikasi mobile rider"
                   />
                 </div>
 
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  className="px-3 py-1.5 text-xs bg-white dark:bg-[#131822] border border-[#E5E5E5] dark:border-[#263244] rounded-lg text-[#171717] dark:text-white focus:outline-none focus:border-[#2563EB]"
-                >
-                  <option value="all">Semua Status</option>
-                  <option value="aktif">Aktif</option>
-                  <option value="tugas">Dalam Tugas</option>
-                  <option value="tersedia">Tersedia</option>
-                  <option value="offline">Offline</option>
-                </select>
-              </div>
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center gap-4">
+                  <span className="text-xs font-semibold text-slate-500">Tooltips:</span>
+                  <Tooltip content="Informasi algoritma Best-Worst Method (BWM)">
+                    <Button variant="secondary" size="sm">Hover Me (BWM Info)</Button>
+                  </Tooltip>
+                  <Tooltip content="Detail batas kuota armada">
+                    <Button variant="ghost" size="sm">Hover Me (Armada)</Button>
+                  </Tooltip>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
 
+      {/* TAB: Graphic Assets (Weather, Avatars, Gerobak/Armada) */}
+      {activeTab === "graphic-assets" && (
+        <div className="space-y-8">
+          {/* Section 1: Weather Graphic Icons (Rich SVGs replacing Material Icons) */}
+          <Card>
+            <CardHeader
+              title="1. Ikon Grafis Cuaca (Weather Image Assets)"
+              subtitle="Asset grafis cuaca SVG / gambar beresolusi tinggi menggantikan ikon font/material."
+            />
+            <CardContent>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                <div className="p-4 rounded-[12px] bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-col items-center text-center gap-3">
+                  <WeatherIcon condition="Cerah" size={56} />
+                  <div>
+                    <div className="text-xs font-bold text-slate-900 dark:text-white">Cerah / Sunny</div>
+                    <div className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">32°C • Terang</div>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-[12px] bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-col items-center text-center gap-3">
+                  <WeatherIcon condition="Cerah Berawan" size={56} />
+                  <div>
+                    <div className="text-xs font-bold text-slate-900 dark:text-white">Cerah Berawan</div>
+                    <div className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">30°C • Teduh</div>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-[12px] bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-col items-center text-center gap-3">
+                  <WeatherIcon condition="Berawan" size={56} />
+                  <div>
+                    <div className="text-xs font-bold text-slate-900 dark:text-white">Mendung / Cloudy</div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">28°C • Berawan</div>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-[12px] bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-col items-center text-center gap-3">
+                  <WeatherIcon condition="Hujan Ringan" size={56} />
+                  <div>
+                    <div className="text-xs font-bold text-slate-900 dark:text-white">Hujan / Rainy</div>
+                    <div className="text-[11px] text-blue-500 font-medium">25°C • Presipitasi</div>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-[12px] bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-col items-center text-center gap-3">
+                  <WeatherIcon condition="Petir Badai" size={56} />
+                  <div>
+                    <div className="text-xs font-bold text-slate-900 dark:text-white">Badai Petir</div>
+                    <div className="text-[11px] text-purple-600 dark:text-purple-400 font-medium">24°C • Waspada</div>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-[12px] bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-col items-center text-center gap-3">
+                  <WeatherIcon condition="Kabut" size={56} />
+                  <div>
+                    <div className="text-xs font-bold text-slate-900 dark:text-white">Berkabut / Foggy</div>
+                    <div className="text-[11px] text-slate-500 font-medium">26°C • Visibilitas</div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Section 2: User Avatar SVGs */}
+          <Card>
+            <CardHeader
+              title="2. Avatar User (Role-Based SVG & Status Badges)"
+              subtitle="Asset grafis avatar pengguna khusus Superadmin, Rider Lapangan, Area Manager, dan Operator."
+            />
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="p-4 rounded-[12px] bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center gap-4">
+                  <Avatar role="admin" size="lg" status="online" />
+                  <div>
+                    <div className="text-sm font-bold text-slate-900 dark:text-white">Super Admin</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">Headquarters Control</div>
+                    <span className="inline-block mt-1 px-2 py-0.5 rounded-[4px] text-[10px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                      SUPERADMIN
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-[12px] bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center gap-4">
+                  <Avatar role="rider" size="lg" status="online" />
+                  <div>
+                    <div className="text-sm font-bold text-slate-900 dark:text-white">Ahmad Fauzi</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">Rider ZON-SDA-01</div>
+                    <span className="inline-block mt-1 px-2 py-0.5 rounded-[4px] text-[10px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                      RIDER AKTIF
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-[12px] bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center gap-4">
+                  <Avatar role="rider" size="lg" status="busy" />
+                  <div>
+                    <div className="text-sm font-bold text-slate-900 dark:text-white">Budi Santoso</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">Rider ZON-SDA-02</div>
+                    <span className="inline-block mt-1 px-2 py-0.5 rounded-[4px] text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                      DALAM TUGAS
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-[12px] bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center gap-4">
+                  <Avatar role="manager" size="lg" status="offline" />
+                  <div>
+                    <div className="text-sm font-bold text-slate-900 dark:text-white">Dian Pratama</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">Area Manager Sidoarjo</div>
+                    <span className="inline-block mt-1 px-2 py-0.5 rounded-[4px] text-[10px] font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
+                      SUPERVISOR
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Section 3: Gerobak Kopi Keliling (Armada Cart Asset) */}
+          <Card>
+            <CardHeader
+              title="3. Gambar Gerobak Kopi Keliling (Mobile Coffee Cart / Armada)"
+              subtitle="Asset ilustrasi gerobak kopi keliling Indonesia dengan barista machine, canopy MOVA, dan roda mobilitas."
+            />
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="p-6 rounded-[12px] bg-gradient-to-b from-blue-50/50 to-white dark:from-slate-800 dark:to-slate-850 border border-slate-200 dark:border-slate-700 flex flex-col items-center text-center">
+                  <ArmadaIcon size={160} />
+                  <div className="mt-4">
+                    <div className="text-base font-bold text-slate-900 dark:text-white font-['Inter']">
+                      Gerobak Kopi Standar MOVA
+                    </div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      Armada tipe sepeda kopi dorong lengkap dengan mesin espresso & grinder.
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-6 rounded-[12px] bg-gradient-to-b from-emerald-50/50 to-white dark:from-slate-800 dark:to-slate-850 border border-slate-200 dark:border-slate-700 flex flex-col items-center text-center">
+                  <ArmadaIcon size={120} />
+                  <div className="mt-6 flex items-center justify-between w-full pt-4 border-t border-slate-200 dark:border-slate-700">
+                    <div className="text-left">
+                      <div className="text-xs font-bold text-slate-900 dark:text-white">ARM-SDA-01</div>
+                      <div className="text-[11px] text-slate-500">Unit Siap Pakai</div>
+                    </div>
+                    <StatusBadge status="AVAILABLE" />
+                  </div>
+                </div>
+
+                <div className="p-6 rounded-[12px] bg-gradient-to-b from-amber-50/50 to-white dark:from-slate-800 dark:to-slate-850 border border-slate-200 dark:border-slate-700 flex flex-col items-center text-center">
+                  <ArmadaIcon size={120} />
+                  <div className="mt-6 flex items-center justify-between w-full pt-4 border-t border-slate-200 dark:border-slate-700">
+                    <div className="text-left">
+                      <div className="text-xs font-bold text-slate-900 dark:text-white">ARM-SDA-04</div>
+                      <div className="text-[11px] text-slate-500">Dalam Penugasan</div>
+                    </div>
+                    <StatusBadge status="IN_USE" />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* TAB 2: Colors & Badges */}
+      {activeTab === "colors" && (
+        <div className="space-y-6">
+          <Card>
+            <CardHeader title="Status Badges SSOT" subtitle="Daftar badge status terstandarisasi untuk seluruh domain operasi." />
+            <CardContent>
+              <div className="flex flex-wrap gap-2.5">
+                <StatusBadge status="ACTIVE" />
+                <StatusBadge status="INACTIVE" />
+                <StatusBadge status="AVAILABLE" />
+                <StatusBadge status="IN_USE" />
+                <StatusBadge status="MAINTENANCE" />
+                <StatusBadge status="ON_DUTY" />
+                <StatusBadge status="ON_TIME" />
+                <StatusBadge status="LATE" />
+                <StatusBadge status="DEVIATION" />
+                <StatusBadge status="OFFLINE" />
+                <StatusBadge status="TERBAIK" />
+                <StatusBadge status="SANGAT_BAIK" />
+                <StatusBadge status="BAIK" />
+                <StatusBadge status="CUKUP" />
+                <StatusBadge status="SUPERADMIN" />
+                <StatusBadge status="MANAGEMENT" />
+                <StatusBadge status="SUPERVISOR" />
+                <StatusBadge status="RIDER" />
+                <StatusBadge status="COMPLIANT" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Color Palettes Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
+            <div className="p-4 rounded-[10px] bg-blue-600 text-white shadow-xs text-center">
+              <div className="font-bold text-sm">Primary</div>
+              <div className="text-xs opacity-80 font-mono">#2563EB</div>
+            </div>
+            <div className="p-4 rounded-[10px] bg-orange-500 text-white shadow-xs text-center">
+              <div className="font-bold text-sm">Accent Orange</div>
+              <div className="text-xs opacity-80 font-mono">#F97316</div>
+            </div>
+            <div className="p-4 rounded-[10px] bg-emerald-500 text-white shadow-xs text-center">
+              <div className="font-bold text-sm">Success</div>
+              <div className="text-xs opacity-80 font-mono">#10B981</div>
+            </div>
+            <div className="p-4 rounded-[10px] bg-amber-500 text-white shadow-xs text-center">
+              <div className="font-bold text-sm">Warning</div>
+              <div className="text-xs opacity-80 font-mono">#F59E0B</div>
+            </div>
+            <div className="p-4 rounded-[10px] bg-red-500 text-white shadow-xs text-center">
+              <div className="font-bold text-sm">Danger</div>
+              <div className="text-xs opacity-80 font-mono">#EF4444</div>
+            </div>
+            <div className="p-4 rounded-[10px] bg-slate-900 text-white border border-slate-800 shadow-xs text-center">
+              <div className="font-bold text-sm">Surface Dark</div>
+              <div className="text-xs opacity-80 font-mono">#131822</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: Tables & Data Grid */}
+      {activeTab === "tables" && (
+        <div className="space-y-6">
+          <TableContainer>
+            <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white font-['Inter']">
+                  Daftar Rider Operasional
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Data rider, lokasi terkini, status tugas, dan riwayat penugasan.
+                </p>
+              </div>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-                  <ListFilter className="w-3.5 h-3.5" />
-                  <span>Filter</span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={Filter}
+                  onClick={() => setIsDrawerOpen(true)}
+                >
+                  Filter & Detail
                 </Button>
-                <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Export</span>
-                </Button>
-                <Button variant="primary" size="sm" className="gap-1.5 text-xs">
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Penugasan Manual</span>
+                <Button
+                  variant="accent"
+                  size="sm"
+                  onClick={() => toast.success("Penugasan Massal", `${selectedRows.length} rider dipilih.`)}
+                >
+                  + Penugasan Massal
                 </Button>
               </div>
             </div>
 
-            {/* Table Container */}
-            <TableContainer>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-10 text-center">
+            <Table>
+              <TableHead>
+                <TableRow hoverable={false}>
+                  <TableHeaderCell width="40px">
+                    <input
+                      type="checkbox"
+                      checked={selectedRows.length === sampleTableData.length}
+                      onChange={toggleAll}
+                      className="w-4 h-4 text-blue-600 rounded-[4px] cursor-pointer"
+                    />
+                  </TableHeaderCell>
+                  <TableHeaderCell>ID Rider</TableHeaderCell>
+                  <TableHeaderCell>Nama Rider</TableHeaderCell>
+                  <TableHeaderCell>Zona Saat Ini</TableHeaderCell>
+                  <TableHeaderCell>Lokasi Terakhir</TableHeaderCell>
+                  <TableHeaderCell>Status</TableHeaderCell>
+                  <TableHeaderCell>Tugas Aktif</TableHeaderCell>
+                  <TableHeaderCell>Waktu Tugas</TableHeaderCell>
+                  <TableHeaderCell width="80px">Aksi</TableHeaderCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {sampleTableData.map((row) => (
+                  <TableRow
+                    key={row.id}
+                    selected={selectedRows.includes(row.id)}
+                    onClick={() => toggleRow(row.id)}
+                  >
+                    <TableCell>
                       <input
                         type="checkbox"
-                        onChange={handleSelectAll}
-                        checked={selectedRiders.length === sampleRiders.length}
-                        className="rounded border-[#E5E5E5] text-[#2563EB] focus:ring-[#2563EB] cursor-pointer"
+                        checked={selectedRows.includes(row.id)}
+                        onChange={() => toggleRow(row.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-4 h-4 text-blue-600 rounded-[4px] cursor-pointer"
                       />
-                    </TableHead>
-                    <TableHead className="w-12 text-center">No.</TableHead>
-                    <TableHead className="w-24">Rider ID</TableHead>
-                    <TableHead>Nama Rider</TableHead>
-                    <TableHead>Zona Saat Ini</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Posisi Terakhir</TableHead>
-                    <TableHead>Tugas Aktif</TableHead>
-                    <TableHead>Waktu</TableHead>
-                    <TableHead className="w-12 text-center">Aksi</TableHead>
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-mono font-semibold text-slate-900 dark:text-white">
+                        {row.id}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 text-[10px] font-bold flex items-center justify-center">
+                          {row.name.charAt(0)}
+                        </div>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">{row.name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-semibold text-blue-600 dark:text-blue-400">
+                        {row.zone}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-slate-500">{row.location}</TableCell>
+                    <TableCell>
+                      <StatusBadge status={row.status} size="sm" />
+                    </TableCell>
+                    <TableCell className="text-slate-500">{row.task}</TableCell>
+                    <TableCell className="font-medium">{row.duration}</TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsDrawerOpen(true);
+                        }}
+                      >
+                        <Sliders className="w-3.5 h-3.5" />
+                      </Button>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredRiders.map((rider, index) => {
-                    const isSelected = selectedRiders.includes(rider.id);
-                    return (
-                      <TableRow key={rider.id} isSelected={isSelected}>
-                        {/* Checkbox */}
-                        <TableCell className="text-center">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => handleSelectOne(rider.id)}
-                            className="rounded border-[#E5E5E5] text-[#2563EB] focus:ring-[#2563EB] cursor-pointer"
-                          />
-                        </TableCell>
+                ))}
+              </TableBody>
+            </Table>
 
-                        {/* No */}
-                        <TableCell className="text-center text-xs font-mono text-[#737373]">
-                          {index + 1}
-                        </TableCell>
+            <TablePagination
+              currentPage={currentPage}
+              totalPages={5}
+              totalItems={48}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+            />
+          </TableContainer>
 
-                        {/* Rider ID */}
-                        <TableCell className="font-mono text-xs font-bold text-[#171717] dark:text-white">
-                          {rider.riderId}
-                        </TableCell>
-
-                        {/* Nama Rider with Avatar */}
-                        <TableCell>
-                          <div className="flex items-center gap-2.5">
-                            <Avatar
-                              fallback={rider.name}
-                              size="sm"
-                              variant={rider.avatarVariant}
-                              status={rider.avatarStatus}
-                            />
-                            <div>
-                              <div className="font-semibold text-xs text-[#171717] dark:text-white">
-                                {rider.name}
-                              </div>
-                              <div className="text-[10px] text-[#737373] flex items-center gap-1">
-                                {rider.vehicle === "Gerobak Kopi" ? (
-                                  <GerobakKopiIcon className="w-3 h-3 text-[#EA580C]" />
-                                ) : (
-                                  <MotorListrikIcon className="w-3 h-3 text-[#2563EB]" />
-                                )}
-                                <span>{rider.vehicle}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </TableCell>
-
-                        {/* Zona */}
-                        <TableCell>
-                          <span className={`text-xs font-bold ${rider.zoneColor}`}>
-                            {rider.zone}
-                          </span>
-                        </TableCell>
-
-                        {/* Status */}
-                        <TableCell>
-                          <Badge variant={rider.status} withDot size="sm">
-                            {rider.statusLabel}
-                          </Badge>
-                        </TableCell>
-
-                        {/* Posisi Terakhir */}
-                        <TableCell className="font-mono text-xs text-[#737373] dark:text-[#94A3B8]">
-                          {rider.coords}
-                        </TableCell>
-
-                        {/* Tugas Aktif */}
-                        <TableCell className="text-xs text-[#525252] dark:text-[#CBD5E1]">
-                          {rider.task}
-                        </TableCell>
-
-                        {/* Waktu Tugas */}
-                        <TableCell className="text-xs font-mono text-[#737373] dark:text-[#94A3B8]">
-                          {rider.duration}
-                        </TableCell>
-
-                        {/* Aksi */}
-                        <TableCell className="text-center">
-                          <button className="p-1 rounded-md hover:bg-[#F0F0F0] dark:hover:bg-[#1E293B] text-[#737373] transition-colors">
-                            <MoreHorizontal className="w-4 h-4" />
-                          </button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Panel>
-        </TabsContent>
-
-        {/* ====================================================================
-            TAB 6: FORM CONTROLS & BUTTONS
-            ==================================================================== */}
-        <TabsContent value="controls" className="space-y-8 mt-6">
-          <Panel title="Buttons & Interactive Controls">
-            <div className="space-y-6">
-              {/* Button Variants */}
-              <div>
-                <h4 className="text-xs font-bold text-[#171717] dark:text-white mb-3">
-                  Button Variants (Primary Blue #2563EB)
-                </h4>
-                <div className="flex flex-wrap gap-3 items-center">
-                  <Button variant="primary" size="md">
-                    Primary Button
-                  </Button>
-                  <Button variant="secondary" size="md">
-                    Secondary Button
-                  </Button>
-                  <Button variant="outline" size="md">
-                    Outline Button
-                  </Button>
-                  <Button variant="ghost" size="md">
-                    Ghost Button
-                  </Button>
-                  <Button variant="destructive" size="md">
-                    Destructive Button
-                  </Button>
-                  <Button variant="primary" size="md" disabled>
-                    Disabled Button
-                  </Button>
-                </div>
-              </div>
-
-              {/* Form Inputs */}
-              <div>
-                <h4 className="text-xs font-bold text-[#171717] dark:text-white mb-3">
-                  Form Inputs (Radius 6px / md)
-                </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <Input placeholder="Nama Zona Geofence..." label="Input Text" />
-                  <Input placeholder="admin@kopikeliling.com" label="Input Email" />
-                  <Input placeholder="Password..." type="password" label="Input Password" />
-                </div>
-              </div>
+          {/* Skeleton Loaders Preview */}
+          <div className="pt-4 space-y-4">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+              Skeleton Loaders (State Memuat Data)
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <MetricCardSkeleton />
+              <MetricCardSkeleton />
+              <MetricCardSkeleton />
             </div>
-          </Panel>
-        </TabsContent>
-      </Tabs>
-    </div>
+            <TableSkeleton rows={3} columns={6} />
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: Feedback & Toast Triggers */}
+      {activeTab === "feedback" && (
+        <div className="space-y-6">
+          <Card>
+            <CardHeader title="Toast Notification Triggers" subtitle="Uji coba sistem floating toast notifications." />
+            <CardContent>
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  variant="success"
+                  onClick={() =>
+                    toast.success(
+                      "Data Berhasil Disimpan",
+                      "Perubahan konfigurasi bobot BWM telah diterapkan ke seluruh zona."
+                    )
+                  }
+                >
+                  Trigger Success Toast
+                </Button>
+                <Button
+                  variant="danger"
+                  onClick={() =>
+                    toast.error(
+                      "Koneksi GPS Terputus",
+                      "Rider #R-041 tidak merespons sinyal telemetri selama 15 menit."
+                    )
+                  }
+                >
+                  Trigger Error Toast
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() =>
+                    toast.warning(
+                      "Deviasi Geofence Terdeteksi",
+                      "Rider #R-021 berada 120m di luar poligon zona tugas."
+                    )
+                  }
+                >
+                  Trigger Warning Toast
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={() =>
+                    toast.info(
+                      "Sinkronisasi Cuaca Selesai",
+                      "Data Open-Meteo untuk Sidoarjo Hub telah dimutakhirkan."
+                    )
+                  }
+                >
+                  Trigger Info Toast
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader title="Empty State Component" subtitle="Tampilan saat query atau filter tidak menemukan hasil." />
+            <CardContent>
+              <EmptyState
+                title="Tidak Ada Armada Tersedia di Hub"
+                description="Seluruh 80 unit armada saat ini sedang beroperasi di lapangan atau dalam status perawatan berkala."
+                actionText="+ Tambah Unit Armada"
+                onAction={() => setIsModalOpen(true)}
+              />
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Interactive Demonstration Modal */}
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title="Tambah Zona Geofence Baru"
+        subtitle="Wizard 3 Langkah pembuatan zona operasional PostGIS."
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setIsModalOpen(false)}>
+              Batal
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                setIsModalOpen(false);
+                toast.success("Zona Berhasil Dibuat", "Zona baru telah ditambahkan ke sistem.");
+              }}
+            >
+              Simpan Zona
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <Input label="Nama Zona *" placeholder="Contoh: Zona E - Pasar Porong" />
+          <Input label="Deskripsi Area" placeholder="Deskripsi potensi wilayah komersial..." />
+          <Input label="Kapasitas Maksimal Rider" type="number" defaultValue="20" />
+          <Select
+            label="Status Operasional"
+            options={[
+              { value: "ACTIVE", label: "Aktif" },
+              { value: "INACTIVE", label: "Nonaktif" },
+            ]}
+          />
+        </div>
+      </Modal>
+
+      {/* Interactive Demonstration Drawer */}
+      <Drawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        title="Detail Zona & Performa Kriteria"
+        subtitle="Analisis multi-kriteria DSS BWM-TOPSIS ZON-SDA-01."
+        footer={
+          <div className="flex items-center justify-between w-full">
+            <Button variant="secondary" size="sm" onClick={() => setIsDrawerOpen(false)}>
+              Tutup
+            </Button>
+            <Button
+              variant="accent"
+              size="sm"
+              onClick={() => {
+                setIsDrawerOpen(false);
+                toast.success("Penugasan Disimpan", "Penugasan rider ke zona ini telah diperbarui.");
+              }}
+            >
+              Simpan Penugasan
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-5">
+          <div className="bg-slate-50 dark:bg-slate-850 p-4 rounded-[10px] border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-slate-500 font-medium">Skor Preferensi (Ci)</span>
+              <StatusBadge status="TERBAIK" />
+            </div>
+            <div className="text-3xl font-extrabold text-blue-600 dark:text-blue-400 font-['Inter']">
+              0.823
+            </div>
+            <div className="text-[11px] text-slate-500 mt-1">
+              Peringkat #1 dari 17 zona aktif di Kabupaten Sidoarjo.
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+              Breakdown Kriteria (C1-C6)
+            </h4>
+            {[
+              { code: "C1", name: "Densitas POI", score: "0.87", color: "bg-emerald-500" },
+              { code: "C2", name: "Diversitas POI", score: "0.76", color: "bg-blue-500" },
+              { code: "C3", name: "Keramaian Jam Operasi", score: "0.84", color: "bg-purple-500" },
+              { code: "C4", name: "Kesesuaian Cuaca", score: "0.82", color: "bg-amber-500" },
+              { code: "C5", name: "Jarak Hub ke Zona", score: "0.71", color: "bg-red-500" },
+              { code: "C6", name: "Kepadatan Kompetitor", score: "0.58", color: "bg-slate-500" },
+            ].map((crit) => (
+              <div key={crit.code} className="space-y-1">
+                <div className="flex justify-between text-xs font-medium">
+                  <span>{crit.code} - {crit.name}</span>
+                  <span className="font-bold">{crit.score}</span>
+                </div>
+                <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full ${crit.color} rounded-full`}
+                    style={{ width: `${parseFloat(crit.score) * 100}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Drawer>
+    </AppLayout>
   );
 }
-
-export default ShowcasePage;

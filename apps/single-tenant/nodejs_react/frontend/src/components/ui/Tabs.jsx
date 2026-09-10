@@ -1,83 +1,92 @@
 import React from "react";
-import { cn } from "../../lib/utils.js";
 
-export function Tabs({ value, onValueChange, className, children, ...props }) {
-  return (
-    <div className={cn("w-full space-y-3", className)} {...props}>
-      {React.Children.map(children, (child) => {
-        if (!React.isValidElement(child)) return null;
-        return React.cloneElement(child, { activeValue: value, onValueChange });
-      })}
-    </div>
-  );
-}
-
-export function TabsList({ activeValue, onValueChange, className, children, ...props }) {
-  return (
-    <div
-      role="tablist"
-      className={cn(
-        "inline-flex items-center gap-1 p-1 bg-slate-100 dark:bg-[#131822] rounded-[6px] border border-slate-200 dark:border-[#1E293B] text-xs font-semibold overflow-x-auto max-w-full select-none",
-        className
-      )}
-      {...props}
-    >
-      {React.Children.map(children, (child) => {
-        if (!React.isValidElement(child)) return null;
-        return React.cloneElement(child, {
-          isActive: child.props.value === activeValue,
-          onSelect: () => onValueChange?.(child.props.value),
-        });
-      })}
-    </div>
-  );
-}
-
-export function TabsTrigger({
-  value,
-  isActive = false,
-  onSelect,
-  disabled = false,
-  leftIcon: LeftIcon = null,
-  children,
+/**
+ * MOVA Design System v3.0 Tabs Component
+ * Variants: 'pill' (Background toggle) | 'underline' (Underlined active tab)
+ */
+export function Tabs({
+  tabs = [],
+  activeTab,
+  onChange,
+  variant = "pill", // 'pill' | 'underline'
+  size = "md",
   className = "",
-  ...props
 }) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={isActive}
-      disabled={disabled}
-      onClick={onSelect}
-      className={cn(
-        "inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-[4px] transition-all min-h-[30px] cursor-pointer whitespace-nowrap text-xs font-medium",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#EA580C] focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-[#0B0F17]",
-        "disabled:opacity-40 disabled:cursor-not-allowed",
-        isActive
-          ? "bg-white dark:bg-[#1E293B] text-slate-900 dark:text-white font-bold border border-slate-300/80 dark:border-[#334155] shadow-2xs"
-          : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-[#1E293B]/60 border border-transparent",
-        className
-      )}
-      {...props}
-    >
-      {LeftIcon && <LeftIcon className="w-3.5 h-3.5 shrink-0 text-[#EA580C]" />}
-      <span>{children}</span>
-    </button>
-  );
-}
+  if (variant === "underline") {
+    return (
+      <div className={`border-b border-slate-200 dark:border-slate-800 flex gap-6 ${className}`}>
+        {tabs.map((tab) => {
+          const isActive = activeTab === tab.id;
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => onChange && onChange(tab.id)}
+              className={`pb-3 text-sm font-['Inter'] font-medium transition-all duration-150 flex items-center gap-2 relative ${
+                isActive
+                  ? "text-blue-600 dark:text-blue-400 font-semibold"
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+              }`}
+            >
+              {Icon && <Icon className="w-4 h-4" />}
+              <span>{tab.label}</span>
+              {tab.badge !== undefined && (
+                <span
+                  className={`text-[10px] font-semibold px-1.5 py-0.2 rounded-full ${
+                    isActive
+                      ? "bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300"
+                      : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                  }`}
+                >
+                  {tab.badge}
+                </span>
+              )}
+              {isActive && (
+                <span className="absolute bottom-0 inset-x-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-full" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
 
-export function TabsContent({ value, activeValue, onValueChange, className, children, ...props }) {
-  if (value !== activeValue) return null;
-
+  // Default: Pill style
   return (
     <div
-      role="tabpanel"
-      className={cn("animate-in fade-in duration-150 outline-none", className)}
-      {...props}
+      className={`inline-flex items-center bg-slate-100/90 dark:bg-slate-800/90 p-1 rounded-[10px] border border-slate-200/80 dark:border-slate-750 gap-1 ${className}`}
     >
-      {children}
+      {tabs.map((tab) => {
+        const isActive = activeTab === tab.id;
+        const Icon = tab.icon;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => onChange && onChange(tab.id)}
+            className={`px-3 py-1.5 rounded-[7px] text-xs font-['Inter'] font-semibold transition-all duration-150 flex items-center gap-1.5 select-none ${
+              isActive
+                ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+            }`}
+          >
+            {Icon && <Icon className="w-3.5 h-3.5" />}
+            <span>{tab.label}</span>
+            {tab.badge !== undefined && (
+              <span
+                className={`text-[10px] font-semibold px-1.5 py-0.2 rounded-full ${
+                  isActive
+                    ? "bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400"
+                    : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                }`}
+              >
+                {tab.badge}
+              </span>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }
-

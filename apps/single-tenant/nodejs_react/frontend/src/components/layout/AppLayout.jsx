@@ -1,42 +1,45 @@
-import React from "react";
+import React, { useState } from "react";
 import { Sidebar } from "./Sidebar.jsx";
 import { Topbar } from "./Topbar.jsx";
-import { ErrorBoundary } from "../common/ErrorBoundary.jsx";
-import { cn } from "../../lib/utils.js";
 
-/**
- * MOVA AppLayout — Design System v3.0 SSOT
- * Exact match with assets/img (dss.png, map ops.png, operational rider.png, dashboard.png):
- * - Left: 240px expanded dark Sidebar
- * - Right: Topbar (56px) + Scrollable / Full-bleed Main Workspace
- */
-export function AppLayout({ children, title, breadcrumb, className = "", fullBleed = false }) {
+export function AppLayout({ children }) {
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#F8FAFC] dark:bg-[#0B0F17] text-[#0F172A] dark:text-[#F8FAFC] font-sans antialiased selection:bg-[#EA580C]/20 selection:text-[#EA580C] transition-colors duration-150">
-      {/* 1. Persistent 240px Expanded Dark Navigation Sidebar */}
-      <Sidebar />
+    <div className="min-h-screen bg-slate-50 dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 flex font-['Inter']">
+      {/* Desktop Sidebar */}
+      <div className="hidden lg:block">
+        <Sidebar
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        />
+      </div>
 
-      {/* 2. Main Content Viewport */}
-      <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
-        {/* Sticky Control Room Topbar */}
-        <Topbar title={title} breadcrumb={breadcrumb} />
+      {/* Mobile Drawer Sidebar */}
+      {mobileSidebarOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div
+            onClick={() => setMobileSidebarOpen(false)}
+            className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs"
+          />
+          <div className="fixed inset-y-0 left-0 w-64 z-10">
+            <Sidebar collapsed={false} />
+          </div>
+        </div>
+      )}
 
-        {/* Page Content Container */}
-        <main
-          className={cn(
-            fullBleed
-              ? "flex-1 w-full h-[calc(100vh-56px)] p-0 m-0 overflow-hidden relative"
-              : "flex-1 w-full overflow-y-auto p-6 space-y-6",
-            className
-          )}
-        >
-          <ErrorBoundary mode="widget" title="Terjadi kendala pada komponen ini">
-            {children}
-          </ErrorBoundary>
+      {/* Main Content Area */}
+      <div
+        className={`flex-1 flex flex-col min-w-0 transition-all duration-200 ${
+          sidebarCollapsed ? "lg:pl-18" : "lg:pl-60"
+        }`}
+      >
+        <Topbar onToggleSidebar={() => setMobileSidebarOpen(true)} />
+        <main className="flex-1 p-4 sm:p-6 lg:p-7 max-w-full overflow-x-hidden">
+          {children}
         </main>
       </div>
     </div>
   );
 }
-
-export default AppLayout;

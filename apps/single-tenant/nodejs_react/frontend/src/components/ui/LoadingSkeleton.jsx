@@ -1,70 +1,49 @@
 import React from "react";
-import { cn } from "../../lib/utils.js";
-import { Skeleton } from "./Skeleton.jsx";
 
 /**
- * MOVA Loading Skeleton Primitives (Enterprise Obsidian SSOT)
+ * MOVA Design System v3.0 Loading Skeleton Components
  */
-
-export function MetricSkeleton({ count = 4, className = "" }) {
+export function Skeleton({ className = "", rounded = "rounded-[8px]" }) {
   return (
-    <div className={cn("grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4", className)}>
-      {Array.from({ length: count }).map((_, i) => (
-        <div
-          key={i}
-          className="bg-white dark:bg-[#131822] p-4 md:p-5 rounded-[6px] border border-slate-200 dark:border-[#1E293B] space-y-3 shadow-xs transition-colors"
-        >
-          <div className="flex justify-between items-center">
-            <Skeleton className="h-3 w-24 rounded-[4px]" />
-            <Skeleton className="h-4 w-12 rounded-full" />
-          </div>
-          <Skeleton className="h-8 w-32 rounded-[4px]" />
-          <Skeleton className="h-3 w-40 rounded-[4px]" />
+    <div
+      className={`animate-pulse bg-slate-200/80 dark:bg-slate-800 ${rounded} ${className}`}
+    />
+  );
+}
+
+export function MetricCardSkeleton() {
+  return (
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[12px] p-5 shadow-xs flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-3 w-24" />
+        <Skeleton className="h-9 w-9" rounded="rounded-[8px]" />
+      </div>
+      <Skeleton className="h-7 w-20" />
+      <div className="flex items-center justify-between pt-1">
+        <Skeleton className="h-3 w-28" />
+        <Skeleton className="h-3 w-12" />
+      </div>
+    </div>
+  );
+}
+
+export function TableSkeleton({ rows = 5, columns = 5 }) {
+  return (
+    <div className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[12px] overflow-hidden p-4 space-y-3">
+      <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+        <Skeleton className="h-4 w-32" />
+        <Skeleton className="h-8 w-48" />
+      </div>
+      {Array.from({ length: rows }).map((_, rIdx) => (
+        <div key={rIdx} className="flex items-center gap-4 py-2">
+          {Array.from({ length: columns }).map((_, cIdx) => (
+            <Skeleton
+              key={cIdx}
+              className={`h-4 ${cIdx === 0 ? "w-10" : "flex-1"}`}
+            />
+          ))}
         </div>
       ))}
     </div>
   );
 }
-
-export function PanelSkeleton({ className = "", height = "h-48" }) {
-  return (
-    <div
-      className={cn(
-        "bg-white dark:bg-[#131822] p-5 rounded-[6px] border border-slate-200 dark:border-[#1E293B] space-y-4 shadow-xs transition-colors",
-        className
-      )}
-    >
-      <div className="flex justify-between items-center border-b border-slate-200 dark:border-[#1E293B] pb-3">
-        <div className="space-y-1">
-          <Skeleton className="h-4 w-40 rounded-[4px]" />
-          <Skeleton className="h-3 w-56 rounded-[4px]" />
-        </div>
-        <Skeleton className="h-6 w-20 rounded-[4px]" />
-      </div>
-      <Skeleton className={cn("w-full rounded-[4px]", height)} />
-    </div>
-  );
-}
-
-export function TableSkeleton({ rows = 5, cols = 4, className = "" }) {
-  return (
-    <div className={cn("bg-white dark:bg-[#131822] rounded-[6px] border border-slate-200 dark:border-[#1E293B] overflow-hidden shadow-xs transition-colors", className)}>
-      <div className="p-4 border-b border-slate-200 dark:border-[#1E293B] bg-slate-50 dark:bg-[#0B0F17] flex justify-between">
-        <Skeleton className="h-4 w-32 rounded-[4px]" />
-        <Skeleton className="h-4 w-20 rounded-[4px]" />
-      </div>
-      <div className="divide-y divide-slate-100 dark:divide-[#1E293B] p-2">
-        {Array.from({ length: rows }).map((_, rIdx) => (
-          <div key={rIdx} className="py-3 px-2 flex items-center justify-between gap-4">
-            {Array.from({ length: cols }).map((_, cIdx) => (
-              <Skeleton key={cIdx} className="h-3.5 flex-1 rounded-[4px]" />
-            ))}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-export const LoadingSkeleton = MetricSkeleton;
-

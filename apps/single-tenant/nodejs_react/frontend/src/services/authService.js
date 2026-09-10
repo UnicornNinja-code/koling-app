@@ -14,6 +14,14 @@ export const authService = {
   },
 
   /**
+   * Register or activate user account
+   */
+  register: async (userData) => {
+    const res = await axiosInstance.post("/auth/register", userData);
+    return res.data;
+  },
+
+  /**
    * Fetch currently authenticated user profile
    */
   getMe: async () => {

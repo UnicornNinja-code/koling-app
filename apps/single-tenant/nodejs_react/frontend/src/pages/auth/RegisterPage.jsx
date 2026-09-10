@@ -1,285 +1,301 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate, useSearchParams, Link } from "react-router-dom";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import React, { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  User,
+  Mail,
+  Lock,
+  Phone,
+  Key,
+  ArrowRight,
+  CheckCircle2,
+  AlertCircle,
+  UserPlus,
+} from "lucide-react";
 import { authService } from "../../services/authService.js";
-import { User, Lock, CheckCircle2, ArrowLeft, ArrowRight, ShieldCheck, KeyRound, Mail, Calendar } from "lucide-react";
-import { Button, Input, Alert, Card, MovaLogo } from "../../components/ui";
+import { useToast } from "../../components/ui/Toast.jsx";
+import { Button } from "../../components/ui/Button.jsx";
+import { AuthLayout } from "../../components/layout/AuthLayout.jsx";
 
-const tokenActivationSchema = z
-  .object({
-    name: z.string().optional(),
-    birth_date: z.string().min(1, "Tanggal lahir wajib diisi sebagai identitas resmi personel"),
-    password: z
-      .string()
-      .min(8, "Password minimal 8 karakter")
-      .regex(/[A-Z]/, "Password harus mengandung minimal 1 huruf besar (A-Z)")
-      .regex(/[a-z]/, "Password harus mengandung minimal 1 huruf kecil (a-z)")
-      .regex(/[0-9]/, "Password harus mengandung minimal 1 angka (0-9)"),
-    confirmPassword: z.string().min(1, "Konfirmasi password wajib diisi"),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Konfirmasi password tidak cocok dengan password baru",
-    path: ["confirmPassword"],
-  });
-
-const requestActivationSchema = z.object({
-  emailOrUsername: z.string().min(3, "Email atau username akun terdaftar wajib diisi"),
-});
-
-export function AccountActivationPage() {
+export function RegisterPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const tokenFromUrl = searchParams.get("token");
+  const { toast } = useToast();
 
-  const [verifyingToken, setVerifyingToken] = useState(!!tokenFromUrl);
-  const [tokenValid, setTokenValid] = useState(false);
-  const [tokenUserData, setTokenUserData] = useState(null);
-
-  const [step, setStep] = useState(tokenFromUrl ? 2 : 1);
-  const [successMsg, setSuccessMsg] = useState(null);
-  const [errorMsg, setErrorMsg] = useState(null);
-  const [loading, setLoading] = useState(false);
-
-  const {
-    register: registerPassword,
-    handleSubmit: handleSubmitPassword,
-    formState: { errors: passwordErrors },
-  } = useForm({
-    resolver: zodResolver(tokenActivationSchema),
+  const [formData, setFormData] = useState({
+    name: "",
+    username: "",
+    email: "",
+    phone: "",
+    birth_date: "",
+    password: "",
+    confirmPassword: "",
+    token: "",
   });
 
-  const {
-    register: registerRequest,
-    handleSubmit: handleSubmitRequest,
-    formState: { errors: requestErrors },
-  } = useForm({
-    resolver: zodResolver(requestActivationSchema),
-  });
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
-  useEffect(() => {
-    async function verifyToken() {
-      if (!tokenFromUrl) {
-        setVerifyingToken(false);
-        return;
-      }
-      try {
-        const res = await authService.verifyResetToken(tokenFromUrl);
-        setTokenValid(true);
-        setTokenUserData(res);
-        setStep(2);
-      } catch (err) {
-        setErrorMsg(
-          err?.response?.data?.msg ||
-            "Tautan aktivasi tidak valid atau telah kedaluwarsa. Silakan minta tautan baru."
-        );
-        setTokenValid(false);
-        setStep(1);
-      } finally {
-        setVerifyingToken(false);
-      }
-    }
-    verifyToken();
-  }, [tokenFromUrl]);
-
-  const onRequestActivation = async (data) => {
-    setLoading(true);
-    setErrorMsg(null);
-    try {
-      const res = await authService.forgotPassword(data.emailOrUsername);
-      setSuccessMsg(
-        res?.msg ||
-          "Tautan aktivasi telah dikirimkan ke email terdaftar. Silakan periksa kotak masuk email Anda."
-      );
-    } catch (err) {
-      setErrorMsg(
-        err?.response?.data?.msg ||
-          err?.response?.data?.message ||
-          err?.message ||
-          "Gagal memproses permintaan aktivasi. Pastikan email terdaftar pada sistem."
-      );
-    } finally {
-      setLoading(false);
-    }
+  const handleChange = (field, value) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const onSetPassword = async (data) => {
-    setLoading(true);
-    setErrorMsg(null);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    if (!formData.name.trim() || !formData.email.trim() || !formData.password.trim()) {
+      setErrorMessage("Mohon lengkapi kolom nama, email, dan kata sandi.");
+      return;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      setErrorMessage("Konfirmasi kata sandi tidak cocok.");
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      setErrorMessage("Kata sandi harus memiliki minimal 6 karakter.");
+      return;
+    }
+
+    if (!agreedToTerms) {
+      setErrorMessage("Anda harus menyetujui Kebijakan Operasional Mova Sejuta Jiwa.");
+      return;
+    }
+
+    setIsLoading(true);
     try {
-      await authService.activateAccount({
-        token: tokenFromUrl,
-        password: data.password,
-        name: data.name || tokenUserData?.name,
-        birth_date: data.birth_date,
-      });
-      setSuccessMsg("Akun berhasil diaktifkan! Silakan masuk menggunakan kata sandi baru.");
-      setStep(3);
+      const payload = {
+        name: formData.name,
+        username: formData.username || formData.email.split("@")[0],
+        email: formData.email,
+        phone: formData.phone || undefined,
+        birth_date: formData.birth_date || undefined,
+        password: formData.password,
+        token: formData.token ? formData.token.trim() : undefined,
+      };
+
+      const res = await authService.register(payload);
+      const msg = res.msg || "Akun berhasil didaftarkan! Silakan masuk.";
+      setSuccessMessage(msg);
+      toast.success("Registrasi Berhasil", msg);
+
+      setTimeout(() => {
+        navigate("/login");
+      }, 1500);
     } catch (err) {
-      setErrorMsg(
-        err?.response?.data?.msg ||
-          err?.response?.data?.message ||
-          err?.message ||
-          "Gagal mengaktifkan akun. Tautan aktivasi mungkin telah kedaluwarsa."
-      );
+      const msg =
+        err.response?.data?.msg ||
+        err.response?.data?.message ||
+        "Gagal melakukan registrasi. Silakan periksa kembali data Anda.";
+      setErrorMessage(msg);
+      toast.danger("Registrasi Gagal", msg);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
-
-  if (verifyingToken) {
-    return (
-      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4">
-        <div className="w-8 h-8 border-4 border-[#ea580c] border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
 
   return (
-    <div className="relative min-h-screen bg-[#F8FAFC] flex flex-col justify-center py-10 sm:px-6 lg:px-8 px-4 font-sans select-none overflow-hidden">
-      {/* Background Watermark */}
-      <div className="absolute -top-16 -right-16 text-[220px] font-black text-slate-200/40 select-none pointer-events-none tracking-tighter leading-none hidden md:block">
-        Mova.
-      </div>
-
-      <div className="sm:mx-auto sm:w-full sm:max-w-md z-10">
-        <div className="text-center space-y-2 mb-6">
-          <MovaLogo size="xl" showSubtitle subtitle="Aktivasi Akun & Verifikasi Personel" className="items-center" />
+    <AuthLayout>
+      {/* Right Side Clean White Form */}
+      <div className="w-full max-w-lg mx-auto my-auto py-2">
+        {/* Header */}
+        <div className="mb-5">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 text-xs font-bold mb-3 border border-blue-100 dark:border-blue-900">
+            <UserPlus className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+            <span>Pendaftaran Akun</span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+            Buat Akun Baru Mova
+          </h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            Daftarkan akun operasional Anda untuk Sejuta Jiwa Cabang Sidoarjo.
+          </p>
         </div>
 
-        <Card className="bg-white py-8 px-6 sm:px-8 rounded-[8px] border border-[#E2E8F0] shadow-sm space-y-5">
-          {errorMsg && <Alert variant="danger" title="Kendala Aktivasi">{errorMsg}</Alert>}
-          {successMsg && step !== 3 && <Alert variant="success" title="Instruksi Terkirim">{successMsg}</Alert>}
+        {/* Success Alert */}
+        {successMessage && (
+          <div className="mb-4 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 text-emerald-700 dark:text-emerald-300 text-xs flex items-center gap-2.5">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            <span>{successMessage} Mengalihkan ke halaman masuk...</span>
+          </div>
+        )}
 
-          {/* STEP 1: REQUEST ACTIVATION LINK */}
-          {step === 1 && !successMsg && (
-            <form onSubmit={handleSubmitRequest(onRequestActivation)} className="space-y-4">
-              <div className="p-3 bg-blue-50/70 rounded-[6px] border border-blue-200 text-xs text-blue-900 flex items-start gap-2.5">
-                <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                <p className="leading-relaxed">
-                  Akun Anda telah didaftarkan oleh Administrator MOVA. Masukkan email terdaftar untuk menerima tautan aktivasi.
-                </p>
+        {/* Error Alert */}
+        {errorMessage && (
+          <div className="mb-4 p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 text-red-600 dark:text-red-400 text-xs flex items-start gap-2.5">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-3.5">
+          {/* Full Name */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+              Nama Lengkap
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <User className="w-4 h-4" />
               </div>
-
-              <Input
-                label="Alamat Email Terdaftar"
-                leftIcon={Mail}
-                type="email"
-                placeholder="nama@domain.com"
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => handleChange("name", e.target.value)}
+                placeholder="Ahmad Fauzi"
+                className="w-full pl-10 pr-3.5 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
                 required
-                error={requestErrors.emailOrUsername?.message}
-                {...registerRequest("emailOrUsername")}
               />
-
-              <Button
-                type="submit"
-                variant="primary"
-                size="md"
-                isPending={loading}
-                className="w-full py-2.5 font-bold"
-                rightIcon={ArrowRight}
-              >
-                {loading ? "Memproses Permintaan..." : "Kirim Tautan Aktivasi"}
-              </Button>
-            </form>
-          )}
-
-          {/* STEP 2: SET PASSWORD & BIRTH DATE */}
-          {step === 2 && (
-            <form onSubmit={handleSubmitPassword(onSetPassword)} className="space-y-4">
-              <div className="p-3 bg-emerald-50/80 rounded-[6px] border border-emerald-200 text-xs text-emerald-900 flex items-start gap-2.5">
-                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                <div className="leading-relaxed">
-                  <p className="font-semibold">Tautan aktivasi terverifikasi untuk {tokenUserData?.email || "Personel MOVA"}.</p>
-                  <p className="text-[11px] text-emerald-700 mt-0.5">Lengkapi tanggal lahir dan buat kata sandi baru untuk mengaktifkan akun.</p>
-                </div>
-              </div>
-
-              <Input
-                label="Tanggal Lahir Personel"
-                type="date"
-                leftIcon={Calendar}
-                required
-                error={passwordErrors.birth_date?.message}
-                {...registerPassword("birth_date")}
-              />
-
-              <Input
-                label="Kata Sandi Baru (Min. 8 Karakter)"
-                type="password"
-                leftIcon={Lock}
-                placeholder="••••••••"
-                required
-                helperText="Mengandung huruf besar, huruf kecil, dan angka"
-                error={passwordErrors.password?.message}
-                {...registerPassword("password")}
-              />
-
-              <Input
-                label="Konfirmasi Kata Sandi Baru"
-                type="password"
-                leftIcon={KeyRound}
-                placeholder="••••••••"
-                required
-                error={passwordErrors.confirmPassword?.message}
-                {...registerPassword("confirmPassword")}
-              />
-
-              <Button
-                type="submit"
-                variant="primary"
-                size="md"
-                isPending={loading}
-                className="w-full py-2.5 font-bold"
-                rightIcon={ArrowRight}
-              >
-                {loading ? "Mengaktifkan Akun..." : "Aktifkan Akun Saya"}
-              </Button>
-            </form>
-          )}
-
-          {/* STEP 3: SUCCESS */}
-          {step === 3 && (
-            <div className="text-center py-4 space-y-4">
-              <div className="w-16 h-16 bg-emerald-50 border-2 border-emerald-200 rounded-full flex items-center justify-center text-emerald-600 mx-auto shadow-xs">
-                <CheckCircle2 className="w-8 h-8" />
-              </div>
-
-              <div className="space-y-1">
-                <h3 className="font-extrabold text-lg text-[#111111]">
-                  Akun Berhasil Diaktifkan!
-                </h3>
-                <p className="text-xs text-[#64748B] max-w-xs mx-auto">
-                  Kata sandi baru Anda telah aktif. Silakan masuk ke aplikasi MOVA.
-                </p>
-              </div>
-
-              <Button
-                onClick={() => navigate("/login")}
-                variant="primary"
-                size="md"
-                className="w-full py-2.5 font-bold"
-                rightIcon={ArrowRight}
-              >
-                Masuk ke Halaman Login
-              </Button>
             </div>
-          )}
+          </div>
 
-          <div className="pt-3 border-t border-[#E2E8F0] text-center">
+          {/* Email & Phone Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Alamat Email
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                  <Mail className="w-4 h-4" />
+                </div>
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => handleChange("email", e.target.value)}
+                  placeholder="fauzi@email.com"
+                  className="w-full pl-10 pr-3.5 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Nomor WhatsApp / HP
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                  <Phone className="w-4 h-4" />
+                </div>
+                <input
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => handleChange("phone", e.target.value)}
+                  placeholder="081234567890"
+                  className="w-full pl-10 pr-3.5 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Password & Confirm Password Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Kata Sandi
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <input
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) => handleChange("password", e.target.value)}
+                  placeholder="Min. 6 karakter"
+                  className="w-full pl-10 pr-3.5 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Konfirmasi Sandi
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <input
+                  type="password"
+                  value={formData.confirmPassword}
+                  onChange={(e) => handleChange("confirmPassword", e.target.value)}
+                  placeholder="Ulangi kata sandi"
+                  className="w-full pl-10 pr-3.5 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
+                  required
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Activation Token (Optional) */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+              Token Aktivasi Undangan (Opsional)
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <Key className="w-4 h-4" />
+              </div>
+              <input
+                type="text"
+                value={formData.token}
+                onChange={(e) => handleChange("token", e.target.value)}
+                placeholder="Isi jika menerima token undangan aktivasi dari admin"
+                className="w-full pl-10 pr-3.5 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 font-mono"
+              />
+            </div>
+          </div>
+
+          {/* Terms Checkbox */}
+          <label className="flex items-start gap-2.5 cursor-pointer pt-1">
+            <input
+              type="checkbox"
+              checked={agreedToTerms}
+              onChange={(e) => setAgreedToTerms(e.target.checked)}
+              className="w-4 h-4 mt-0.5 rounded border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500/20 cursor-pointer shrink-0"
+            />
+            <span className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+              Saya menyetujui Ketentuan Layanan, Kebijakan Privasi, dan Standar Operasi Mova Sejuta Jiwa.
+            </span>
+          </label>
+
+          {/* Submit Button */}
+          <Button
+            type="submit"
+            variant="primary"
+            size="lg"
+            className="w-full mt-2 font-bold py-3 text-sm rounded-xl shadow-md shadow-blue-500/20"
+            isLoading={isLoading}
+            icon={ArrowRight}
+          >
+            Daftarkan Akun
+          </Button>
+        </form>
+
+        {/* Footer */}
+        <div className="mt-5 text-center space-y-2">
+          <div className="text-xs text-slate-500 dark:text-slate-400">
+            Sudah memiliki akun terdaftar?{" "}
             <Link
               to="/login"
-              className="inline-flex items-center gap-1.5 text-xs text-[#64748B] hover:text-[#2563EB] font-bold"
+              className="font-bold text-blue-600 dark:text-blue-400 hover:underline"
             >
-              <ArrowLeft className="w-3.5 h-3.5" /> Kembali ke Halaman Masuk
+              Masuk ke Akun
             </Link>
           </div>
-        </Card>
+          <div className="text-[11px] text-slate-400">
+            Dibuat untuk operasional <span className="font-semibold text-slate-600 dark:text-slate-300">Sejuta Jiwa Cabang Sidoarjo</span>
+          </div>
+        </div>
       </div>
-    </div>
+    </AuthLayout>
   );
 }
 
-export const RegisterPage = AccountActivationPage;
-export default AccountActivationPage;
+export default RegisterPage;

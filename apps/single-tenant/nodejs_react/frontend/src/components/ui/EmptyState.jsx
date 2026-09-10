@@ -1,34 +1,36 @@
 import React from "react";
-import { cn } from "../../lib/utils.js";
 import { Inbox } from "lucide-react";
+import { Button } from "./Button.jsx";
 
 /**
- * MOVA Empty State Component
- * Displayed for valid API responses that contain NO_DATA or 0 records.
+ * MOVA Design System v3.0 EmptyState Component
  */
 export function EmptyState({
-  title = "Belum Ada Data",
-  description = "Tidak ada rekaman data yang tersedia untuk parameter filter ini.",
   icon: Icon = Inbox,
-  action = null,
+  title = "Tidak Ada Data Ditemukan",
+  description = "Belum ada data atau catatan yang sesuai dengan filter yang dipilih saat ini.",
+  actionText,
+  onAction,
   className = "",
 }) {
   return (
     <div
-      className={cn(
-        "flex flex-col items-center justify-center p-8 text-center space-y-3 rounded-[6px] border border-dashed border-slate-300 dark:border-[#334155] bg-white dark:bg-[#131822] shadow-2xs transition-colors",
-        className
-      )}
+      className={`flex flex-col items-center justify-center p-8 text-center bg-white dark:bg-slate-900 border border-dashed border-slate-200 dark:border-slate-800 rounded-[12px] ${className}`}
     >
-      <div className="w-10 h-10 rounded-[6px] bg-slate-100 dark:bg-[#1E293B] text-slate-500 dark:text-slate-400 flex items-center justify-center border border-slate-200 dark:border-[#334155]">
-        <Icon className="w-5 h-5" />
+      <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-400 dark:text-slate-500 mb-3.5">
+        <Icon className="w-6 h-6" />
       </div>
-      <div className="space-y-1 max-w-sm">
-        <h4 className="text-sm font-heading font-bold text-slate-900 dark:text-white">{title}</h4>
-        <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{description}</p>
-      </div>
-      {action && <div className="pt-2">{action}</div>}
+      <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 font-['Inter'] mb-1">
+        {title}
+      </h4>
+      <p className="text-xs text-slate-500 dark:text-slate-400 font-['Inter'] max-w-sm mb-4 leading-relaxed">
+        {description}
+      </p>
+      {actionText && onAction && (
+        <Button variant="primary" size="sm" onClick={onAction}>
+          {actionText}
+        </Button>
+      )}
     </div>
   );
 }
-

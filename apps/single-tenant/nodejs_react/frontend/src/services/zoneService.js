@@ -14,6 +14,16 @@ export const zoneService = {
     return res.data;
   },
 
+  getConfig: async () => {
+    const res = await axiosInstance.get("/zones/config");
+    return res.data;
+  },
+
+  validate: async ({ polygon, name, exclude_id }) => {
+    const res = await axiosInstance.post("/zones/validate", { polygon, name, exclude_id });
+    return res.data;
+  },
+
   create: async ({ name, polygon, max_capacity = 5, status = "ACTIVE" }) => {
     const res = await axiosInstance.post("/zones", {
       name,
@@ -47,7 +57,7 @@ export const zoneService = {
   },
 
   getSpatialRestrictions: async () => {
-    const res = await axiosInstance.get("/zones/spatial-restrictions");
+    const res = await axiosInstance.get("/system-settings/operational-rules");
     return res.data;
   },
 

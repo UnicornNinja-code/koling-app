@@ -23,6 +23,12 @@ router.get(
   checkRole(["SUPERADMIN", "MANAGEMENT", "SUPERVISOR"]),
   getSummary
 );
+router.get(
+  "/overview",
+  authenticateToken,
+  checkRole(["SUPERADMIN", "MANAGEMENT", "SUPERVISOR"]),
+  getSummary
+);
 
 // 2. Sales Trend Time-Series (SUPERADMIN, MANAGEMENT, SUPERVISOR)
 router.get(

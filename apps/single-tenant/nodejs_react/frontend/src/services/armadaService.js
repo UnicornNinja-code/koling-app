@@ -9,8 +9,10 @@ export const armadaService = {
     return res.data;
   },
 
-  getAvailable: async () => {
-    const res = await axiosInstance.get("/armadas/available");
+  getAvailable: async (params = {}) => {
+    const res = await axiosInstance.get("/armadas", {
+      params: { status: "AVAILABLE", ...params },
+    });
     return res.data;
   },
 
@@ -19,13 +21,13 @@ export const armadaService = {
     return res.data;
   },
 
-  create: async ({ code, type = "MOTOR_LISTRIK", status = "ACTIVE" }) => {
-    const res = await axiosInstance.post("/armadas", { code, type, status });
+  create: async ({ code, name, type = "MOTOR_LISTRIK", status = "ACTIVE" }) => {
+    const res = await axiosInstance.post("/armadas", { code, name, type, status });
     return res.data;
   },
 
-  update: async (id, { code, type, status }) => {
-    const res = await axiosInstance.put(`/armadas/${id}`, { code, type, status });
+  update: async (id, { code, name, type, status }) => {
+    const res = await axiosInstance.put(`/armadas/${id}`, { code, name, type, status });
     return res.data;
   },
 
@@ -34,8 +36,23 @@ export const armadaService = {
     return res.data;
   },
 
-  setMaintenance: async (id, { notes = "", cost = 0 } = {}) => {
-    const res = await axiosInstance.post(`/armadas/${id}/maintenance`, { notes, cost });
+  holdArmada: async (id) => {
+    const res = await axiosInstance.post(`/armadas/${id}/hold`);
+    return res.data;
+  },
+
+  claimArmada: async (id) => {
+    const res = await axiosInstance.post(`/armadas/${id}/claim`);
+    return res.data;
+  },
+
+  releaseArmada: async (id) => {
+    const res = await axiosInstance.post(`/armadas/${id}/release`);
+    return res.data;
+  },
+
+  setMaintenance: async (id, payload = {}) => {
+    const res = await axiosInstance.post(`/armadas/${id}/maintenance`, payload);
     return res.data;
   },
 
@@ -45,7 +62,7 @@ export const armadaService = {
   },
 
   // Aliases for backward compatibility
-  getArmadas: async () => armadaService.getAll(),
+  getArmadas: async (params) => armadaService.getAll(params),
   getArmadaById: async (id) => armadaService.getById(id),
   createArmada: async (data) => armadaService.create(data),
   updateArmada: async (id, data) => armadaService.update(id, data),

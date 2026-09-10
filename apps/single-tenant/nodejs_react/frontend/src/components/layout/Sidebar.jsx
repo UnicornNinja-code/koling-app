@@ -1,186 +1,173 @@
 import React from "react";
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "../../context/AuthContext.jsx";
+import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
-  Navigation,
-  BrainCircuit,
-  BarChart3,
-  Database,
-  Settings,
-  LogOut,
-  User,
-  ChevronRight,
   MapPin,
-  Users,
+  Send,
   Bike,
-  Layers,
-  ShoppingBag,
-  Activity,
-  FileText,
-  Sliders,
+  Truck,
+  BrainCircuit,
+  SlidersHorizontal,
   Scale,
-  DollarSign,
-  ShieldCheck,
-  RefreshCw,
-  FolderSync,
+  FileBarChart,
+  FileSpreadsheet,
+  BadgeDollarSign,
+  ScrollText,
+  Map,
+  Users,
+  Package,
   Store,
+  Compass,
+  RefreshCw,
+  Settings,
+  ShieldCheck,
+  LogOut,
+  ChevronRight,
 } from "lucide-react";
+import { useAuth } from "../../context/AuthContext.jsx";
 
-/**
- * MOVA Sidebar Component — Design System v3.0 SSOT
- * Exact match with assets/img (dss.png, map ops.png, operational rider.png, dashboard.png):
- * - Width: 240px expanded dark navigation (#0F172A / #111827)
- * - Brand: MOVA logo with orange dot above 'A'
- * - 6 Group Sections: OVERVIEW, OPERATIONS, DECISION SUPPORT, REPORTING, MASTER DATA, SYSTEM
- * - Active Item: border-l-2 border-[#EA580C] bg-[#1F2937] text-white with orange icon (#EA580C)
- * - User profile card footer with SA avatar and chevron
- */
-export function Sidebar() {
-  const { user, logout } = useAuth();
+export function Sidebar({ collapsed = false, onToggleCollapse }) {
   const location = useLocation();
-  const navigate = useNavigate();
-  const role = user?.role || "SUPERADMIN";
+  const { user, logout } = useAuth();
 
-  const navigationSections = [
+  const navigationGroups = [
     {
-      group: "OVERVIEW",
+      title: "OPERATIONS",
       items: [
-        { label: "Overview", path: "/superadmin/dashboard", icon: LayoutDashboard },
+        { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+        { label: "Map Ops", href: "/map-ops", icon: MapPin },
+        { label: "Distribusi", href: "/distribution", icon: Send },
+        { label: "Operasional Rider", href: "/rider/zone", icon: Bike },
+        { label: "Manajemen Armada", href: "/fleet", icon: Truck },
       ],
     },
     {
-      group: "OPERATIONS",
+      title: "DECISION SUPPORT",
       items: [
-        { label: "Map Ops", path: "/map-ops", icon: Navigation },
-        { label: "Distribusi", path: "/distribution", icon: Users },
-        { label: "Operasional Rider", path: "/rider/zone", icon: Activity },
-        { label: "Armada", path: "/fleet", icon: Bike },
+        { label: "DSS & Rekomendasi", href: "/dss", icon: BrainCircuit },
+        { label: "Kriteria & Bobot", href: "/dss/criteria", icon: SlidersHorizontal },
+        { label: "Konfigurasi BWM", href: "/dss/bwm", icon: Scale },
       ],
     },
     {
-      group: "DECISION SUPPORT",
+      title: "REPORTING",
       items: [
-        { label: "DSS", path: "/dss", icon: BrainCircuit },
-        { label: "Kriteria", path: "/dss?tab=criteria", icon: Sliders },
-        { label: "Konfigurasi BWM", path: "/dss?tab=bwm", icon: Scale },
+        { label: "Laporan Operasional", href: "/reports/operational", icon: FileBarChart },
+        { label: "Laporan DSS", href: "/reports/dss", icon: FileSpreadsheet },
+        { label: "Laporan Penjualan", href: "/reports/sales", icon: BadgeDollarSign },
+        { label: "Audit & Log", href: "/audit-logs", icon: ScrollText },
       ],
     },
     {
-      group: "REPORTING",
+      title: "MASTER DATA",
       items: [
-        { label: "Operasional", path: "/reports?tab=operational", icon: BarChart3 },
-        { label: "DSS", path: "/reports?tab=dss", icon: FileText },
-        { label: "Penjualan", path: "/reports?tab=sales", icon: DollarSign },
-        { label: "Audit Log", path: "/reports?tab=audit", icon: ShieldCheck },
+        { label: "Zona Master", href: "/zones", icon: Map },
+        { label: "Pengguna", href: "/users", icon: Users },
+        { label: "Armada", href: "/armadas", icon: Truck },
+        { label: "Produk", href: "/catalog", icon: Package },
+        { label: "POI Ingestion", href: "/pois", icon: Store },
+        { label: "Kompetitor", href: "/competitors", icon: Compass },
       ],
     },
     {
-      group: "MASTER DATA",
+      title: "SYSTEM",
       items: [
-        { label: "Zona", path: "/zones", icon: MapPin },
-        { label: "Armada", path: "/fleet", icon: Bike },
-        { label: "POI", path: "/pois", icon: Store },
-        { label: "Pengguna", path: "/users", icon: Users },
-      ],
-    },
-    {
-      group: "SYSTEM",
-      items: [
-        { label: "Sinkronisasi", path: "/settings?tab=sync", icon: RefreshCw },
-        { label: "Pengaturan", path: "/settings", icon: Settings },
+        { label: "Sinkronisasi", href: "/sync", icon: RefreshCw },
+        { label: "Pengaturan", href: "/settings", icon: Settings },
       ],
     },
   ];
 
-  const isItemActive = (itemPath) => {
-    const currentPath = location.pathname + location.search;
-    if (itemPath.includes("?")) {
-      return currentPath === itemPath;
-    }
-    return location.pathname === itemPath.split("?")[0];
-  };
-
   return (
-    <aside className="w-[240px] bg-[#0F172A] border-r border-[#1E293B] flex flex-col h-screen shrink-0 select-none z-40 transition-colors duration-150">
-      {/* 1. Header / MOVA Brand Logo with Orange Dot */}
-      <div className="h-16 flex items-center px-6 border-b border-[#1E293B]/80 shrink-0">
-        <NavLink to="/superadmin/dashboard" className="flex items-center gap-1 group">
-          <span className="font-extrabold text-2xl tracking-wider text-white flex items-center">
-            MOV
-            <span className="relative">
-              A
-              {/* Signature Orange Dot above the letter A */}
-              <span className="absolute -top-1 right-0 w-2 h-2 rounded-full bg-[#EA580C] shadow-xs shadow-orange-500/50" />
-            </span>
-          </span>
-        </NavLink>
+    <aside
+      className={`fixed inset-y-0 left-0 z-40 bg-[#131822] text-slate-300 border-r border-slate-800/80 flex flex-col transition-all duration-200 ${
+        collapsed ? "w-18" : "w-60"
+      }`}
+    >
+      {/* Brand Header */}
+      <div className="h-14 flex items-center justify-between px-4 border-b border-slate-800/80 shrink-0">
+        <Link to="/dashboard" className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-[8px] bg-gradient-to-tr from-blue-600 to-orange-500 flex items-center justify-center text-white font-black text-sm shadow-md">
+            M
+          </div>
+          {!collapsed && (
+            <div>
+              <div className="font-black text-sm tracking-wide text-white font-['Inter'] uppercase">
+                Mova
+              </div>
+              <div className="text-[9px] text-slate-400 font-medium truncate">
+                Sejuta Jiwa Sidoarjo
+              </div>
+            </div>
+          )}
+        </Link>
       </div>
 
-      {/* 2. Navigation Sections (Scrollable) */}
-      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-        {navigationSections.map((section) => (
-          <div key={section.group} className="space-y-1">
-            {/* Section Heading */}
-            <h3 className="px-3 text-[10px] font-bold tracking-wider text-[#64748B] uppercase">
-              {section.group}
-            </h3>
+      {/* Navigation Links Scrollable */}
+      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-5 scrollbar-thin">
+        {navigationGroups.map((group, gIdx) => (
+          <div key={gIdx} className="space-y-1">
+            {!collapsed && (
+              <div className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 font-['Inter']">
+                {group.title}
+              </div>
+            )}
+            {group.items.map((item, iIdx) => {
+              const Icon = item.icon;
+              const isActive =
+                location.pathname === item.href ||
+                (item.href !== "/dashboard" && location.pathname.startsWith(item.href));
 
-            {/* Section Items */}
-            <div className="space-y-0.5 pt-1">
-              {section.items.map((item) => {
-                const Icon = item.icon;
-                const active = isItemActive(item.path);
-
-                return (
-                  <NavLink
-                    key={item.label}
-                    to={item.path}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-md text-xs font-medium transition-all duration-150 ${
-                      active
-                        ? "bg-[#1E293B] text-white border-l-2 border-[#EA580C] font-semibold"
-                        : "text-[#94A3B8] hover:text-white hover:bg-[#1E293B]/50"
-                    }`}
-                  >
-                    <Icon
-                      className={`w-4 h-4 shrink-0 transition-colors ${
-                        active ? "text-[#EA580C]" : "text-[#94A3B8]"
-                      }`}
-                    />
-                    <span className="truncate">{item.label}</span>
-                  </NavLink>
-                );
-              })}
-            </div>
+              return (
+                <Link
+                  key={iIdx}
+                  to={item.href}
+                  title={collapsed ? item.label : undefined}
+                  className={`flex items-center gap-2.5 px-3 py-2 rounded-[8px] text-xs font-medium font-['Inter'] transition-all duration-150 ${
+                    isActive
+                      ? "bg-blue-600 text-white font-semibold shadow-xs"
+                      : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+                  } ${collapsed ? "justify-center px-2" : ""}`}
+                >
+                  <Icon className="w-4 h-4 shrink-0" />
+                  {!collapsed && <span className="truncate">{item.label}</span>}
+                </Link>
+              );
+            })}
           </div>
         ))}
       </div>
 
-      {/* 3. Bottom User Profile Card */}
-      <div className="p-3 border-t border-[#1E293B] shrink-0 bg-[#0F172A]">
-        <NavLink
-          to="/profile"
-          className="flex items-center justify-between p-2 rounded-lg hover:bg-[#1E293B] transition-colors group cursor-pointer"
-        >
-          <div className="flex items-center gap-3 min-w-0">
-            {/* Avatar Circle SA */}
-            <div className="w-8 h-8 rounded-full bg-[#1D4ED8] text-white flex items-center justify-center text-xs font-bold shrink-0">
-              {user?.name ? user.name.slice(0, 2).toUpperCase() : "SA"}
+      {/* Bottom User Profile Section */}
+      <div className="p-3 border-t border-slate-800/80 bg-slate-950/40 shrink-0">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-full bg-blue-600/20 border border-blue-500/30 text-blue-400 flex items-center justify-center text-xs font-bold shrink-0">
+              {user?.full_name ? user.full_name.charAt(0).toUpperCase() : "SA"}
             </div>
-            <div className="min-w-0 text-left">
-              <p className="text-xs font-bold text-white truncate leading-tight group-hover:text-[#EA580C] transition-colors">
-                {user?.name || "Super Admin"}
-              </p>
-              <p className="text-[10px] text-[#64748B] truncate leading-tight mt-0.5">
-                {user?.email || "superadmin@mova.id"}
-              </p>
-            </div>
+            {!collapsed && (
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-white truncate font-['Inter']">
+                  {user?.full_name || "Super Admin"}
+                </div>
+                <div className="text-[10px] text-slate-500 truncate font-mono">
+                  {user?.role || "SUPERADMIN"}
+                </div>
+              </div>
+            )}
           </div>
-          <ChevronRight className="w-4 h-4 text-[#64748B] group-hover:text-white shrink-0 transition-colors" />
-        </NavLink>
+          {!collapsed && (
+            <button
+              type="button"
+              onClick={logout}
+              title="Keluar"
+              className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-950/30 rounded-[6px] transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
     </aside>
   );
 }
-
-export default Sidebar;

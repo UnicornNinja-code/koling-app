@@ -1,93 +1,86 @@
 import React, { useEffect } from "react";
-import { cn } from "../../lib/utils.js";
 import { X } from "lucide-react";
 
 /**
- * MOVA Modal / Dialog Component — Design System v3.0 SSOT
- * Radius: 16px (rounded-xl), elevation: shadow-2xl, backdrop blur
- * Standard anatomy: Header (Title + Description) → Body → Footer
+ * MOVA Design System v3.0 Modal Component
  */
 export function Modal({
-  isOpen,
+  isOpen = false,
   onClose,
   title,
-  description,
+  subtitle,
   children,
-  maxWidth = "max-w-lg",
+  footer,
+  maxWidth = "max-w-lg", // max-w-md, max-w-lg, max-w-xl, max-w-2xl, max-w-3xl
   className = "",
 }) {
-  // ESC key listener & body scroll lock
   useEffect(() => {
-    if (!isOpen) return;
-
     const handleKeyDown = (e) => {
-      if (e.key === "Escape") onClose?.();
+      if (e.key === "Escape" && isOpen && onClose) {
+        onClose();
+      }
     };
-
-    window.addEventListener("keydown", handleKeyDown);
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+      window.addEventListener("keydown", handleKeyDown);
+    }
     return () => {
+      document.body.style.overflow = "unset";
       window.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = originalOverflow;
     };
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose?.();
-      }}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+      {/* Backdrop */}
       <div
-        className={cn(
-          "bg-card text-card-foreground w-full rounded-t-xl sm:rounded-xl border border-border shadow-2xl",
-          "max-h-[90vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-200",
-          maxWidth,
-          className
-        )}
+        onClick={onClose}
+        className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+      />
+
+      {/* Modal Dialog Card */}
+      <div
+        className={`relative w-full ${maxWidth} bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[14px] shadow-2xl overflow-hidden z-10 animate-in zoom-in-95 duration-200 ${className}`}
       >
         {/* Modal Header */}
-        {(title || onClose) && (
-          <div className="p-5 border-b border-border flex items-start justify-between gap-3 bg-card shrink-0">
-            <div>
-              {title && (
-                <h3 className="font-heading font-bold text-base text-foreground leading-snug">
-                  {title}
-                </h3>
-              )}
-              {description && (
-                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{description}</p>
-              )}
-            </div>
-
-            {onClose && (
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="Tutup dialog"
-                className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors cursor-pointer shrink-0"
-              >
-                <X className="w-4 h-4" />
-              </button>
+        <div className="flex items-start justify-between p-5 border-b border-slate-100 dark:border-slate-800">
+          <div>
+            {title && (
+              <h3 className="text-base font-bold text-slate-900 dark:text-white font-['Inter']">
+                {title}
+              </h3>
+            )}
+            {subtitle && (
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-['Inter']">
+                {subtitle}
+              </p>
             )}
           </div>
-        )}
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1 rounded-[6px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
 
         {/* Modal Body */}
-        <div className="p-5 md:p-6 overflow-y-auto flex-1 text-sm text-foreground">
+        <div className="p-5 max-h-[calc(100vh-200px)] overflow-y-auto">
           {children}
         </div>
+
+        {/* Modal Footer */}
+        {footer && (
+          <div className="p-4 bg-slate-50/70 dark:bg-slate-850/70 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2.5">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );
 }
-
-export const Dialog = Modal;
-export default Modal;

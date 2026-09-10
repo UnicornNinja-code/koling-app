@@ -1,79 +1,89 @@
 import React from "react";
-import { cn } from "../../lib/utils.js";
-import { Loader2 } from "lucide-react";
 
 /**
- * MOVA Button Component — Design System v3.0 SSOT
- * Variants: primary (#EA580C Signature Orange), secondary, outline, ghost, destructive, subtle
- * Heights: 36-40px (md: 36px, lg: 40px, sm: 32px), Radius: 8px (md), Font: 14px (md/lg)
+ * MOVA Design System v3.0 Button Component
+ * Variants: primary (Blue), accent (Orange), secondary (Outline), ghost, danger, success
+ * Sizes: sm, md, lg, icon
  */
 export function Button({
   children,
   variant = "primary",
   size = "md",
-  className = "",
+  icon: Icon,
+  iconRight: IconRight,
+  isLoading = false,
   disabled = false,
-  isPending = false,
-  loading = false,
-  isLoading: isLoadingProp,
-  leftIcon: LeftIcon = null,
-  rightIcon: RightIcon = null,
+  className = "",
   type = "button",
   onClick,
   ...props
 }) {
-  const isLoading = isPending || loading || !!isLoadingProp;
-  const isDisabled = disabled || isLoading;
-
   const baseStyles =
-    "inline-flex items-center justify-center font-medium transition-all duration-150 rounded-md select-none " +
-    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-ring focus-visible:ring-offset-background " +
-    "disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed cursor-pointer " +
-    "active:scale-[0.99]";
+    "inline-flex items-center justify-center font-medium font-['Inter'] transition-all duration-150 select-none focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none active:scale-[0.98]";
 
-  const variants = {
-    primary:
-      "bg-primary hover:bg-primary/90 text-primary-foreground font-semibold border border-transparent shadow-xs active:bg-primary/95",
-    secondary:
-      "bg-secondary hover:bg-secondary/80 text-secondary-foreground font-semibold border border-border shadow-xs",
-    outline:
-      "border border-border bg-background text-foreground hover:bg-muted hover:text-foreground font-medium",
-    ghost:
-      "bg-transparent hover:bg-muted text-muted-foreground hover:text-foreground font-medium border border-transparent",
-    destructive:
-      "bg-destructive hover:bg-destructive/90 text-destructive-foreground font-semibold border border-transparent shadow-xs",
-    danger:
-      "bg-destructive hover:bg-destructive/90 text-destructive-foreground font-semibold border border-transparent shadow-xs",
-    subtle:
-      "bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 font-semibold",
+  const sizeStyles = {
+    sm: "text-xs px-2.5 py-1.5 rounded-[6px] gap-1.5 h-8",
+    md: "text-sm px-3.5 py-2 rounded-[8px] gap-2 h-9",
+    lg: "text-sm px-5 py-2.5 rounded-[8px] gap-2.5 h-11 text-base font-semibold",
+    icon: "p-2 rounded-[8px] h-9 w-9 justify-center",
+    "icon-sm": "p-1.5 rounded-[6px] h-7 w-7 justify-center",
   };
 
-  const sizes = {
-    sm: "px-3 py-1 text-xs gap-1.5 h-8",
-    md: "px-4 py-1.5 text-sm gap-2 h-9",
-    lg: "px-5 py-2 text-sm gap-2 h-10",
-    icon: "w-9 h-9 p-0 min-h-[36px] min-w-[36px]",
+  const variantStyles = {
+    primary:
+      "bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow focus:ring-blue-500",
+    accent:
+      "bg-orange-500 hover:bg-orange-600 text-white shadow-sm hover:shadow focus:ring-orange-500 font-semibold",
+    secondary:
+      "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 hover:border-slate-300 dark:hover:border-slate-600 focus:ring-slate-400 shadow-2xs",
+    ghost:
+      "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white focus:ring-slate-400",
+    danger:
+      "bg-red-600 hover:bg-red-700 text-white shadow-sm hover:shadow focus:ring-red-500",
+    "danger-ghost":
+      "text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 focus:ring-red-400",
+    success:
+      "bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm hover:shadow focus:ring-emerald-500",
   };
 
   return (
     <button
       type={type}
-      disabled={isDisabled}
+      disabled={disabled || isLoading}
       onClick={onClick}
-      className={cn(
-        baseStyles,
-        variants[variant] || variants.primary,
-        sizes[size] || sizes.md,
-        className
-      )}
+      className={`${baseStyles} ${sizeStyles[size] || sizeStyles.md} ${
+        variantStyles[variant] || variantStyles.primary
+      } ${className}`}
       {...props}
     >
-      {isLoading && <Loader2 className="w-4 h-4 animate-spin shrink-0" />}
-      {!isLoading && LeftIcon && <LeftIcon className="w-4 h-4 shrink-0" />}
-      {children && <span>{children}</span>}
-      {!isLoading && RightIcon && <RightIcon className="w-4 h-4 shrink-0" />}
+      {isLoading ? (
+        <svg
+          className="animate-spin h-4 w-4 text-current"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+          />
+        </svg>
+      ) : Icon ? (
+        <Icon className={size === "sm" ? "w-3.5 h-3.5" : "w-4 h-4"} />
+      ) : null}
+      {children}
+      {!isLoading && IconRight ? (
+        <IconRight className={size === "sm" ? "w-3.5 h-3.5" : "w-4 h-4"} />
+      ) : null}
     </button>
   );
 }
-
-export default Button;

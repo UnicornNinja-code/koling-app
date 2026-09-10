@@ -1,126 +1,30 @@
 @import "tailwindcss";
 @import "./styles/tokens.css";
-@import "./styles/mova.css";
-@import "leaflet/dist/leaflet.css";
-
-@custom-variant dark (&:where(.dark, .dark *));
-
-@theme {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-
-  --radius-xs: 4px;
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
-  --radius-full: 9999px;
-
-  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
-}
 
 @layer base {
-  :root {
-    --color-background: var(--background);
-    --color-surface: var(--card);
-    --color-surface-hover: var(--color-surface-hover);
-    --color-surface-soft: var(--muted);
-
-    --color-border: var(--border);
-    --color-border-hover: var(--color-border-strong);
-    --color-foreground: var(--foreground);
-    --color-muted-foreground: var(--muted-foreground);
-    --color-subtle: var(--color-text-muted);
-
-    --font-heading: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    --font-body: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
-  }
-
   * {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
-    -webkit-tap-highlight-color: transparent;
   }
 
-  html, body {
-    font-family: var(--font-body);
-    background-color: var(--background);
-    color: var(--foreground);
+  html,
+  body {
     min-height: 100vh;
+    font-family: var(--font-family);
+    background-color: var(--color-background);
+    color: var(--color-foreground);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     overflow-x: hidden;
-    touch-action: manipulation;
   }
 
-  h1, h2, h3, h4, h5, h6, .font-heading {
+  h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-heading);
     font-weight: 700;
     letter-spacing: -0.02em;
-    color: var(--foreground);
+    color: var(--color-foreground);
   }
-
-  code, kbd, samp, pre, .font-mono {
-    font-family: var(--font-mono);
-  }
-}
-
-/* ============================================================================
-   Antimetal-Inspired Visual Utilities (Contextual Hero Atmosphere & Dotted Grid)
-   ============================================================================ */
-.bg-antimetal-atmosphere {
-  background: linear-gradient(180deg, #E8F1FA 0%, #F0F6FB 50%, #FAFAFA 100%);
-}
-
-html.dark .bg-antimetal-atmosphere {
-  background: linear-gradient(180deg, #101624 0%, #0D121D 50%, #0B0F17 100%);
-}
-
-.bg-dotted-grid {
-  background-image: radial-gradient(#CBD5E1 1px, transparent 1px);
-  background-size: 32px 32px;
-}
-
-html.dark .bg-dotted-grid {
-  background-image: radial-gradient(#263244 1px, transparent 1px);
-  background-size: 32px 32px;
-}
-
-/* Leaflet Dark Mode Spatial Tile Filter (Watermark-free dark basemap) */
-html.dark .leaflet-tile {
-  filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7);
-}
-
-html.dark .leaflet-container {
-  background-color: #0B0F17 !important;
 }
 
 /* Custom Scrollbars */
@@ -129,41 +33,12 @@ html.dark .leaflet-container {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--background);
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--border);
+  background: var(--color-border);
   border-radius: var(--radius-full);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--muted-foreground);
-}
-
-html.dark ::-webkit-scrollbar-track {
-  background: #0B0F17;
-}
-html.dark ::-webkit-scrollbar-thumb {
-  background: #263244;
-}
-html.dark ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
-}
-
-/* Reduced Motion Respect */
-@media (prefers-reduced-motion: reduce) {
-  *, ::before, ::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-
-/* Custom Focus Ring Helper */
-.focus-ring-primary {
-  outline: none;
-}
-.focus-ring-primary:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
+  background: var(--color-muted);
 }
