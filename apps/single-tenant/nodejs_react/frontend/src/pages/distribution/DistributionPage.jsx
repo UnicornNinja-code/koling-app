@@ -1,15 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../context/AuthContext.jsx";
-import { Sidebar } from "../../components/layout/Sidebar.jsx";
-import { Topbar } from "../../components/layout/Topbar.jsx";
+import { AppLayout } from "../../components/layout/AppLayout.jsx";
 import { LeafletMapCanvas } from "../../components/map/LeafletMapCanvas.jsx";
-import { MapFloatingToolbar } from "../../components/map/MapFloatingToolbar.jsx";
 import { MapLegendPanel } from "../../components/map/MapLegendPanel.jsx";
-import { MapLayersPanel } from "../../components/map/MapLayersPanel.jsx";
+import { MapRightLayerSidebar } from "../../components/map/MapRightLayerSidebar.jsx";
 import { OperationalDetailPanel } from "../../components/map/OperationalDetailPanel.jsx";
 import { StatusBadge } from "../../components/ui/StatusBadge.jsx";
-import { Button } from "../../components/common/Button.jsx";
+import { Button } from "../../components/ui/Button.jsx";
+import { ErrorBoundary } from "../../components/common/ErrorBoundary.jsx";
 
 // Single-Tenant Services SSOT
 import { distributionService } from "../../services/distributionService.js";
@@ -29,20 +28,18 @@ import {
   MapPin,
   CheckCircle2,
   AlertTriangle,
-  Play,
-  RotateCcw,
   Navigation,
   Bike,
-  ShieldAlert,
-  ShieldCheck,
   Clock,
+  ChevronLeft,
   ChevronRight,
-  Filter,
+  ShieldCheck,
+  ShieldAlert,
 } from "lucide-react";
 
 /**
  * Rider Monitoring & Operational Distribution Workspace
- * Enterprise split-screen view: Left Dispatch List (340px) + Right GIS Spatial Canvas
+ * State Machine Focus: AVAILABLE -> QUEUED -> ASSIGNED -> CONFIRMED -> ACTIVE -> COMPLETED
  */
 export function DistributionPage() {
   const { user } = useAuth();
@@ -54,7 +51,8 @@ export function DistributionPage() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [selectedRider, setSelectedRider] = useState(null);
   const [activeFloatingPanel, setActiveFloatingPanel] = useState(null);
-  const [isLiveConnected, setIsLiveConnected] = useState(false);
+  const [isListCollapsed, setIsListCollapsed] = useState(false);
+  const [notification, setNotification] = useState(null);
 
   const [layers, setLayers] = useState({
     zones: true,
@@ -65,6 +63,10 @@ export function DistributionPage() {
     weather: false,
     pois: false,
   });
+
+  const handleToggleLayer = (layerId) => {
+    setLayers((prev) => ({ ...prev, [layerId]: !prev[layerId] }));
+  };
 
   // 1. Fetch Distribution Overview SSOT
   const { data: overviewRes, isLoading: isOverviewLoading } = useQuery({
@@ -114,7 +116,7 @@ export function DistributionPage() {
   });
   const protocolRoads = protocolRoadsRes?.data || protocolRoadsRes;
 
-  // 6. Fetch DSS TOPSIS Zone Recommendations SSOT
+  // 6. Fetch DSS Recommendations
   const { data: dssRecsRes } = useQuery({
     queryKey: ["dss", "recommendations"],
     queryFn: dssService.getTopsisRecommendations,
@@ -122,7 +124,6 @@ export function DistributionPage() {
   });
   const dssRecommendations = dssRecsRes?.data?.recommendations || dssRecsRes?.recommendations || [];
 
-  // Merge DSS Recommendations into zones for ranking badges
   const enhancedZones = (zones || []).map((z, idx) => {
     const dssMatch = dssRecommendations.find((d) => d.zone_id === z.id || d.id === z.id);
     return {
@@ -136,14 +137,14 @@ export function DistributionPage() {
   const allRidersPool = useMemo(() => {
     const pool = [];
 
-    // Add Assigned / Operating Riders
+    // Assigned / Operating / Active Riders
     assignedRiders.forEach((ar) => {
       const liveMatch = liveRiders.find((lr) => lr.id === ar.rider_id || lr.id === ar.id);
       pool.push({
         id: ar.rider_id || ar.id,
         name: ar.rider_name || ar.name || "Rider",
         username: ar.username,
-        status: liveMatch?.status || ar.status || "OPERATING",
+        status: liveMatch?.status || ar.status || "ACTIVE",
         zone_id: ar.zone_id,
         zone_name: ar.zone_name || "Assigned Zone",
         armada_code: ar.armada_code || liveMatch?.armada_code || "Cart #01",
@@ -155,22 +156,22 @@ export function DistributionPage() {
       });
     });
 
-    // Add Waiting Riders
+    // Waiting / Queued Riders
     waitingRiders.forEach((wr) => {
       if (!pool.some((p) => p.id === wr.id)) {
         pool.push({
           id: wr.id,
           name: wr.name || wr.rider_name || wr.username || "Rider",
           username: wr.username,
-          status: "WAITING",
+          status: wr.status || "QUEUED",
           zone_id: null,
-          zone_name: "Unassigned",
-          armada_code: "None",
-          zone_compliance: "OUTSIDE_ZONE",
+          zone_name: "Belum Ada Zona",
+          armada_code: wr.armada_code || "Tanpa Gerobak",
+          zone_compliance: "STANDBY",
           road_alert: false,
           latitude: wr.latitude,
           longitude: wr.longitude,
-          last_ping: wr.confirmed_at ? new Date(wr.confirmed_at).toLocaleTimeString("id-ID") : "Pending",
+          last_ping: wr.confirmed_at ? new Date(wr.confirmed_at).toLocaleTimeString("id-ID") : "Standby",
         });
       }
     });
@@ -186,41 +187,51 @@ export function DistributionPage() {
       r.armada_code.toLowerCase().includes(searchQuery.toLowerCase());
 
     if (statusFilter === "ALL") return matchesSearch;
-    return matchesSearch && r.status === statusFilter;
+    return matchesSearch && (r.status === statusFilter || (statusFilter === "WAITING" && r.status === "QUEUED"));
   });
 
-  // Real-time Event Listener (Socket.io)
+  // Socket.io Real-Time Stream
   useEffect(() => {
     const token = localStorage.getItem("token");
-    const socket = socketManager.connect(token);
+    if (!token) return;
 
-    if (socket) {
-      setIsLiveConnected(true);
+    socketManager.connect(token);
 
-      socketManager.on(SOCKET_EVENTS.SUPERVISOR_RIDER_MOVED, () => {
-        queryClient.invalidateQueries({ queryKey: ["lbs", "live-riders"] });
-      });
+    const handleMoved = () => {
+      queryClient.invalidateQueries({ queryKey: ["lbs", "live-riders"] });
+    };
 
-      socketManager.on(SOCKET_EVENTS.RIDER_CHECKED_IN, () => {
-        queryClient.invalidateQueries({ queryKey: queryKeys.distribution.overview() });
-        queryClient.invalidateQueries({ queryKey: ["lbs", "live-riders"] });
-      });
+    const handleCheckedIn = () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.distribution.overview() });
+      queryClient.invalidateQueries({ queryKey: ["lbs", "live-riders"] });
+    };
 
-      socketManager.on(SOCKET_EVENTS.GEOFENCE_BREACH, () => {
-        queryClient.invalidateQueries({ queryKey: ["lbs", "live-riders"] });
-      });
-    }
+    socketManager.on(SOCKET_EVENTS.SUPERVISOR_RIDER_MOVED, handleMoved);
+    socketManager.on(SOCKET_EVENTS.RIDER_CHECKED_IN, handleCheckedIn);
+
+    return () => {
+      socketManager.off(SOCKET_EVENTS.SUPERVISOR_RIDER_MOVED, handleMoved);
+      socketManager.off(SOCKET_EVENTS.RIDER_CHECKED_IN, handleCheckedIn);
+    };
   }, [queryClient]);
 
-  // Mutations for Auto & Manual Distribution
+  // Auto-Distribution Mutation with in-app banner feedback
   const autoDistributeMutation = useMutation({
     mutationFn: distributionService.autoDistribute,
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.distribution.overview() });
-      alert(`[Auto-Distribution Selesai] ${data?.msg || "Plotting rider berbasis DSS berhasil dilakukan."}`);
+      setNotification({
+        type: "success",
+        text: `Plotting DSS Berhasil: ${data?.msg || "Penugasan zona otomatis selesai."}`,
+      });
+      setTimeout(() => setNotification(null), 5000);
     },
     onError: (err) => {
-      alert(`Gagal auto distribute: ${err.response?.data?.msg || err.message}`);
+      setNotification({
+        type: "error",
+        text: `Gagal auto distribute: ${err.response?.data?.msg || err.message}`,
+      });
+      setTimeout(() => setNotification(null), 6000);
     },
   });
 
@@ -235,213 +246,241 @@ export function DistributionPage() {
     }
   };
 
+  // Helper for status badge rendering according to operational state machine
+  const getStatusBadgeProps = (status) => {
+    switch (status) {
+      case "ACTIVE":
+      case "OPERATING":
+        return { variant: "success", label: "ACTIVE", withDot: true };
+      case "ASSIGNED":
+        return { variant: "primary", label: "ASSIGNED", withDot: false };
+      case "CONFIRMED":
+        return { variant: "info", label: "CONFIRMED", withDot: false };
+      case "QUEUED":
+      case "WAITING":
+        return { variant: "warning", label: "QUEUED", withDot: false };
+      case "COMPLETED":
+        return { variant: "neutral", label: "COMPLETED", withDot: false };
+      case "DEVIATED":
+        return { variant: "danger", label: "DEVIATED", withDot: true };
+      default:
+        return { variant: "neutral", label: status || "AVAILABLE", withDot: false };
+    }
+  };
+
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#FAFAFA] font-sans antialiased select-none">
-      {/* 1. App Shell Dark Rail (60px) */}
-      <Sidebar />
+    <AppLayout
+      fullBleed
+      title="Rider Fleet Distribution"
+      subtitle="Plotting armada dinamis berbasis DSS TOPSIS & monitoring kepatuhan shift"
+    >
+      <div className="relative w-full h-full overflow-hidden bg-[#FAFAFA] dark:bg-[#0B0F17] isolate select-none font-sans">
+        {/* In-app Notification Banner */}
+        {notification && (
+          <div
+            className={`absolute top-3 left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-[8px] border text-xs font-semibold shadow-lg flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-150 ${
+              notification.type === "success"
+                ? "bg-emerald-50 dark:bg-emerald-950/80 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300"
+                : "bg-rose-50 dark:bg-rose-950/80 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300"
+            }`}
+          >
+            {notification.type === "success" ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 text-rose-600" />
+            )}
+            <span>{notification.text}</span>
+          </div>
+        )}
 
-      {/* 2. Main Viewport Workspace */}
-      <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
-        <Topbar />
+        {/* 1. Primary GIS Canvas with Local Error Boundary */}
+        <ErrorBoundary mode="widget" name="DistributionMapCanvas">
+          <LeafletMapCanvas
+            zones={enhancedZones}
+            riders={allRidersPool}
+            armadas={armadas}
+            protocolRoads={protocolRoads}
+            layers={layers}
+            selectedItem={selectedRider}
+            onSelectItem={(item) => setSelectedRider(item)}
+            mapRef={mapRef}
+          />
+        </ErrorBoundary>
 
-        {/* Workspace Body: Left Dispatch List (340px) + Right GIS Spatial Map */}
-        <div className="flex-1 flex relative overflow-hidden">
-          {/* Left Dispatch Column (340px) */}
-          <div className="w-full md:w-[340px] bg-white border-r border-[#E5E5E5] flex flex-col h-full shrink-0 relative z-20 shadow-xs">
-            {/* Header & Quick Dispatch CTA */}
-            <div className="p-3 border-b border-[#E5E5E5] bg-white space-y-2.5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-[13px] font-bold text-[#111111] uppercase tracking-wider">
-                    Rider Monitoring
-                  </h2>
-                  <p className="text-[11px] text-[#737373]">Live shift & assignment status</p>
+        {/* 2. Floating Collapsible Dispatch Panel (Top-Left) */}
+        <div className="absolute top-3 left-3 z-30 pointer-events-auto">
+          {isListCollapsed ? (
+            <button
+              type="button"
+              onClick={() => setIsListCollapsed(false)}
+              title="Buka Panel Distribusi"
+              className="w-10 h-10 rounded-[10px] bg-white/95 dark:bg-[#131822]/95 backdrop-blur-md border border-[#E5E5E5] dark:border-[#263244] shadow-lg flex items-center justify-center text-[#111111] dark:text-[#FAFAFA] hover:bg-[#F5F5F5] dark:hover:bg-[#1E293B] transition-all cursor-pointer"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          ) : (
+            <div className="w-full sm:w-[340px] max-h-[calc(100vh-80px)] flex flex-col rounded-[12px] bg-white/95 dark:bg-[#131822]/95 backdrop-blur-md border border-[#E5E5E5] dark:border-[#263244] shadow-xl overflow-hidden select-none transition-colors">
+              {/* Header & Quick Dispatch */}
+              <div className="p-3 border-b border-[#E5E5E5] dark:border-[#263244] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xs font-heading font-bold text-[#111111] dark:text-[#FAFAFA] uppercase tracking-wider">
+                      Distribusi Rider
+                    </h2>
+                    <p className="text-[10px] text-[#737373] dark:text-[#A3A3A3]">
+                      Status shift & plotting armada
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[9px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/60 px-1.5 py-0.2 rounded-full">
+                      {assignedRiders.length} Terplot
+                    </span>
+                    <span className="text-[9px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/60 px-1.5 py-0.2 rounded-full">
+                      {waitingRiders.length} Antre
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsListCollapsed(true)}
+                      title="Sembunyikan Panel"
+                      className="w-6 h-6 rounded-[6px] flex items-center justify-center text-[#737373] hover:text-[#111111] dark:hover:text-white hover:bg-[#F5F5F5] dark:hover:bg-[#1E293B] transition-colors cursor-pointer ml-0.5"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-semibold text-[#16A34A] bg-[#DCFCE7] px-2 py-0.5 rounded-full">
-                    {assignedRiders.length} Active
-                  </span>
-                  <span className="text-[10px] font-semibold text-[#D97706] bg-[#FEF3C7] px-2 py-0.5 rounded-full">
-                    {waitingRiders.length} Waiting
-                  </span>
-                </div>
-              </div>
-
-              {/* Auto Distribution Button */}
-              {(user?.role === "SUPERADMIN" || user?.role === "SUPERVISOR") && (
-                <button
-                  type="button"
-                  onClick={() => autoDistributeMutation.mutate()}
-                  disabled={autoDistributeMutation.isPending || waitingRiders.length === 0}
-                  className="w-full h-8 bg-[#2563EB] hover:bg-[#1D4ED8] disabled:bg-[#A3A3A3] text-white text-[12px] font-medium rounded-[4px] transition-colors flex items-center justify-center gap-1.5 shadow-xs"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>
+                {/* Auto Distribution Button */}
+                {(user?.role === "SUPERADMIN" || user?.role === "SUPERVISOR") && (
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="sm"
+                    className="w-full text-xs font-semibold"
+                    onClick={() => autoDistributeMutation.mutate()}
+                    disabled={autoDistributeMutation.isPending || waitingRiders.length === 0}
+                    isLoading={autoDistributeMutation.isPending}
+                    leftIcon={Sparkles}
+                  >
                     {autoDistributeMutation.isPending
                       ? "Menghitung DSS TOPSIS..."
-                      : `Auto-Distribute (${waitingRiders.length} Waiting)`}
-                  </span>
-                </button>
-              )}
-            </div>
+                      : `Auto-Plotting DSS (${waitingRiders.length} Antre)`}
+                  </Button>
+                )}
 
-            {/* Filter Bar & Search */}
-            <div className="p-2.5 border-b border-[#E5E5E5] bg-[#FAFAFA] space-y-2">
-              <div className="relative">
-                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#737373]" />
-                <input
-                  type="text"
-                  placeholder="Search rider, zone, or cart..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full h-8 pl-8 pr-3 text-[12px] bg-white border border-[#E5E5E5] rounded-[4px] text-[#111111] placeholder-[#737373] focus:outline-none focus:border-[#2563EB]"
-                />
-              </div>
-
-              {/* Status Filter Tabs */}
-              <div className="flex items-center gap-1 overflow-x-auto pb-0.5 scrollbar-none">
-                {["ALL", "OPERATING", "WAITING", "DEVIATED"].map((st) => (
-                  <button
-                    key={st}
-                    type="button"
-                    onClick={() => setStatusFilter(st)}
-                    className={`px-2 py-0.5 text-[10px] font-semibold rounded-[4px] transition-colors whitespace-nowrap ${
-                      statusFilter === st
-                        ? "bg-[#2563EB] text-white"
-                        : "bg-white border border-[#E5E5E5] text-[#525252] hover:bg-[#F5F5F5]"
-                    }`}
-                  >
-                    {st}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Scrollable Riders List */}
-            <div className="flex-1 overflow-y-auto divide-y divide-[#F0F0F0]">
-              {filteredRiders.length === 0 ? (
-                <div className="p-6 text-center text-[12px] text-[#737373]">
-                  No riders matching current filter
+                {/* Search Input */}
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#A3A3A3]" />
+                  <input
+                    type="text"
+                    placeholder="Cari rider, zona, gerobak..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full h-7.5 pl-8 pr-3 text-[11px] bg-white dark:bg-[#131822] border border-[#E5E5E5] dark:border-[#263244] rounded-[6px] text-[#111111] dark:text-[#FAFAFA] placeholder-[#A3A3A3] focus:outline-none focus:border-[#2563EB]"
+                  />
                 </div>
-              ) : (
-                filteredRiders.map((rider) => {
-                  const isSelected = selectedRider?.id === rider.id;
-                  const isOperating = rider.status === "OPERATING";
-                  const isDeviated = rider.zone_compliance === "DEVIATED" || rider.road_alert;
 
-                  return (
-                    <div
-                      key={rider.id}
-                      onClick={() => handleSelectRider(rider)}
-                      className={`p-3 cursor-pointer transition-colors ${
-                        isSelected
-                          ? "bg-[#EFF6FF] border-l-2 border-[#2563EB]"
-                          : "hover:bg-[#FAFAFA]"
+                {/* State Machine Status Filter Tabs */}
+                <div className="flex items-center gap-1 overflow-x-auto pb-0.5 scrollbar-none">
+                  {["ALL", "ACTIVE", "ASSIGNED", "QUEUED", "COMPLETED"].map((st) => (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => setStatusFilter(st)}
+                      className={`px-2 py-0.5 text-[9px] font-semibold rounded-[4px] transition-colors whitespace-nowrap cursor-pointer ${
+                        statusFilter === st
+                          ? "bg-[#2563EB] text-white font-bold"
+                          : "bg-white dark:bg-[#131822] border border-[#E5E5E5] dark:border-[#263244] text-[#737373] dark:text-[#A3A3A3] hover:text-[#111111] dark:hover:text-white"
                       }`}
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5">
-                            <span
-                              className={`w-2 h-2 rounded-full shrink-0 ${
-                                isDeviated
-                                  ? "bg-[#DC2626]"
-                                  : isOperating
-                                  ? "bg-[#16A34A]"
-                                  : "bg-[#D97706]"
-                              }`}
-                            />
-                            <h4 className="text-[13px] font-semibold text-[#111111] truncate">
-                              {rider.name}
-                            </h4>
+                      {st}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Scrollable Riders List */}
+              <div className="flex-1 overflow-y-auto divide-y divide-[#E5E5E5] dark:divide-[#263244] bg-white dark:bg-[#131822]">
+                {filteredRiders.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-[#737373] dark:text-[#A3A3A3]">
+                    Tidak ada rider pada filter ini
+                  </div>
+                ) : (
+                  filteredRiders.map((rider) => {
+                    const isSelected = selectedRider?.id === rider.id;
+                    const badgeProps = getStatusBadgeProps(rider.status);
+
+                    return (
+                      <div
+                        key={rider.id}
+                        onClick={() => handleSelectRider(rider)}
+                        className={`p-2.5 cursor-pointer transition-colors ${
+                          isSelected
+                            ? "bg-blue-50/70 dark:bg-blue-950/40 border-l-2 border-[#2563EB]"
+                            : "hover:bg-[#FAFAFA] dark:hover:bg-[#1E293B]/50"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <h4 className="text-xs font-semibold text-[#111111] dark:text-[#FAFAFA] truncate">
+                                {rider.name}
+                              </h4>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 text-[10px] text-[#737373] dark:text-[#A3A3A3] mt-1 truncate">
+                              <span className="font-medium text-[#404040] dark:text-[#D4D4D4]">
+                                {rider.zone_name}
+                              </span>
+                              <span>•</span>
+                              <span className="font-mono text-[#A3A3A3]">
+                                {rider.armada_code}
+                              </span>
+                            </div>
                           </div>
 
-                          <div className="flex items-center gap-2 text-[11px] text-[#525252] mt-1 truncate">
-                            <span className="font-medium text-[#111111]">
-                              {rider.zone_name}
-                            </span>
-                            <span>•</span>
-                            <span className="font-mono text-[#737373]">
-                              {rider.armada_code}
+                          <div className="flex flex-col items-end shrink-0 gap-1">
+                            <StatusBadge
+                              variant={badgeProps.variant}
+                              size="sm"
+                              withDot={badgeProps.withDot}
+                            >
+                              {badgeProps.label}
+                            </StatusBadge>
+                            <span className="text-[9px] text-[#A3A3A3]">
+                              {rider.last_ping}
                             </span>
                           </div>
-                        </div>
-
-                        <div className="flex flex-col items-end shrink-0 gap-1">
-                          <span
-                            className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${
-                              isDeviated
-                                ? "bg-[#FEE2E2] text-[#DC2626]"
-                                : isOperating
-                                ? "bg-[#DCFCE7] text-[#16A34A]"
-                                : "bg-[#FEF3C7] text-[#D97706]"
-                            }`}
-                          >
-                            {rider.status}
-                          </span>
-                          <span className="text-[10px] text-[#737373]">
-                            {rider.last_ping}
-                          </span>
                         </div>
                       </div>
-                    </div>
-                  );
-                })
-              )}
+                    );
+                  })
+                )}
+              </div>
             </div>
-          </div>
-
-          {/* Right GIS Spatial Map (Remaining Viewport) */}
-          <div className="flex-1 relative h-full w-full overflow-hidden bg-[#E5E5E5] isolate z-10">
-            <LeafletMapCanvas
-              zones={enhancedZones}
-              riders={allRidersPool}
-              armadas={armadas}
-              protocolRoads={protocolRoads}
-              layers={layers}
-              selectedItem={selectedRider}
-              onSelectItem={(item) => setSelectedRider(item)}
-              mapRef={mapRef}
-            />
-
-            {/* Floating Map Controls */}
-            <MapFloatingToolbar
-              activePanel={activeFloatingPanel}
-              onTogglePanel={(p) => setActiveFloatingPanel((prev) => (prev === p ? null : p))}
-              onZoomIn={() => mapRef.current?.zoomIn()}
-              onZoomOut={() => mapRef.current?.zoomOut()}
-              onResetView={() => mapRef.current?.setView([-7.4478, 112.7183], 13)}
-              isLiveConnected={isLiveConnected}
-            />
-
-            {/* Layer Toggle Panel */}
-            {activeFloatingPanel === "layers" && (
-              <MapLayersPanel
-                layers={layers}
-                onToggleLayer={(id) => setLayers((prev) => ({ ...prev, [id]: !prev[id] }))}
-                onClose={() => setActiveFloatingPanel(null)}
-              />
-            )}
-
-            {/* Legend Panel */}
-            {activeFloatingPanel === "legend" && (
-              <MapLegendPanel onClose={() => setActiveFloatingPanel(null)} />
-            )}
-
-            {/* Operational Detail Panel */}
-            {selectedRider && (
-              <OperationalDetailPanel
-                selectedItem={selectedRider}
-                itemType="rider"
-                onClose={() => setSelectedRider(null)}
-                onCenterMap={() => handleSelectRider(selectedRider)}
-                userRole={user?.role}
-              />
-            )}
-          </div>
+          )}
         </div>
+
+        {/* 3. Docked Right Layer Sidebar */}
+        <MapRightLayerSidebar
+          layers={layers}
+          onToggleLayer={handleToggleLayer}
+          counts={{ zones: enhancedZones.length, riders: allRidersPool.length }}
+        />
+
+        {/* 4. Operational Detail Drawer */}
+        {selectedRider && (
+          <OperationalDetailPanel
+            selectedItem={selectedRider}
+            itemType="rider"
+            onClose={() => setSelectedRider(null)}
+            onCenterMap={() => handleSelectRider(selectedRider)}
+            userRole={user?.role}
+          />
+        )}
       </div>
-    </div>
+    </AppLayout>
   );
 }
+
+export default DistributionPage;

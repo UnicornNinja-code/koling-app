@@ -3,7 +3,7 @@ import { Sun, SunDim, Sunset, Moon, Clock } from "lucide-react";
 
 /**
  * Enhanced Map TimeSlot & Hourly Slice Bar
- * Allows switching between 4 operational time slots and inspecting specific 1-hour intervals.
+ * Centered floating operational time-control with Antimetal dark/light styling
  */
 export function MapTimeSlotBar({
   selectedSlot = "pagi",
@@ -21,12 +21,12 @@ export function MapTimeSlotBar({
   const currentSlotObj = slots.find((s) => s.key === selectedSlot) || slots[0];
 
   return (
-    <div className="absolute top-3 left-3 z-30 flex flex-col gap-1 select-none font-sans">
+    <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 hidden sm:flex flex-col items-center gap-1 select-none font-sans pointer-events-auto">
       {/* Main Timeslot Row */}
-      <div className="flex items-center bg-white border border-[#E5E5E5] rounded-[6px] p-1 shadow-sm">
-        <div className="hidden sm:flex items-center gap-1.5 px-2.5 text-[10px] font-bold text-[#737373] uppercase tracking-wider border-r border-[#E5E5E5] mr-1">
-          <Clock className="w-3 h-3 text-[#ea580c]" />
-          <span>Slot Waktu C3</span>
+      <div className="flex items-center bg-white/95 dark:bg-[#131822]/95 backdrop-blur-md border border-[#E5E5E5] dark:border-[#263244] rounded-[8px] p-1 shadow-lg transition-colors">
+        <div className="flex items-center gap-1.5 px-2.5 text-[10px] font-bold text-[#737373] dark:text-[#A3A3A3] uppercase tracking-wider border-r border-[#E5E5E5] dark:border-[#263244] mr-1">
+          <Clock className="w-3 h-3 text-[#2563EB]" />
+          <span>Slot C3</span>
         </div>
 
         <div className="flex items-center gap-1">
@@ -40,16 +40,16 @@ export function MapTimeSlotBar({
                 type="button"
                 onClick={() => {
                   onSelectSlot(slot.key);
-                  if (onSelectHour) onSelectHour(null); // Reset hourly slice on slot change
+                  if (onSelectHour) onSelectHour(null);
                 }}
-                className={`flex items-center gap-1.5 px-2.5 h-7 rounded-[4px] text-[11px] font-bold transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-2.5 h-6.5 rounded-[6px] text-[11px] font-semibold transition-all cursor-pointer ${
                   isSelected
-                    ? "bg-[#ea580c] text-white shadow-xs"
-                    : "text-[#525252] hover:text-[#111111] hover:bg-[#F5F5F5]"
+                    ? "bg-[#2563EB] text-white shadow-xs"
+                    : "text-[#737373] dark:text-[#A3A3A3] hover:text-[#111111] dark:hover:text-white hover:bg-[#F5F5F5] dark:hover:bg-[#1E293B]"
                 }`}
                 title={`${slot.label} (${slot.time})`}
               >
-                <Icon className="w-3.5 h-3.5" />
+                <Icon className="w-3 h-3" />
                 <span>{slot.label}</span>
               </button>
             );
@@ -58,17 +58,17 @@ export function MapTimeSlotBar({
       </div>
 
       {/* Hourly Slices Sub-Bar */}
-      <div className="flex items-center gap-1 bg-white/95 backdrop-blur-xs border border-[#E5E5E5] rounded-[6px] p-1 shadow-2xs self-start">
-        <span className="text-[9px] font-bold text-[#737373] uppercase px-1.5 border-r border-[#E5E5E5] mr-0.5">
+      <div className="flex items-center gap-1 bg-white/95 dark:bg-[#131822]/95 backdrop-blur-md border border-[#E5E5E5] dark:border-[#263244] rounded-[6px] px-1.5 py-0.5 shadow-md transition-colors">
+        <span className="text-[9px] font-bold text-[#737373] dark:text-[#A3A3A3] uppercase px-1 border-r border-[#E5E5E5] dark:border-[#263244] mr-0.5">
           Jam:
         </span>
         <button
           type="button"
           onClick={() => onSelectHour && onSelectHour(null)}
-          className={`px-1.5 h-5 rounded-[3px] text-[10px] font-bold transition-colors cursor-pointer ${
+          className={`px-1.5 h-5 rounded-[4px] text-[9px] font-bold transition-colors cursor-pointer ${
             selectedHour === null
-              ? "bg-[#2563EB] text-white"
-              : "text-[#737373] hover:text-[#111111] hover:bg-[#F0F0F0]"
+              ? "bg-[#2563EB] text-white font-extrabold"
+              : "text-[#737373] dark:text-[#A3A3A3] hover:text-[#111111] dark:hover:text-white hover:bg-[#F5F5F5] dark:hover:bg-[#1E293B]"
           }`}
         >
           Semua ({currentSlotObj.label})
@@ -78,10 +78,10 @@ export function MapTimeSlotBar({
             key={hour}
             type="button"
             onClick={() => onSelectHour && onSelectHour(hour)}
-            className={`px-1.5 h-5 rounded-[3px] text-[10px] font-mono font-bold transition-colors cursor-pointer ${
+            className={`px-1.5 h-5 rounded-[4px] text-[9px] font-mono font-bold transition-colors cursor-pointer ${
               selectedHour === hour
-                ? "bg-[#ea580c] text-white"
-                : "text-[#525252] hover:text-[#111111] hover:bg-[#F0F0F0]"
+                ? "bg-[#2563EB] text-white"
+                : "text-[#525252] dark:text-[#D4D4D4] hover:text-[#111111] dark:hover:text-white hover:bg-[#F5F5F5] dark:hover:bg-[#1E293B]"
             }`}
           >
             {hour}

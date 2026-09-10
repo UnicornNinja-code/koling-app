@@ -37,13 +37,29 @@ async function runStateIntegrityTests() {
       }
     }
 
-    // 1. Setup Test Users & Ensure Standard Hash
+    // 1. Setup Test Users & Ensure Standard Hash (Deterministic Upsert Fixture)
     console.log(`[1] Authenticating Test Users...`);
     const bcrypt = (await import("bcrypt")).default;
     const defaultHash = await bcrypt.hash("password123", 10);
-    await pool.query("UPDATE users SET password = $1 WHERE email = 'superadmin@kopikeliling.com'", [defaultHash]);
-    await pool.query("UPDATE users SET password = $1 WHERE email = 'supervisor@kopikeliling.com'", [defaultHash]);
-    await pool.query("UPDATE users SET password = $1 WHERE email = 'rider@kopikeliling.com'", [defaultHash]);
+    
+    // Deterministic test accounts upsert
+    await pool.query(`
+      INSERT INTO users (username, name, email, password, role, is_active, first_login)
+      VALUES ('superadmin', 'Super Admin System', 'superadmin@kopikeliling.com', $1, 'SUPERADMIN', true, false)
+      ON CONFLICT (email) DO UPDATE SET password = $1, is_active = true;
+    `, [defaultHash]);
+
+    await pool.query(`
+      INSERT INTO users (username, name, email, password, role, is_active, first_login)
+      VALUES ('supervisor1', 'Supervisor Test', 'supervisor@kopikeliling.com', $1, 'SUPERVISOR', true, false)
+      ON CONFLICT (email) DO UPDATE SET password = $1, is_active = true;
+    `, [defaultHash]);
+
+    await pool.query(`
+      INSERT INTO users (username, name, email, password, role, is_active, first_login)
+      VALUES ('rider1', 'Rider Test', 'rider@kopikeliling.com', $1, 'RIDER', true, false)
+      ON CONFLICT (email) DO UPDATE SET password = $1, is_active = true;
+    `, [defaultHash]);
 
     const login = async (email, password) => {
       const res = await fetch(`${BASE_URL}/api/auth/login`, {

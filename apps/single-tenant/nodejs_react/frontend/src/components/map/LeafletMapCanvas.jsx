@@ -3,6 +3,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { getActiveBasemapProvider } from "../../lib/mapPreferences.js";
 import { createGoogleMapsPoiIcon, getPoiCategoryTheme } from "../../lib/poiTheme.js";
+import { useTheme } from "../../context/ThemeContext.jsx";
 
 // Fix default Leaflet icon assets
 delete L.Icon.Default.prototype._getIconUrl;
@@ -39,6 +40,7 @@ export function LeafletMapCanvas({
   onSelectItem,
   mapRef,
 }) {
+  const { isDark } = useTheme();
   const containerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const tileLayerRef = useRef(null);
@@ -50,6 +52,25 @@ export function LeafletMapCanvas({
   const poisLayerGroupRef = useRef(null);
   const weatherLayerGroupRef = useRef(null);
   const salesHeatmapLayerGroupRef = useRef(null);
+
+  const getEffectiveProvider = () => {
+    return getActiveBasemapProvider();
+  };
+
+  const createTileLayer = (provider) => {
+    const options = {
+      maxZoom: provider.maxZoom || 19,
+      attribution: provider.attribution,
+      crossOrigin: true,
+      updateWhenIdle: false, // Stream tiles continuously while dragging for 60fps smooth pan
+      updateWhenZooming: true, // Smooth tile scaling and loading during zoom animations
+      keepBuffer: 8, // Cache 8 tiles offscreen in RAM so panning back has zero network delay
+    };
+    if (provider.subdomains) options.subdomains = provider.subdomains;
+    if (provider.tileSize) options.tileSize = provider.tileSize;
+    if (provider.zoomOffset !== undefined) options.zoomOffset = provider.zoomOffset;
+    return L.tileLayer(provider.url, options);
+  };
 
   // Initialize Map
   useEffect(() => {
@@ -75,24 +96,9 @@ export function LeafletMapCanvas({
       preferCanvas: true,
     });
 
-    const createTileLayer = (provider) => {
-      const options = {
-        maxZoom: provider.maxZoom || 19,
-        attribution: provider.attribution,
-        crossOrigin: true,
-        updateWhenIdle: false, // Stream tiles continuously while dragging for 60fps smooth pan
-        updateWhenZooming: true, // Smooth tile scaling and loading during zoom animations
-        keepBuffer: 8, // Cache 8 tiles offscreen in RAM so panning back has zero network delay
-      };
-      if (provider.subdomains) options.subdomains = provider.subdomains;
-      if (provider.tileSize) options.tileSize = provider.tileSize;
-      if (provider.zoomOffset !== undefined) options.zoomOffset = provider.zoomOffset;
-      return L.tileLayer(provider.url, options);
-    };
-
-    // Configurable Basemap Tile Provider
-    const activeProvider = getActiveBasemapProvider();
-    tileLayerRef.current = createTileLayer(activeProvider).addTo(map);
+    // Configurable Basemap Tile Provider with Dark Mode Awareness
+    const initialProvider = getEffectiveProvider(isDark);
+    tileLayerRef.current = createTileLayer(initialProvider).addTo(map);
 
     // Initialize Layer Groups
     zonesLayerGroupRef.current = L.layerGroup().addTo(map);
@@ -108,13 +114,14 @@ export function LeafletMapCanvas({
     // Listen for tile provider changes from Settings
     const handlePrefChange = () => {
       if (!mapInstanceRef.current) return;
-      const newProvider = getActiveBasemapProvider();
+      const newProvider = getEffectiveProvider(isDark);
       if (tileLayerRef.current) {
         try {
           mapInstanceRef.current.removeLayer(tileLayerRef.current);
         } catch (e) {}
       }
       tileLayerRef.current = createTileLayer(newProvider).addTo(mapInstanceRef.current);
+      if (tileLayerRef.current.bringToBack) tileLayerRef.current.bringToBack();
     };
 
     window.addEventListener("mova:map_preferences_changed", handlePrefChange);
@@ -135,6 +142,21 @@ export function LeafletMapCanvas({
       }
     };
   }, []);
+
+  // Sync Basemap when Theme (Light/Dark) changes dynamically
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+    const provider = getEffectiveProvider(isDark);
+    if (tileLayerRef.current) {
+      try {
+        mapInstanceRef.current.removeLayer(tileLayerRef.current);
+      } catch (e) {}
+    }
+    tileLayerRef.current = createTileLayer(provider).addTo(mapInstanceRef.current);
+    if (tileLayerRef.current.bringToBack) {
+      tileLayerRef.current.bringToBack();
+    }
+  }, [isDark]);
 
   // Update Zones Layer
   useEffect(() => {

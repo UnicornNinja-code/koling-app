@@ -14,8 +14,15 @@
  *   4. System Settings minimal (SYSTEM_INITIALIZED = false → wajib lewat onboarding/setup)
  */
 
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import format from "pg-format";
 import bcrypt from "bcrypt";
 import { pool } from "../config/database.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 async function seedFresh() {
   console.log("════════════════════════════════════════════");
@@ -168,6 +175,127 @@ async function seedFresh() {
       );
     }
     console.log(`   ✅ ${systemSettings.length} system settings disiapkan.\n`);
+
+    // ─────────────────────────────────────────────
+    // 6. SPATIAL RESTRICTION LAYER (Jalan Protokol & Tol)
+    // ─────────────────────────────────────────────
+    console.log("⏳ [6/6] Menyiapkan Lapisan Spasial Restriksi Jalan Protokol & Tol (PostGIS)...");
+    
+    // 6a. Jalan Protokol
+    const protocolPath = path.join(__dirname, "../../public/geojson/jalan_protokol.geojson");
+    let protocolCount = 0;
+    if (fs.existsSync(protocolPath)) {
+      const rawData = fs.readFileSync(protocolPath, "utf8");
+      const geoJson = JSON.parse(rawData);
+      const features = geoJson.features || [];
+      const validFeatures = [];
+
+      for (let idx = 0; idx < features.length; idx++) {
+        const feat = features[idx];
+        if (feat.geometry?.type === "LineString" && Array.isArray(feat.geometry.coordinates)) {
+          const externalId = feat.properties?.id || `way/gen-${idx + 1}`;
+          const roadName = feat.properties?.name || "Jalan Protokol Utama";
+          const highwayType = feat.properties?.highway || "secondary";
+          const geoJsonStr = JSON.stringify(feat.geometry);
+
+          validFeatures.push([
+            externalId,
+            roadName,
+            highwayType,
+            "PROHIBITED_ROAD",
+            JSON.stringify(feat.properties || {}),
+            geoJsonStr,
+          ]);
+        }
+      }
+
+      const batchSize = 200;
+      for (let i = 0; i < validFeatures.length; i += batchSize) {
+        const batch = validFeatures.slice(i, i + batchSize);
+        const insertQuery = format(
+          `
+          INSERT INTO protocol_roads (external_id, name, highway_type, restriction_type, metadata, geom)
+          SELECT 
+            v.external_id,
+            v.name,
+            v.highway_type,
+            v.restriction_type,
+            v.metadata::jsonb,
+            ST_SetSRID(ST_GeomFromGeoJSON(v.geojson), 4326)
+          FROM (VALUES %L) AS v(external_id, name, highway_type, restriction_type, metadata, geojson)
+          ON CONFLICT (external_id) DO UPDATE SET
+            name = EXCLUDED.name,
+            highway_type = EXCLUDED.highway_type,
+            restriction_type = EXCLUDED.restriction_type,
+            metadata = EXCLUDED.metadata,
+            geom = EXCLUDED.geom,
+            updated_at = CURRENT_TIMESTAMP;
+          `,
+          batch
+        );
+        await client.query(insertQuery);
+      }
+      protocolCount = validFeatures.length;
+    }
+
+    // 6b. Jalan Tol
+    const tollPath = path.join(__dirname, "../../public/geojson/jalan_tol.geojson");
+    let tollCount = 0;
+    if (fs.existsSync(tollPath)) {
+      const rawData = fs.readFileSync(tollPath, "utf8");
+      const geoJson = JSON.parse(rawData);
+      const features = geoJson.features || [];
+      const validTollFeatures = [];
+
+      for (let idx = 0; idx < features.length; idx++) {
+        const feat = features[idx];
+        if (feat.geometry?.type === "LineString" && Array.isArray(feat.geometry.coordinates)) {
+          const externalId = feat.properties?.id || `way/toll-${idx + 1}`;
+          const roadName = feat.properties?.name || "Jalan Tol";
+          const highwayType = feat.properties?.highway || "motorway";
+          const geoJsonStr = JSON.stringify(feat.geometry);
+
+          validTollFeatures.push([
+            externalId,
+            roadName,
+            highwayType,
+            "PROHIBITED_TOLL_ROAD",
+            JSON.stringify(feat.properties || {}),
+            geoJsonStr,
+          ]);
+        }
+      }
+
+      const batchSize = 200;
+      for (let i = 0; i < validTollFeatures.length; i += batchSize) {
+        const batch = validTollFeatures.slice(i, i + batchSize);
+        const insertQuery = format(
+          `
+          INSERT INTO protocol_roads (external_id, name, highway_type, restriction_type, metadata, geom)
+          SELECT 
+            v.external_id,
+            v.name,
+            v.highway_type,
+            v.restriction_type,
+            v.metadata::jsonb,
+            ST_SetSRID(ST_GeomFromGeoJSON(v.geojson), 4326)
+          FROM (VALUES %L) AS v(external_id, name, highway_type, restriction_type, metadata, geojson)
+          ON CONFLICT (external_id) DO UPDATE SET
+            name = EXCLUDED.name,
+            highway_type = EXCLUDED.highway_type,
+            restriction_type = EXCLUDED.restriction_type,
+            metadata = EXCLUDED.metadata,
+            geom = EXCLUDED.geom,
+            updated_at = CURRENT_TIMESTAMP;
+          `,
+          batch
+        );
+        await client.query(insertQuery);
+      }
+      tollCount = validTollFeatures.length;
+    }
+
+    console.log(`   ✅ Lapisan Restriksi Spasial disiapkan: ${protocolCount} jalan protokol & ${tollCount} jalan tol.\n`);
 
     await client.query("COMMIT");
 

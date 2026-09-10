@@ -46,10 +46,10 @@ export function ToastProvider({ children }) {
   return (
     <ToastContext.Provider value={toast}>
       {children}
-      {/* Toast Floating Viewport */}
+      {/* Toast Floating Viewport (Top-Right SSOT) */}
       <div
         aria-live="polite"
-        className="fixed bottom-4 right-4 z-50 flex flex-col gap-2.5 max-w-sm w-full pointer-events-none p-2 sm:p-0"
+        className="fixed top-4 right-4 z-50 flex flex-col gap-2.5 max-w-[360px] w-full pointer-events-none p-2 sm:p-0"
       >
         {toasts.map((t) => (
           <ToastItem key={t.id} toast={t} onDismiss={() => removeToast(t.id)} />
@@ -77,61 +77,69 @@ export function useToast() {
 function ToastItem({ toast, onDismiss }) {
   const configs = {
     success: {
-      border: "border-emerald-200 dark:border-emerald-800/60",
-      bg: "bg-white dark:bg-[#131822]",
+      border: "border-emerald-500/30",
+      bg: "bg-card/95",
       icon: CheckCircle2,
-      iconColor: "text-emerald-600 dark:text-emerald-400",
-      barColor: "bg-emerald-600",
+      iconColor: "text-emerald-500",
+      barColor: "bg-emerald-500",
     },
     warning: {
-      border: "border-amber-200 dark:border-amber-800/60",
-      bg: "bg-white dark:bg-[#131822]",
+      border: "border-amber-500/30",
+      bg: "bg-card/95",
       icon: AlertTriangle,
-      iconColor: "text-amber-600 dark:text-amber-400",
-      barColor: "bg-amber-600",
+      iconColor: "text-amber-500",
+      barColor: "bg-amber-500",
     },
     danger: {
-      border: "border-rose-200 dark:border-rose-800/60",
-      bg: "bg-white dark:bg-[#131822]",
+      border: "border-destructive/30",
+      bg: "bg-card/95",
       icon: AlertCircle,
-      iconColor: "text-rose-600 dark:text-rose-400",
-      barColor: "bg-rose-600",
+      iconColor: "text-destructive",
+      barColor: "bg-destructive",
     },
     info: {
-      border: "border-blue-200 dark:border-blue-800/60",
-      bg: "bg-white dark:bg-[#131822]",
+      border: "border-primary/30",
+      bg: "bg-card/95",
       icon: Info,
-      iconColor: "text-blue-600 dark:text-blue-400",
-      barColor: "bg-blue-600",
+      iconColor: "text-primary",
+      barColor: "bg-primary",
     },
   };
 
-  const config = configs[toast.variant] || configs.info;
-  const Icon = config.icon;
+  const current = configs[toast.variant] || configs.info;
+  const IconComponent = current.icon;
 
   return (
     <div
-      role="status"
       className={cn(
-        "pointer-events-auto relative flex items-start gap-3 p-4 rounded-[6px] border shadow-xl transition-all duration-200 ease-out",
-        "animate-in slide-in-from-bottom-5 fade-in",
-        config.bg,
-        config.border
+        "pointer-events-auto w-full rounded-md border shadow-lg overflow-hidden backdrop-blur-md transition-all duration-200",
+        "animate-in fade-in slide-in-from-top-2",
+        current.bg,
+        current.border
       )}
     >
-      <Icon className={cn("w-5 h-5 shrink-0 mt-0.5", config.iconColor)} />
-      <div className="flex-1 space-y-0.5 pr-2">
-        {toast.title && <h5 className="font-heading font-bold text-xs text-slate-900 dark:text-white leading-tight">{toast.title}</h5>}
-        {toast.message && <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{toast.message}</p>}
+      <div className="p-3 flex items-start gap-3">
+        <IconComponent className={cn("w-4 h-4 mt-0.5 shrink-0", current.iconColor)} />
+
+        <div className="flex-1 min-w-0">
+          {toast.title && (
+            <h4 className="font-heading font-semibold text-xs text-foreground leading-tight">
+              {toast.title}
+            </h4>
+          )}
+          <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
+            {toast.message}
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="text-muted-foreground hover:text-foreground p-0.5 rounded cursor-pointer transition-colors shrink-0"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
       </div>
-      <button
-        type="button"
-        onClick={onDismiss}
-        aria-label="Tutup notifikasi"
-        className="p-1 rounded-[4px] text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#1E293B] transition-colors cursor-pointer shrink-0"
-      >
-        <X className="w-4 h-4" />
-      </button>
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { ConfirmProvider } from "./context/ConfirmContext.jsx";
 import { ProtectedRoute } from "./components/guards/ProtectedRoute.jsx";
 import { RoleGuard } from "./components/guards/RoleGuard.jsx";
 import { ToastProvider } from "./components/ui/Toast.jsx";
+import { ErrorBoundary } from "./components/common/ErrorBoundary.jsx";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -106,8 +107,9 @@ export default function App() {
           <AuthProvider>
             <ToastProvider>
               <ConfirmProvider>
-                <Suspense fallback={<PageFallback />}>
-                  <Routes>
+                <ErrorBoundary name="AppRoot">
+                  <Suspense fallback={<PageFallback />}>
+                    <Routes>
                   {/* Root Dynamic Redirect */}
                   <Route path="/" element={<RootRedirect />} />
 
@@ -302,6 +304,7 @@ export default function App() {
                   <Route path="*" element={<NotFoundPage />} />
                 </Routes>
               </Suspense>
+            </ErrorBoundary>
             </ConfirmProvider>
           </ToastProvider>
           </AuthProvider>

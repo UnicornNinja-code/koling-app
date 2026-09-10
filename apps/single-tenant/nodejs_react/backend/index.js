@@ -30,10 +30,17 @@ import analyticsRoutes from "./src/routes/analyticsRoutes.js";
 import reportRoutes from "./src/routes/reportRoutes.js";
 import notificationRoutes from "./src/routes/notificationRoutes.js";
 
+import helmet from "helmet";
+import cors from "cors";
+import cookieParser from "cookie-parser";
+import swaggerUi from "swagger-ui-express";
+import YAML from "yamljs";
+import { apiLimiter } from "./src/middlewares/rateLimiterMiddleware.js";
+
 // Initialize BullMQ Background Workers
-import "./src/workers/overpassWorker.js";
-import "./src/workers/armadaHoldWorker.js";
-import "./src/workers/notificationWorker.js";
+import { overpassWorker } from "./src/workers/overpassWorker.js";
+import { armadaHoldWorker } from "./src/workers/armadaHoldWorker.js";
+import { notificationWorker } from "./src/workers/notificationWorker.js";
 
 // Initialize Socket.io Real-Time & LBS Handlers
 import { socketManager } from "./src/socket/socketManager.js";
@@ -42,44 +49,66 @@ import { registerLbsSocketHandlers } from "./src/socket/lbsHandler.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-import cors from "cors";
-import cookieParser from "cookie-parser";
-import swaggerUi from "swagger-ui-express";
-import YAML from "yamljs";
-import { apiLimiter } from "./src/middlewares/rateLimiterMiddleware.js";
-
 const swaggerDocument = YAML.load(path.join(__dirname, "src/docs/swagger.yaml"));
 
 const app = express();
 const server = http.createServer(app);
 
-// 0. Enable CORS Middleware (Cross-Origin Resource Sharing for Front-End Vite Dev Server)
+const isProduction = env.NODE_ENV === "production";
+
+// 0. HTTP Security Headers via Helmet (Configured for Swagger & GeoJSON compatibility)
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:", "blob:", "https:", "http:"],
+        connectSrc: ["'self'", "http:", "https:", "ws:", "wss:"],
+      },
+    },
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginEmbedderPolicy: false,
+    hsts: isProduction ? { maxAge: 31536000, includeSubDomains: true } : false,
+  })
+);
+
+// 1. Enable CORS Middleware with strict origin whitelist & safe rejection
+const allowedOrigins = isProduction
+  ? [env.FRONTEND_URL, ...(env.ADDITIONAL_ALLOWED_ORIGINS || [])].filter(Boolean)
+  : [
+      env.FRONTEND_URL,
+      "http://localhost:5173",
+      "http://127.0.0.1:5173",
+      "http://localhost:5174",
+      "http://127.0.0.1:5174",
+      "http://localhost:5175",
+      "http://127.0.0.1:5175",
+      "http://localhost:8090",
+      "http://127.0.0.1:8090",
+      "http://localhost:3000",
+      "http://localhost:9000",
+      "http://localhost:5000",
+    ].filter(Boolean);
+
 app.use(
   cors({
     origin: (origin, callback) => {
+      // Allow non-browser requests (curl, server-to-server, mobile native)
       if (!origin) return callback(null, true);
-      const allowedOrigins = [
-        process.env.FRONTEND_URL,
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5174",
-        "http://localhost:5175",
-        "http://127.0.0.1:5175",
-        "http://localhost:8090",
-        "http://127.0.0.1:8090",
-        "http://localhost:3000",
-        "http://localhost:9000",
-        "http://localhost:5000",
-      ].filter(Boolean);
-      if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === "development") {
+      if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
-      return callback(new Error("Blocked by CORS policy"));
+      // Gracefully reject unauthorized origin without throwing 500 error
+      return callback(null, false);
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
   })
 );
 
@@ -181,8 +210,78 @@ async function startServer() {
   }
 }
 
-export { app, server, startServer };
+// Graceful Shutdown Sequence & Process Crash Guards
+let isShuttingDown = false;
+
+async function gracefulShutdown(signal, exitCode = 0) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  console.log(`\n🛑 [SHUTDOWN] Menerima sinyal ${signal}. Memulai proses graceful shutdown...`);
+
+  // Force exit safety timeout (10 seconds)
+  const forceTimeout = setTimeout(() => {
+    console.error("⚠️ [SHUTDOWN TIMEOUT] Memaksa proses keluar setelah 10 detik.");
+    process.exit(1);
+  }, 10000);
+  forceTimeout.unref();
+
+  try {
+    // 1. Close HTTP & WebSocket server
+    if (server.listening) {
+      await new Promise((resolve) => server.close(resolve));
+      console.log("   ✅ HTTP & WebSocket server ditutup.");
+    }
+
+    // 2. Disconnect Socket.io clients
+    if (io) {
+      io.disconnectSockets(true);
+      console.log("   ✅ Seluruh koneksi Socket.io diputus.");
+    }
+
+    // 3. Gracefully close BullMQ background workers
+    await Promise.allSettled([
+      overpassWorker.close(),
+      armadaHoldWorker.close(),
+      notificationWorker.close(),
+    ]);
+    console.log("   ✅ Seluruh BullMQ workers ditutup.");
+
+    // 4. Disconnect Redis Client
+    if (redisClient.isOpen || redisClient.isReady) {
+      await redisClient.quit();
+      console.log("   ✅ Sambungan Redis diputus.");
+    }
+
+    // 5. Drain and close PostgreSQL connection pool
+    await pool.end();
+    console.log("   ✅ Pool PostgreSQL & PostGIS ditutup.");
+
+    console.log("🏁 [SHUTDOWN COMPLETE] Graceful shutdown selesai dengan bersih.\n");
+    process.exit(exitCode);
+  } catch (err) {
+    console.error("💥 [SHUTDOWN ERROR] Kesalahan saat shutdown:", err);
+    process.exit(1);
+  }
+}
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("💥 [UNHANDLED REJECTION] Janji ditolak tanpa penanganan:", reason);
+  if (isProduction) {
+    gracefulShutdown("unhandledRejection", 1);
+  }
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("💥 [UNCAUGHT EXCEPTION] Kesalahan fatal yang tidak tertangkap:", err);
+  gracefulShutdown("uncaughtException", 1);
+});
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM", 0));
+process.on("SIGINT", () => gracefulShutdown("SIGINT", 0));
+
+export { app, server, startServer, gracefulShutdown };
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   startServer();
 }
+

@@ -2,6 +2,11 @@ import React, { useEffect } from "react";
 import { cn } from "../../lib/utils.js";
 import { X } from "lucide-react";
 
+/**
+ * MOVA Modal / Dialog Component — Design System v3.0 SSOT
+ * Radius: 16px (rounded-xl), elevation: shadow-2xl, backdrop blur
+ * Standard anatomy: Header (Title + Description) → Body → Footer
+ */
 export function Modal({
   isOpen,
   onClose,
@@ -35,14 +40,14 @@ export function Modal({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 dark:bg-black/75 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose?.();
       }}
     >
       <div
         className={cn(
-          "bg-white dark:bg-[#131822] w-full rounded-t-[8px] sm:rounded-[8px] border border-slate-200 dark:border-[#1E293B] shadow-2xl text-slate-900 dark:text-slate-100",
+          "bg-card text-card-foreground w-full rounded-t-xl sm:rounded-xl border border-border shadow-2xl",
           "max-h-[90vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-200",
           maxWidth,
           className
@@ -50,15 +55,15 @@ export function Modal({
       >
         {/* Modal Header */}
         {(title || onClose) && (
-          <div className="p-4 md:p-5 border-b border-slate-200 dark:border-[#1E293B] flex items-start justify-between gap-3 bg-white dark:bg-[#131822] shrink-0">
+          <div className="p-5 border-b border-border flex items-start justify-between gap-3 bg-card shrink-0">
             <div>
               {title && (
-                <h3 className="font-heading font-extrabold text-base text-slate-900 dark:text-white leading-snug">
+                <h3 className="font-heading font-bold text-base text-foreground leading-snug">
                   {title}
                 </h3>
               )}
               {description && (
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{description}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{description}</p>
               )}
             </div>
 
@@ -67,16 +72,16 @@ export function Modal({
                 type="button"
                 onClick={onClose}
                 aria-label="Tutup dialog"
-                className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#1E293B] rounded-[4px] transition-colors cursor-pointer shrink-0"
+                className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors cursor-pointer shrink-0"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             )}
           </div>
         )}
 
         {/* Modal Body */}
-        <div className="p-4 md:p-6 overflow-y-auto flex-1 text-xs md:text-sm text-slate-700 dark:text-slate-300">
+        <div className="p-5 md:p-6 overflow-y-auto flex-1 text-sm text-foreground">
           {children}
         </div>
       </div>
@@ -85,4 +90,4 @@ export function Modal({
 }
 
 export const Dialog = Modal;
-
+export default Modal;

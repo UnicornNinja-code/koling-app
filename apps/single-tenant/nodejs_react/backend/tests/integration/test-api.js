@@ -33,6 +33,47 @@ async function runTests() {
       }
     }
 
+    // 0. Setup Deterministic Test Fixtures (Users & Zones)
+    const bcrypt = (await import("bcrypt")).default;
+    const defaultHash = await bcrypt.hash("password123", 10);
+    await pool.query(`
+      INSERT INTO users (username, name, email, password, role, is_active, first_login)
+      VALUES ('superadmin', 'Super Admin System', 'superadmin@kopikeliling.com', $1, 'SUPERADMIN', true, false)
+      ON CONFLICT (email) DO UPDATE SET password = $1, first_login = false, is_active = true;
+    `, [defaultHash]);
+
+    await pool.query(`
+      INSERT INTO users (username, name, email, password, role, is_active, first_login)
+      VALUES ('supervisor1', 'Supervisor Test', 'supervisor@kopikeliling.com', $1, 'SUPERVISOR', true, false)
+      ON CONFLICT (email) DO UPDATE SET password = $1, first_login = false, is_active = true;
+    `, [defaultHash]);
+
+    await pool.query(`
+      INSERT INTO users (username, name, email, password, role, is_active, first_login)
+      VALUES ('rider1', 'Rider Test', 'rider@kopikeliling.com', $1, 'RIDER', true, false)
+      ON CONFLICT (email) DO UPDATE SET password = $1, first_login = false, is_active = true;
+    `, [defaultHash]);
+
+    const { rows: existingZones } = await pool.query("SELECT id FROM zones LIMIT 1;");
+    if (existingZones.length === 0) {
+      const testPoly = JSON.stringify({
+        type: "Polygon",
+        coordinates: [
+          [
+            [112.7160, -7.4460],
+            [112.7210, -7.4460],
+            [112.7210, -7.4510],
+            [112.7160, -7.4510],
+            [112.7160, -7.4460]
+          ]
+        ]
+      });
+      await pool.query(`
+        INSERT INTO zones (name, description, max_capacity, status, polygon, geom)
+        VALUES ('Zona API Test', 'Zona untuk pengujian API', 3, 'ACTIVE', $1::jsonb, ST_SetSRID(ST_GeomFromGeoJSON($1), 4326));
+      `, [testPoly]);
+    }
+
     // Authentication tests
     const resSuperadmin = await fetch(`${BASE_URL}/api/auth/login`, {
       method: "POST",

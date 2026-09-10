@@ -1,0 +1,6 @@
+/**
+ * MOVA Design System v3.0 — Globals & Theme Manifest
+ * Re-exports index.css and tokens.css for modular imports
+ */
+@import "./tokens.css";
+@import "./mova.css";

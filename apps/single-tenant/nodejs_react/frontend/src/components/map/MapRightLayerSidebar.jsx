@@ -107,24 +107,24 @@ export function MapRightLayerSidebar({
   ];
 
   return (
-    <aside className="absolute top-0 right-0 h-full z-20 flex flex-col justify-between items-start bg-white/95 backdrop-blur-md border-l border-[#E2E8F0] shadow-lg transition-all duration-300 ease-in-out group/layers w-[56px] hover:w-[290px] overflow-x-hidden font-sans select-none">
+    <aside className="absolute top-0 right-0 h-full z-20 flex flex-col justify-between items-start bg-white/95 dark:bg-[#131822]/95 backdrop-blur-md border-l border-[#E5E5E5] dark:border-[#263244] shadow-lg transition-all duration-300 ease-in-out group/layers w-[56px] hover:w-[290px] overflow-x-hidden font-sans select-none text-[#111111] dark:text-[#FAFAFA]">
       {/* Top Header */}
       <div className="flex flex-col items-start w-full px-2.5 pt-3">
         <div className="flex items-center gap-3 w-full p-1 rounded-[8px] overflow-hidden">
-          <div className="w-9 h-9 shrink-0 rounded-[8px] bg-orange-50 border border-orange-200 flex items-center justify-center text-[#ea580c] shadow-2xs group-hover/layers:border-[#ea580c] transition-colors">
+          <div className="w-9 h-9 shrink-0 rounded-[8px] bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-900/60 flex items-center justify-center text-[#2563EB] dark:text-[#60A5FA] shadow-2xs group-hover/layers:border-[#2563EB] transition-colors">
             <Layers className="w-4 h-4" />
           </div>
           <div className="overflow-hidden transition-all duration-300 opacity-0 w-0 group-hover/layers:opacity-100 group-hover/layers:w-auto whitespace-nowrap">
-            <h3 className="font-extrabold text-xs text-[#0F172A] tracking-tight leading-none">
+            <h3 className="font-extrabold text-xs text-[#111111] dark:text-[#FAFAFA] tracking-tight leading-none">
               GIS Layering & Filter
             </h3>
-            <p className="text-[10px] text-[#64748B] mt-0.5 font-medium">
+            <p className="text-[10px] text-[#737373] dark:text-[#A3A3A3] mt-0.5 font-medium">
               Kendali Visibilitas Spasial
             </p>
           </div>
         </div>
 
-        <div className="w-full h-[1px] bg-[#E2E8F0] my-2" />
+        <div className="w-full h-[1px] bg-[#E5E5E5] dark:bg-[#263244] my-2" />
 
         {/* Layer Toggles List */}
         <div className="flex flex-col gap-1.5 w-full overflow-y-auto max-h-[calc(100vh-230px)] custom-scrollbar pr-0.5">
@@ -138,8 +138,8 @@ export function MapRightLayerSidebar({
                 onClick={() => onToggleLayer(item.id)}
                 className={`flex items-center justify-between w-full p-1.5 rounded-[6px] transition-all cursor-pointer border ${
                   isEnabled
-                    ? "bg-[#F8FAFC] border-[#CBD5E1]"
-                    : "bg-white border-transparent hover:bg-[#F1F5F9]"
+                    ? "bg-[#FAFAFA] dark:bg-[#0B0F17] border-[#E5E5E5] dark:border-[#263244]"
+                    : "bg-white dark:bg-[#131822] border-transparent hover:bg-[#F5F5F5] dark:hover:bg-[#1E293B]"
                 }`}
               >
                 <div className="flex items-center gap-2.5 overflow-hidden">
@@ -188,14 +188,14 @@ export function MapRightLayerSidebar({
 
         {/* POI Category Filter (When POI layer is enabled) */}
         {layers.pois && (
-          <div className="w-full mt-2 pt-2 border-t border-[#E2E8F0] overflow-hidden transition-all duration-300 opacity-0 w-0 group-hover/layers:opacity-100 group-hover/layers:w-full">
-            <label className="block text-[10px] font-bold text-[#475569] uppercase tracking-wider mb-1">
+          <div className="w-full mt-2 pt-2 border-t border-[#E5E5E5] dark:border-[#263244] overflow-hidden transition-all duration-300 opacity-0 w-0 group-hover/layers:opacity-100 group-hover/layers:w-full">
+            <label className="block text-[10px] font-bold text-[#737373] dark:text-[#A3A3A3] uppercase tracking-wider mb-1">
               Filter Kategori POI:
             </label>
             <select
               value={selectedPoiCategory}
               onChange={(e) => onSelectPoiCategory(e.target.value)}
-              className="w-full px-2 py-1 text-[11px] font-semibold bg-[#F8FAFC] border border-[#CBD5E1] rounded-[4px] text-[#0F172A] focus:outline-none focus:border-[#ea580c]"
+              className="w-full px-2 py-1 text-[11px] font-semibold bg-[#FAFAFA] dark:bg-[#0B0F17] border border-[#E5E5E5] dark:border-[#263244] rounded-[6px] text-[#111111] dark:text-[#FAFAFA] focus:outline-none focus:border-[#2563EB]"
             >
               <option value="ALL">Semua Kategori ({poiCategories.length})</option>
               {poiCategories.map((c) => (
@@ -209,14 +209,14 @@ export function MapRightLayerSidebar({
       </div>
 
       {/* Bottom Quick Tools */}
-      <div className="flex flex-col gap-1 w-full px-2.5 pb-3 pt-2 border-t border-[#E2E8F0]">
+      <div className="flex flex-col gap-1 w-full px-2.5 pb-3 pt-2 border-t border-[#E5E5E5] dark:border-[#263244]">
         <button
           type="button"
           onClick={onOpenLegend}
-          className="flex items-center gap-2.5 w-full p-1.5 rounded-[6px] hover:bg-[#F1F5F9] text-[#64748B] hover:text-[#0F172A] transition-colors cursor-pointer"
+          className="flex items-center gap-2.5 w-full p-1.5 rounded-[6px] hover:bg-[#F5F5F5] dark:hover:bg-[#1E293B] text-[#737373] dark:text-[#A3A3A3] hover:text-[#111111] dark:hover:text-white transition-colors cursor-pointer"
           title="Buka Legenda Peta"
         >
-          <div className="w-7 h-7 shrink-0 rounded-[6px] bg-slate-100 flex items-center justify-center text-[#475569]">
+          <div className="w-7 h-7 shrink-0 rounded-[6px] bg-[#F5F5F5] dark:bg-[#0B0F17] border border-[#E5E5E5] dark:border-[#263244] flex items-center justify-center text-[#737373] dark:text-[#A3A3A3]">
             <Info className="w-3.5 h-3.5" />
           </div>
           <span className="overflow-hidden transition-all duration-300 opacity-0 w-0 group-hover/layers:opacity-100 group-hover/layers:w-auto text-xs font-semibold whitespace-nowrap">
@@ -227,10 +227,10 @@ export function MapRightLayerSidebar({
         <button
           type="button"
           onClick={onOpenWeather}
-          className="flex items-center gap-2.5 w-full p-1.5 rounded-[6px] hover:bg-[#F1F5F9] text-[#64748B] hover:text-[#0F172A] transition-colors cursor-pointer"
+          className="flex items-center gap-2.5 w-full p-1.5 rounded-[6px] hover:bg-[#F5F5F5] dark:hover:bg-[#1E293B] text-[#737373] dark:text-[#A3A3A3] hover:text-[#111111] dark:hover:text-white transition-colors cursor-pointer"
           title="Buka Radar Cuaca Satelit"
         >
-          <div className="w-7 h-7 shrink-0 rounded-[6px] bg-orange-50 flex items-center justify-center text-[#ea580c]">
+          <div className="w-7 h-7 shrink-0 rounded-[6px] bg-sky-50 dark:bg-sky-950/50 border border-sky-200 dark:border-sky-900/60 flex items-center justify-center text-sky-600 dark:text-sky-400">
             <Cloud className="w-3.5 h-3.5" />
           </div>
           <span className="overflow-hidden transition-all duration-300 opacity-0 w-0 group-hover/layers:opacity-100 group-hover/layers:w-auto text-xs font-semibold whitespace-nowrap">
@@ -241,10 +241,10 @@ export function MapRightLayerSidebar({
         <button
           type="button"
           onClick={onResetView}
-          className="flex items-center gap-2.5 w-full p-1.5 rounded-[6px] hover:bg-[#F1F5F9] text-[#64748B] hover:text-[#0F172A] transition-colors cursor-pointer"
+          className="flex items-center gap-2.5 w-full p-1.5 rounded-[6px] hover:bg-[#F5F5F5] dark:hover:bg-[#1E293B] text-[#737373] dark:text-[#A3A3A3] hover:text-[#111111] dark:hover:text-white transition-colors cursor-pointer"
           title="Reset Sudut Pandang Peta"
         >
-          <div className="w-7 h-7 shrink-0 rounded-[6px] bg-slate-100 flex items-center justify-center text-[#475569]">
+          <div className="w-7 h-7 shrink-0 rounded-[6px] bg-[#F5F5F5] dark:bg-[#0B0F17] border border-[#E5E5E5] dark:border-[#263244] flex items-center justify-center text-[#737373] dark:text-[#A3A3A3]">
             <RotateCcw className="w-3.5 h-3.5" />
           </div>
           <span className="overflow-hidden transition-all duration-300 opacity-0 w-0 group-hover/layers:opacity-100 group-hover/layers:w-auto text-xs font-semibold whitespace-nowrap">

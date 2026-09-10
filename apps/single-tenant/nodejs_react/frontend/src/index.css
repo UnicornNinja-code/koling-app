@@ -1,107 +1,66 @@
 @import "tailwindcss";
 @import "./styles/tokens.css";
+@import "./styles/mova.css";
 @import "leaflet/dist/leaflet.css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-xs: 4px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+}
 
 @layer base {
   :root {
-    /* Brand Accent Colors (MOVA Signature Multi-Tenant Orange SSOT) */
-    --color-primary: #EA580C;
-    --color-primary-dark: #C2410C;
-    --color-primary-hover: #F97316;
-    --color-primary-soft: #FFF7ED;
+    --color-background: var(--background);
+    --color-surface: var(--card);
+    --color-surface-hover: var(--color-surface-hover);
+    --color-surface-soft: var(--muted);
 
-    /* Canvas & Surface Colors (Clean High-Contrast Light Theme) */
-    --color-background: #F8FAFC;
-    --color-surface: #FFFFFF;
-    --color-surface-hover: #F1F5F9;
-    --color-surface-soft: #F8FAFC;
+    --color-border: var(--border);
+    --color-border-hover: var(--color-border-strong);
+    --color-foreground: var(--foreground);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-subtle: var(--color-text-muted);
 
-    /* Border & Separator Colors */
-    --color-border: #E2E8F0;
-    --color-border-hover: #CBD5E1;
-
-    /* Text & Content Hierarchy */
-    --color-foreground: #0F172A;
-    --color-muted-foreground: #475569;
-    --color-subtle: #64748B;
-
-    /* Semantic Status - Success */
-    --color-success: #10B981;
-    --color-success-bg: #ECFDF5;
-    --color-success-border: #A7F3D0;
-
-    /* Semantic Status - Warning */
-    --color-warning: #F59E0B;
-    --color-warning-bg: #FFFBEB;
-    --color-warning-border: #FDE68A;
-
-    /* Semantic Status - Danger */
-    --color-danger: #EF4444;
-    --color-danger-bg: #FEF2F2;
-    --color-danger-border: #FECACA;
-
-    /* Semantic Status - Info */
-    --color-info: #3B82F6;
-    --color-info-bg: #EFF6FF;
-    --color-info-border: #BFDBFE;
-
-    /* Semantic Status - Neutral */
-    --color-neutral: #64748B;
-    --color-neutral-bg: #F1F5F9;
-    --color-neutral-border: #E2E8F0;
-
-    /* Typography Families - Inter font SSOT */
     --font-heading: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --font-body: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
-
-    /* Spacing & Geometry */
-    --radius-sm: 4px;
-    --radius-md: 6px;
-    --radius-lg: 8px;
-    --radius-xl: 10px;
-    --radius-full: 9999px;
-
-    /* Mobile Safe Area Insets */
-    --safe-area-top: env(safe-area-inset-top, 0px);
-    --safe-area-bottom: env(safe-area-inset-bottom, 0px);
-    --safe-area-left: env(safe-area-inset-left, 0px);
-    --safe-area-right: env(safe-area-inset-right, 0px);
-  }
-
-  :root.dark, [data-theme="dark"] {
-    /* Brand Accent Colors */
-    --color-primary: #EA580C;
-    --color-primary-dark: #C2410C;
-    --color-primary-hover: #FB923C;
-    --color-primary-soft: rgba(234, 88, 12, 0.15);
-
-    /* Canvas & Surface Colors (Dark Theme) */
-    --color-background: #0B0F17;
-    --color-surface: #131822;
-    --color-surface-hover: #1E293B;
-    --color-surface-soft: #0F172A;
-
-    /* Border & Separator Colors */
-    --color-border: #1E293B;
-    --color-border-hover: #334155;
-
-    /* Text & Content Hierarchy */
-    --color-foreground: #F8FAFC;
-    --color-muted-foreground: #94A3B8;
-    --color-subtle: #64748B;
-
-    /* Semantic Status */
-    --color-success-bg: rgba(16, 185, 129, 0.15);
-    --color-success-border: rgba(16, 185, 129, 0.3);
-    --color-warning-bg: rgba(245, 158, 11, 0.15);
-    --color-warning-border: rgba(245, 158, 11, 0.3);
-    --color-danger-bg: rgba(239, 68, 68, 0.15);
-    --color-danger-border: rgba(239, 68, 68, 0.3);
-    --color-info-bg: rgba(59, 130, 246, 0.15);
-    --color-info-border: rgba(59, 130, 246, 0.3);
-    --color-neutral-bg: #1E293B;
-    --color-neutral-border: #334155;
   }
 
   * {
@@ -113,8 +72,8 @@
 
   html, body {
     font-family: var(--font-body);
-    background-color: var(--color-background);
-    color: var(--color-foreground);
+    background-color: var(--background);
+    color: var(--foreground);
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -122,25 +81,46 @@
     touch-action: manipulation;
   }
 
-  html.dark, html.dark body {
-    background-color: #0B0F17 !important;
-    color: #F8FAFC !important;
-  }
-
   h1, h2, h3, h4, h5, h6, .font-heading {
     font-family: var(--font-heading);
     font-weight: 700;
     letter-spacing: -0.02em;
-    color: var(--color-foreground);
-  }
-
-  html.dark h1, html.dark h2, html.dark h3, html.dark h4, html.dark h5, html.dark h6, html.dark .font-heading {
-    color: #F8FAFC !important;
+    color: var(--foreground);
   }
 
   code, kbd, samp, pre, .font-mono {
     font-family: var(--font-mono);
   }
+}
+
+/* ============================================================================
+   Antimetal-Inspired Visual Utilities (Contextual Hero Atmosphere & Dotted Grid)
+   ============================================================================ */
+.bg-antimetal-atmosphere {
+  background: linear-gradient(180deg, #E8F1FA 0%, #F0F6FB 50%, #FAFAFA 100%);
+}
+
+html.dark .bg-antimetal-atmosphere {
+  background: linear-gradient(180deg, #101624 0%, #0D121D 50%, #0B0F17 100%);
+}
+
+.bg-dotted-grid {
+  background-image: radial-gradient(#CBD5E1 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+html.dark .bg-dotted-grid {
+  background-image: radial-gradient(#263244 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* Leaflet Dark Mode Spatial Tile Filter (Watermark-free dark basemap) */
+html.dark .leaflet-tile {
+  filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7);
+}
+
+html.dark .leaflet-container {
+  background-color: #0B0F17 !important;
 }
 
 /* Custom Scrollbars */
@@ -149,14 +129,24 @@
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--color-background);
+  background: var(--background);
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--color-border);
+  background: var(--border);
   border-radius: var(--radius-full);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-subtle);
+  background: var(--muted-foreground);
+}
+
+html.dark ::-webkit-scrollbar-track {
+  background: #0B0F17;
+}
+html.dark ::-webkit-scrollbar-thumb {
+  background: #263244;
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #334155;
 }
 
 /* Reduced Motion Respect */
@@ -169,20 +159,11 @@
   }
 }
 
-/* Mobile Safe Area Support Utilities */
-.safe-bottom-padding {
-  padding-bottom: calc(1rem + var(--safe-area-bottom));
-}
-
-.safe-top-padding {
-  padding-top: calc(0.5rem + var(--safe-area-top));
-}
-
 /* Custom Focus Ring Helper */
 .focus-ring-primary {
   outline: none;
 }
 .focus-ring-primary:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--primary);
   outline-offset: 2px;
 }

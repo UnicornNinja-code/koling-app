@@ -1,28 +1,40 @@
 import React from "react";
 import { Sidebar } from "./Sidebar.jsx";
 import { Topbar } from "./Topbar.jsx";
-import { BottomNav } from "./BottomNav.jsx";
+import { ErrorBoundary } from "../common/ErrorBoundary.jsx";
 import { cn } from "../../lib/utils.js";
 
-export function AppLayout({ children, title, subtitle, className = "" }) {
+/**
+ * MOVA AppLayout — Design System v3.0 SSOT
+ * Exact match with assets/img (dss.png, map ops.png, operational rider.png, dashboard.png):
+ * - Left: 240px expanded dark Sidebar
+ * - Right: Topbar (56px) + Scrollable / Full-bleed Main Workspace
+ */
+export function AppLayout({ children, title, breadcrumb, className = "", fullBleed = false }) {
   return (
-    <div className="flex min-h-screen bg-[#F8FAFC] text-[#0F172A] font-sans antialiased selection:bg-[#ea580c]/20 selection:text-[#ea580c]">
-      {/* Persistent Desktop Expandable Light Sidebar */}
+    <div className="flex h-screen w-screen overflow-hidden bg-[#F8FAFC] dark:bg-[#0B0F17] text-[#0F172A] dark:text-[#F8FAFC] font-sans antialiased selection:bg-[#EA580C]/20 selection:text-[#EA580C] transition-colors duration-150">
+      {/* 1. Persistent 240px Expanded Dark Navigation Sidebar */}
       <Sidebar />
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 pb-20 md:pb-8">
-        {/* Sticky Clean Light Topbar */}
-        <Topbar title={title} subtitle={subtitle} />
+      {/* 2. Main Content Viewport */}
+      <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
+        {/* Sticky Control Room Topbar */}
+        <Topbar title={title} breadcrumb={breadcrumb} />
 
-        {/* Page Body Container — Full Viewport Operations Workspace */}
-        <main className={cn("p-4 md:p-6 flex-1 w-full min-w-0", className)}>
-          {children}
+        {/* Page Content Container */}
+        <main
+          className={cn(
+            fullBleed
+              ? "flex-1 w-full h-[calc(100vh-56px)] p-0 m-0 overflow-hidden relative"
+              : "flex-1 w-full overflow-y-auto p-6 space-y-6",
+            className
+          )}
+        >
+          <ErrorBoundary mode="widget" title="Terjadi kendala pada komponen ini">
+            {children}
+          </ErrorBoundary>
         </main>
       </div>
-
-      {/* Fixed Mobile Bottom Navigation */}
-      <BottomNav />
     </div>
   );
 }

@@ -51,6 +51,11 @@ export const zoneService = {
     return res.data;
   },
 
+  validatePolygon: async (payload) => {
+    const res = await axiosInstance.post("/zones/validate", payload);
+    return res.data;
+  },
+
   // Aliases for backward compatibility
   getZones: async (params = {}) => zoneService.getAll(params),
   getZoneById: async (id) => zoneService.getById(id),

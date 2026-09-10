@@ -50,7 +50,7 @@ const apiLimiter = rateLimit({
     "Trafik Terlalu Tinggi",
     "Batas penggunaan API tercapai. Harap tunggu beberapa saat sebelum mencoba lagi."
   ),
-  skip: (req) => process.env.NODE_ENV !== "production" || req.headers["x-test-suite"] === "true",
+  skip: (req) => process.env.NODE_ENV === "test" || req.headers["x-test-suite"] === "true",
 });
 
 /**
@@ -62,7 +62,7 @@ const loginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true,
-  skip: (req) => process.env.NODE_ENV !== "production" || req.headers["x-test-suite"] === "true",
+  skip: (req) => process.env.NODE_ENV === "test" || req.headers["x-test-suite"] === "true",
   keyGenerator: (req, res) => {
     const clientIp = ipKeyGenerator(req, res);
     const identifier = req.body?.identifier || req.body?.email || "anonymous";

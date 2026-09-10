@@ -34,6 +34,16 @@ export const armadaService = {
     return res.data;
   },
 
+  setMaintenance: async (id, { notes = "", cost = 0 } = {}) => {
+    const res = await axiosInstance.post(`/armadas/${id}/maintenance`, { notes, cost });
+    return res.data;
+  },
+
+  releaseMaintenance: async (id) => {
+    const res = await axiosInstance.post(`/armadas/${id}/release-maintenance`);
+    return res.data;
+  },
+
   // Aliases for backward compatibility
   getArmadas: async () => armadaService.getAll(),
   getArmadaById: async (id) => armadaService.getById(id),

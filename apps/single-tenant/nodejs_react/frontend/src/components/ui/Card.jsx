@@ -1,11 +1,15 @@
 import React from "react";
 import { cn } from "../../lib/utils.js";
 
+/**
+ * MOVA Card Component — Design System v3.0 SSOT
+ * Border-first (1px solid var(--border)), radius 12px (rounded-lg), subtle shadow
+ */
 export function Card({ className, children, ...props }) {
   return (
     <div
       className={cn(
-        "bg-white dark:bg-[#131822] rounded-[6px] border border-slate-200 dark:border-[#1E293B] transition-colors overflow-hidden text-slate-900 dark:text-slate-100 shadow-xs",
+        "bg-card text-card-foreground rounded-lg border border-border transition-colors overflow-hidden shadow-xs",
         className
       )}
       {...props}
@@ -19,7 +23,7 @@ export function CardHeader({ className, children, ...props }) {
   return (
     <div
       className={cn(
-        "px-4 py-3.5 flex flex-col space-y-0.5 border-b border-slate-200 dark:border-[#1E293B] bg-white dark:bg-[#131822]",
+        "px-5 py-4 flex flex-col space-y-1 border-b border-border bg-card",
         className
       )}
       {...props}
@@ -33,7 +37,7 @@ export function CardTitle({ className, children, ...props }) {
   return (
     <h3
       className={cn(
-        "font-heading font-bold text-sm md:text-base text-slate-900 dark:text-white leading-tight tracking-tight",
+        "font-heading font-bold text-sm md:text-base text-foreground leading-tight tracking-tight",
         className
       )}
       {...props}
@@ -46,7 +50,7 @@ export function CardTitle({ className, children, ...props }) {
 export function CardDescription({ className, children, ...props }) {
   return (
     <p
-      className={cn("text-xs text-slate-500 dark:text-slate-400 font-normal leading-relaxed", className)}
+      className={cn("text-xs text-muted-foreground font-normal leading-relaxed", className)}
       {...props}
     >
       {children}
@@ -56,7 +60,7 @@ export function CardDescription({ className, children, ...props }) {
 
 export function CardContent({ className, children, ...props }) {
   return (
-    <div className={cn("p-4 md:p-5", className)} {...props}>
+    <div className={cn("p-5", className)} {...props}>
       {children}
     </div>
   );
@@ -66,7 +70,7 @@ export function CardFooter({ className, children, ...props }) {
   return (
     <div
       className={cn(
-        "px-4 py-3 bg-slate-50 dark:bg-[#0B0F17] border-t border-slate-200 dark:border-[#1E293B] flex items-center justify-between gap-3 text-xs text-slate-600 dark:text-slate-400",
+        "px-5 py-3.5 bg-muted/20 border-t border-border flex items-center justify-between gap-3 text-xs text-muted-foreground",
         className
       )}
       {...props}
@@ -76,3 +80,4 @@ export function CardFooter({ className, children, ...props }) {
   );
 }
 
+export default Card;

@@ -13,7 +13,7 @@ import { PasswordResetTokenModel } from "../models/passwordResetTokenModel.js";
 import { sendMail } from "../config/mailer.js";
 import { env } from "../config/env.js";
 
-const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret";
+const JWT_SECRET = env.JWT_SECRET;
 const JWT_EXPIRES = process.env.JWT_EXPIRES || "1d";
 const REFRESH_TOKEN_DAYS = parseInt(process.env.REFRESH_TOKEN_DAYS || "30", 10);
 

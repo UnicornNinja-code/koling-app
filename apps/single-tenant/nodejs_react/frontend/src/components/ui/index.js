@@ -21,4 +21,8 @@ export * from "./Table.jsx";
 export * from "./Tabs.jsx";
 export * from "./Toast.jsx";
 export * from "./Tooltip.jsx";
+export * from "./StatCard.jsx";
+export * from "./CriteriaProgressBar.jsx";
+export * from "./DonutChartWidget.jsx";
+export * from "./Avatar.jsx";
 export * from "../common/MovaLogo.jsx";

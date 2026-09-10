@@ -68,6 +68,15 @@ async function runOnboardingTest() {
   let riderToken = "";
 
   try {
+    // Ensure Super Admin is in pristine initial onboarding state (password123, first_login: true)
+    const bcrypt = (await import("bcrypt")).default;
+    const defaultHash = await bcrypt.hash("password123", 10);
+    await pool.query(`
+      INSERT INTO users (username, name, email, password, role, is_active, first_login)
+      VALUES ('superadmin', 'Super Admin System', 'superadmin@kopikeliling.com', $1, 'SUPERADMIN', true, true)
+      ON CONFLICT (email) DO UPDATE SET password = $1, first_login = true, is_active = true;
+    `, [defaultHash]);
+
     // -------------------------------------------------------------------------
     // TAHAP 1: Super Admin Authentication
     // -------------------------------------------------------------------------

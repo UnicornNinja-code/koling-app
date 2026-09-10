@@ -4,7 +4,7 @@ import { StatusBadge } from "./StatusBadge.jsx";
 import { TrendingUp, TrendingDown } from "lucide-react";
 
 /**
- * MOVA Semantic Metric Card Component
+ * MOVA Semantic Metric Card Component v3.0
  * Consumes backend SSOT metrics with strict preservation of NO_DATA, PROTECTED_ROLE, and valid 0 values.
  */
 export function SemanticMetric({
@@ -58,12 +58,12 @@ export function SemanticMetric({
   return (
     <div
       className={cn(
-        "bg-white dark:bg-[#131822] p-4 rounded-[6px] border border-slate-200 dark:border-[#1E293B] space-y-2.5 transition-colors hover:border-slate-300 dark:hover:border-[#334155] text-slate-900 dark:text-slate-100 shadow-xs",
+        "bg-white dark:bg-[#131822] p-4 md:p-5 rounded-[12px] border border-[#E5E5E5] dark:border-[#263244] space-y-2.5 transition-colors hover:border-[#D4D4D4] dark:hover:border-[#334155] text-[#111111] dark:text-[#FAFAFA] shadow-xs",
         className
       )}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
+        <span className="text-[10px] font-bold text-[#737373] dark:text-[#A3A3A3] uppercase tracking-wider truncate">
           {finalLabel}
         </span>
         {badge ? (
@@ -98,14 +98,14 @@ export function SemanticMetric({
       <div className="flex items-baseline justify-between gap-3">
         <div className="flex items-center gap-2.5">
           {Icon ? (
-            <div className="w-8 h-8 rounded-[4px] bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0 border border-orange-200 dark:border-orange-800/60 shadow-2xs">
+            <div className="w-8 h-8 rounded-[8px] bg-blue-50 dark:bg-blue-950/40 text-[#2563EB] dark:text-[#60A5FA] flex items-center justify-center shrink-0 border border-blue-200 dark:border-blue-900/60 shadow-2xs">
               <Icon className="w-4 h-4" />
             </div>
           ) : iconClass ? (
             <div
               className={cn(
-                "w-8 h-8 rounded-[4px] flex items-center justify-center shrink-0 shadow-2xs",
-                iconColor || "bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 border border-orange-200 dark:border-orange-800/60"
+                "w-8 h-8 rounded-[8px] flex items-center justify-center shrink-0 shadow-2xs",
+                iconColor || "bg-blue-50 dark:bg-blue-950/40 text-[#2563EB] dark:text-[#60A5FA] border border-blue-200 dark:border-blue-900/60"
               )}
             >
               <i className={cn(iconClass, "text-base")} />
@@ -113,9 +113,9 @@ export function SemanticMetric({
           ) : null}
           <div
             className={cn(
-              "text-xl md:text-2xl font-heading font-extrabold text-slate-900 dark:text-white tracking-tight leading-none",
-              isProtected && "text-xs font-semibold text-slate-400 italic",
-              isNoData && "text-lg text-slate-400 dark:text-slate-500"
+              "text-xl md:text-2xl font-heading font-extrabold text-[#111111] dark:text-[#FAFAFA] tracking-tight leading-none",
+              isProtected && "text-xs font-semibold text-[#737373] italic",
+              isNoData && "text-lg text-[#737373] dark:text-[#A3A3A3]"
             )}
           >
             {displayValue}
@@ -140,7 +140,7 @@ export function SemanticMetric({
       </div>
 
       {finalSubtext && (
-        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-tight">
+        <p className="text-[11px] text-[#737373] dark:text-[#A3A3A3] font-medium leading-tight">
           {finalSubtext}
         </p>
       )}
@@ -148,6 +148,4 @@ export function SemanticMetric({
   );
 }
 
-// Alias export for StatCard
-export const StatCard = SemanticMetric;
-
+export default SemanticMetric;
