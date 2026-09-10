@@ -1,0 +1,13 @@
+export { default as DashboardPage } from "./DashboardPage";
+export { default as MapOpsPage } from "./MapOpsPage";
+export { default as DistributionPage } from "./DistributionPage";
+export { default as OperationalRiderPage } from "./OperationalRiderPage";
+export { default as DssPage } from "./DssPage";
+export { default as ZoneManagementPage } from "./ZoneManagementPage";
+export { default as FleetManagementPage } from "./FleetManagementPage";
+export { default as UserManagementPage } from "./UserManagementPage";
+export { default as CatalogPage } from "./CatalogPage";
+export { default as PoiModerationPage } from "./PoiModerationPage";
+export { default as CompetitorPage } from "./CompetitorPage";
+export { default as ReportsPage } from "./ReportsPage";
+export { default as SettingsPage } from "./SettingsPage";

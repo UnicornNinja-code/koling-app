@@ -1,19 +1,21 @@
 {
-  "name": "mova",
+  "name": "koling-app-workspace",
   "version": "1.0.0",
   "private": true,
-  "description": "MOVA DSS Fullstack Application",
+  "description": "Koling App Multi-Project Workspace Container",
   "scripts": {
-    "dev": "cd apps/multi-tenant && bun dev.ts",
-    "start": "cd apps/multi-tenant && bun dev.ts",
-    "build": "cd apps/multi-tenant/frontend && bun run build",
-    "prod:start": "cd apps/multi-tenant && bun run build && pm2 start ecosystem.config.cjs",
-    "prod:stop": "cd apps/multi-tenant && (pm2 stop ecosystem.config.cjs 2>/dev/null || fuser -k 9967/tcp 9968/tcp 2>/dev/null || true)",
-    "prod:restart": "cd apps/multi-tenant && pm2 restart ecosystem.config.cjs",
-    "prod:logs": "pm2 logs",
-    "stop": "fuser -k 9967/tcp 9968/tcp 2>/dev/null || pkill -f 'index.ts' 2>/dev/null || pkill -f 'vite' 2>/dev/null || true",
-    "kill": "fuser -k 9967/tcp 9968/tcp 2>/dev/null || pkill -f 'index.ts' 2>/dev/null || pkill -f 'vite' 2>/dev/null || true",
-    "dev:backend": "cd apps/multi-tenant/backend && bun run dev",
-    "dev:frontend": "cd apps/multi-tenant/frontend && bun run dev"
+    "dev": "cd mova_app/multi-tenant && bun dev.ts",
+    "dev:mova": "cd mova_app/multi-tenant && bun dev.ts",
+    "dev:mova:multi": "cd mova_app/multi-tenant && bun dev.ts",
+    "dev:mova:multi:backend": "cd mova_app/multi-tenant/backend && bun run dev",
+    "dev:mova:multi:frontend": "cd mova_app/multi-tenant/frontend && bun run dev",
+    "dev:mova:single:backend": "cd mova_app/single-tenant/backend && npm run dev",
+    "dev:mova:single:frontend": "cd mova_app/single-tenant/frontend && npm run dev",
+    "audit:mova:single": "cd mova_app/single-tenant/backend && node src/scripts/audit_ui_requirements.js",
+    "build:mova:multi": "cd mova_app/multi-tenant/frontend && bun run build",
+    "build:mova:single": "cd mova_app/single-tenant/frontend && npm run build",
+    "prod:mova:start": "cd mova_app/multi-tenant && bun run build && pm2 start ecosystem.config.cjs",
+    "prod:mova:stop": "cd mova_app/multi-tenant && (pm2 stop ecosystem.config.cjs 2>/dev/null || fuser -k 9967/tcp 9968/tcp 2>/dev/null || true)",
+    "prod:mova:restart": "cd mova_app/multi-tenant && pm2 restart ecosystem.config.cjs"
   }
 }

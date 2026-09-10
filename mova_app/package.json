@@ -1,0 +1,20 @@
+{
+  "name": "mova-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MOVA DSS (Mobile Operational Vehicle Analytics & Decision Support System) Workspace",
+  "scripts": {
+    "dev": "cd multi-tenant && bun dev.ts",
+    "dev:multi": "cd multi-tenant && bun dev.ts",
+    "dev:multi:backend": "cd multi-tenant/backend && bun run dev",
+    "dev:multi:frontend": "cd multi-tenant/frontend && bun run dev",
+    "build:multi": "cd multi-tenant/frontend && bun run build",
+    "dev:single:backend": "cd single-tenant/backend && npm run dev",
+    "dev:single:frontend": "cd single-tenant/frontend && npm run dev",
+    "build:single": "cd single-tenant/frontend && npm run build",
+    "audit:single": "cd single-tenant/backend && node src/scripts/audit_ui_requirements.js",
+    "prod:multi:start": "cd multi-tenant && bun run build && pm2 start ecosystem.config.cjs",
+    "prod:multi:stop": "cd multi-tenant && (pm2 stop ecosystem.config.cjs 2>/dev/null || fuser -k 9967/tcp 9968/tcp 2>/dev/null || true)",
+    "prod:multi:restart": "cd multi-tenant && pm2 restart ecosystem.config.cjs"
+  }
+}
