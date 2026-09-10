@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { ArmadaIcon } from "../ui/ArmadaIcon.jsx";
 import { WeatherIcon } from "../ui/WeatherIcon.jsx";
+import { DssMapVisual, WeatherStationVisual, FleetDispatchVisual } from "./hero-visuals/index.js";
 
 /**
  * AuthLayout Component
@@ -32,7 +33,7 @@ export function AuthLayout({ children }) {
       title: "Optimasi Lokasi Penjualan Berbasis BWM-TOPSIS",
       description:
         "Menganalisis multi-kriteria secara ilmiah (densitas POI, keramaian jam kerja, aksesibilitas jalan) untuk merekomendasikan zona dan titik penjualan paling potensial.",
-      imageSrc: "/assets/hero/hero-dss.jpg",
+      visual: <DssMapVisual />,
       floatingTop: {
         icon: <Sparkles className="w-3.5 h-3.5 text-amber-500" />,
         label: "Skor Preferensi DSS",
@@ -52,7 +53,7 @@ export function AuthLayout({ children }) {
       title: "Integrasi Prediksi Cuaca & Mitigasi Risiko Lapangan",
       description:
         "Pemantauan cuaca otomatis real-time untuk mengarahkan armada gerobak keliling ke shelter aman atau gedung perkantoran saat terjadi potensi hujan.",
-      imageSrc: "/assets/hero/hero-weather.jpg",
+      visual: <WeatherStationVisual />,
       floatingTop: {
         icon: <WeatherIcon condition="Cerah" size={24} />,
         label: "Prakiraan Cuaca",
@@ -72,7 +73,7 @@ export function AuthLayout({ children }) {
       title: "Distribusi & Penyeimbangan Beban Rider Real-Time",
       description:
         "Rebalancing penugasan rider antar zona secara presisi untuk menghindari penumpukan armada di satu titik dan memaksimalkan omset harian.",
-      imageSrc: "/assets/hero/hero-fleet.jpg",
+      visual: <FleetDispatchVisual />,
       floatingTop: {
         icon: <Users className="w-3.5 h-3.5 text-blue-500" />,
         label: "Rebalancing Dinamis",
@@ -132,19 +133,13 @@ export function AuthLayout({ children }) {
             </div>
           </div>
 
-          {/* Center Stage: Interactive Visual with Floating Badges */}
+          {/* Center Stage: Interactive Isometric Visual with Floating Badges */}
           <div className="relative z-10 my-4 sm:my-6 flex flex-col items-center justify-center">
-            <div className="relative flex items-center justify-center p-2.5 sm:p-3 rounded-3xl bg-white/10 backdrop-blur-md border border-white/20 shadow-2xl w-full max-w-sm overflow-visible">
+            <div className="relative flex items-center justify-center p-3 sm:p-4 rounded-3xl bg-white/10 backdrop-blur-md border border-white/20 shadow-2xl w-full max-w-sm overflow-visible">
 
-              {/* Custom Isometric Illustration */}
-              <div className="w-full h-48 sm:h-56 rounded-2xl overflow-hidden shadow-inner bg-blue-950/40 relative group">
-                <img
-                  src={currentSlide.imageSrc}
-                  alt={currentSlide.title}
-                  className="w-full h-full object-cover object-center transform transition-transform duration-700 ease-out group-hover:scale-105"
-                  loading="eager"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-blue-950/60 via-transparent to-transparent opacity-60" />
+              {/* Isometric 3D Component */}
+              <div className="w-full flex items-center justify-center min-h-[190px]">
+                {currentSlide.visual}
               </div>
 
               {/* Floating Top Badge */}
