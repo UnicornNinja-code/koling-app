@@ -184,13 +184,10 @@ async function runParityCheck() {
   }
 
   if (unDocumentedRoutes.length > 0) {
-    console.log("ℹ️ DAFTAR ENDPOINT BARU DI EXPRESS (EXTENDED / REPORTS / ONBOARDING):");
-    unDocumentedRoutes.slice(0, 15).forEach((u, idx) => {
+    console.log("ℹ️ DAFTAR ENDPOINT BARU DI EXPRESS (EXTENDED / REPORTS / ONBOARDING / DISTRIBUTION):");
+    unDocumentedRoutes.forEach((u, idx) => {
       console.log(`   ${idx + 1}. [${u.method}] ${u.path}`);
     });
-    if (unDocumentedRoutes.length > 15) {
-      console.log(`   ... and ${unDocumentedRoutes.length - 15} more new routes`);
-    }
     console.log("");
   }
 

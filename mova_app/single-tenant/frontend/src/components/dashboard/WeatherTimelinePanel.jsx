@@ -1,13 +1,5 @@
 import React, { useState, useEffect } from "react";
 import {
-  Cloud,
-  Sun,
-  CloudSun,
-  CloudRain,
-  CloudLightning,
-  Droplets,
-  Wind,
-  Eye,
   AlertTriangle,
   CheckCircle2,
   Calendar,
@@ -16,7 +8,7 @@ import {
   RefreshCw,
   Sparkles,
 } from "lucide-react";
-import { Card, CardHeader, CardContent, Badge, Button } from "../ui/index.js";
+import { Card, CardHeader, CardContent, Badge, Button, WeatherIcon } from "../ui/index.js";
 import { weatherService } from "../../services/weatherService.js";
 
 // Helper for weather icons based on weather_code / icon key
@@ -156,6 +148,18 @@ export function WeatherTimelinePanel({
     { key: "malam", label: "Malam", sub: "18:00 - 21:00", temp: slots?.malam?.avg_temperature_c, rain: slots?.malam?.max_rain_probability },
   ];
 
+  // Real-time system time detection for active slot and current hour
+  const getActiveSlot = (hour) => {
+    if (hour >= 6 && hour < 11) return "pagi";
+    if (hour >= 11 && hour < 15) return "siang";
+    if (hour >= 15 && hour < 18) return "sore";
+    if (hour >= 18 && hour <= 21) return "malam";
+    return null;
+  };
+
+  const currentHour = new Date().getHours();
+  const activeSlot = getActiveSlot(currentHour);
+
   // Risk Level computation
   const riskLevel = summary?.risk_level || (summary?.max_rain_probability > 50 ? "HIGH" : summary?.max_rain_probability > 25 ? "MEDIUM" : "LOW");
 
@@ -163,7 +167,17 @@ export function WeatherTimelinePanel({
     <Card className={`overflow-hidden flex flex-col font-['Inter'] ${className}`}>
       {/* 1. Header Card with clean divider & spacing */}
       <CardHeader
-        title="Prakiraan Cuaca Operasional"
+        title={
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <span className="text-base font-semibold text-slate-900 dark:text-slate-100 tracking-tight">
+              Prakiraan Cuaca Operasional
+            </span>
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/40 rounded-full text-[11px] font-bold text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 shadow-2xs">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Sidoarjo Hub • LIVE</span>
+            </div>
+          </div>
+        }
         subtitle={`${zoneName} • Evaluasi Spasial per Jam`}
         className="items-center pb-3 mb-1 border-b border-slate-100 dark:border-slate-800"
         action={
@@ -201,29 +215,42 @@ export function WeatherTimelinePanel({
         {/* 2. Slot Segmentation Tabs (Pagi, Siang, Sore, Malam, Semua) */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-1">
           {tabOptions.map((tab) => {
-            const isActive = selectedSlot === tab.key;
+            const isSelected = selectedSlot === tab.key;
+            const isCurrentSlot = selectedDate === "today" && tab.key === activeSlot;
+
             return (
               <button
                 key={tab.key}
                 type="button"
                 onClick={() => setSelectedSlot(tab.key)}
-                className={`p-2.5 rounded-xl text-left border transition-all cursor-pointer ${
-                  isActive
-                    ? "bg-blue-50/80 dark:bg-blue-950/50 border-blue-500/80 shadow-2xs"
+                className={`relative p-2.5 rounded-xl text-left border transition-all cursor-pointer ${
+                  isSelected
+                    ? "bg-blue-50/80 dark:bg-blue-950/50 border-blue-500 shadow-2xs ring-1 ring-blue-500/50"
+                    : isCurrentSlot
+                    ? "bg-blue-50/40 dark:bg-blue-950/30 border-blue-400/80 dark:border-blue-600/80 shadow-2xs"
                     : "bg-slate-50/60 dark:bg-slate-800/40 border-slate-200/80 dark:border-slate-800 hover:bg-slate-100/70 dark:hover:bg-slate-800/80"
                 }`}
               >
                 <div className="flex items-center justify-between gap-1">
-                  <span
-                    className={`text-xs font-semibold truncate ${
-                      isActive ? "text-blue-600 dark:text-blue-400 font-bold" : "text-slate-700 dark:text-slate-300"
-                    }`}
-                  >
-                    {tab.label}
-                  </span>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span
+                      className={`text-xs truncate ${
+                        isSelected || isCurrentSlot
+                          ? "text-blue-600 dark:text-blue-400 font-bold"
+                          : "text-slate-700 dark:text-slate-300 font-semibold"
+                      }`}
+                    >
+                      {tab.label}
+                    </span>
+                    {isCurrentSlot && (
+                      <span className="px-1.5 py-0.2 text-[9px] font-bold rounded-full bg-blue-600 text-white dark:bg-blue-500 shrink-0 leading-tight shadow-2xs animate-pulse">
+                        Saat Ini
+                      </span>
+                    )}
+                  </div>
                   {tab.rain !== undefined && (
                     <span
-                      className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold shrink-0 ${
+                      className={`text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 ${
                         tab.rain > 50
                           ? "text-rose-600 bg-rose-50 dark:bg-rose-950/40"
                           : tab.rain > 20
@@ -241,8 +268,8 @@ export function WeatherTimelinePanel({
           })}
         </div>
 
-        {/* 3. Hourly Timeline Cards (Horizontal Slider with ~10-12px gap & compact cards) */}
-        <div className="space-y-2 pt-1">
+        {/* 3. Hourly Timeline Cards (Horizontal Slider with ample vertical space so badge is never cut off) */}
+        <div className="space-y-2 pt-2">
           <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium px-0.5">
             <span className="flex items-center gap-1.5 font-semibold text-slate-600 dark:text-slate-300">
               <Clock className="w-3.5 h-3.5 text-blue-500" />
@@ -251,9 +278,12 @@ export function WeatherTimelinePanel({
             <span className="text-[10px] text-slate-400">Geser ke kanan →</span>
           </div>
 
-          <div className="flex items-center gap-2.5 sm:gap-3 overflow-x-auto pb-2 pt-1 scrollbar-thin select-none">
+          <div className="flex items-center gap-2.5 sm:gap-3 overflow-x-auto pt-4 pb-3 px-2 scrollbar-thin select-none">
             {timeline.length > 0 ? (
               timeline.map((item, idx) => {
+                const itemHour = item.hour !== undefined ? item.hour : parseInt(item.time.split(":")[0], 10);
+                const isCurrentHour = selectedDate === "today" && itemHour === currentHour;
+
                 const rainPct = item.rain_probability_percent || 0;
                 const rainColor =
                   rainPct > 50
@@ -272,20 +302,47 @@ export function WeatherTimelinePanel({
                 return (
                   <div
                     key={idx}
-                    className="flex flex-col items-center justify-between min-w-[78px] w-[78px] sm:min-w-[82px] sm:w-[82px] px-2 py-2 rounded-xl bg-slate-50/70 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800 shadow-2xs hover:bg-slate-100/80 dark:hover:bg-slate-800/80 transition-all shrink-0"
+                    className={`relative flex flex-col items-center justify-between min-w-[80px] w-[80px] sm:min-w-[84px] sm:w-[84px] px-2 py-2.5 rounded-xl transition-all shrink-0 ${
+                      isCurrentHour
+                        ? "bg-blue-100/75 dark:bg-blue-950/90 border-2 border-blue-600 dark:border-blue-400 shadow-md ring-2 ring-blue-500/50 scale-[1.05] z-10"
+                        : "bg-slate-50/70 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800 shadow-2xs hover:bg-slate-100/80 dark:hover:bg-slate-800/80"
+                    }`}
                   >
+                    {/* Active Hour Indicator Badge */}
+                    {isCurrentHour && (
+                      <div className="absolute -top-3 px-2 py-0.5 rounded-full bg-blue-600 dark:bg-blue-500 text-white text-[8px] font-black uppercase tracking-wider shadow-md animate-pulse">
+                        Saat Ini
+                      </div>
+                    )}
+
                     {/* Hour Label */}
-                    <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 font-mono">
+                    <span
+                      className={`text-[11px] font-bold ${
+                        isCurrentHour
+                          ? "text-blue-700 dark:text-blue-300"
+                          : "text-slate-600 dark:text-slate-400"
+                      }`}
+                    >
                       {item.time}
                     </span>
 
-                    {/* Clean 2D Weather Icon */}
-                    <div className="my-1 flex items-center justify-center">
-                      {getWeatherIconComponent(item.icon, item.weather_code)}
+                    {/* Rich Realistic SVG Weather Icon */}
+                    <div className="my-1.5 flex items-center justify-center h-9 w-9">
+                      <WeatherIcon
+                        condition={item.weather_label || item.condition || "Cerah"}
+                        weatherCode={item.weather_code}
+                        size={34}
+                      />
                     </div>
 
                     {/* Temperature */}
-                    <span className="text-[12px] sm:text-[13px] font-semibold text-slate-900 dark:text-white leading-none">
+                    <span
+                      className={`text-[12px] sm:text-[13px] leading-none ${
+                        isCurrentHour
+                          ? "font-black text-blue-700 dark:text-blue-300"
+                          : "font-semibold text-slate-900 dark:text-white"
+                      }`}
+                    >
                       {item.temperature_c}°C
                     </span>
 
@@ -298,7 +355,7 @@ export function WeatherTimelinePanel({
                         />
                       </div>
                       <div className="flex items-center justify-center">
-                        <span className={`text-[10px] font-mono font-bold ${rainTextColor} flex items-center gap-0.5`}>
+                        <span className={`text-[10px] font-bold ${rainTextColor} flex items-center gap-0.5`}>
                           <span>💧</span>{rainPct}%
                         </span>
                       </div>
@@ -340,7 +397,7 @@ export function WeatherTimelinePanel({
           </div>
 
           {/* DSS C4 Criterion Score */}
-          <div className="flex items-center gap-2 font-mono text-[11px] shrink-0">
+          <div className="flex items-center gap-2 text-[11px] shrink-0 font-['Inter']">
             <span className="text-slate-500">Skor C4 DSS (Cuaca):</span>
             <span className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-200">
               {summary?.skor_c4_dss ?? (summary?.max_rain_probability || 20)} / 100

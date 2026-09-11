@@ -23,6 +23,9 @@ import {
   ShieldCheck,
   LogOut,
   ChevronRight,
+  ChevronLeft,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext.jsx";
 
@@ -79,18 +82,18 @@ export function Sidebar({ collapsed = false, onToggleCollapse }) {
 
   return (
     <aside
-      className={`fixed inset-y-0 left-0 z-40 bg-[#131822] text-slate-300 border-r border-slate-800/80 flex flex-col transition-all duration-200 ${
-        collapsed ? "w-18" : "w-60"
+      className={`fixed inset-y-0 left-0 z-40 bg-[#131822] text-slate-300 border-r border-slate-800/80 flex flex-col transition-all duration-200 select-none ${
+        collapsed ? "w-16" : "w-64"
       }`}
     >
       {/* Brand Header */}
-      <div className="h-14 flex items-center justify-between px-4 border-b border-slate-800/80 shrink-0">
-        <Link to="/dashboard" className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-[8px] bg-gradient-to-tr from-blue-600 to-orange-500 flex items-center justify-center text-white font-black text-sm shadow-md">
+      <div className={`h-14 flex items-center border-b border-slate-800/80 shrink-0 relative ${collapsed ? "justify-center px-2" : "justify-between px-4"}`}>
+        <Link to="/dashboard" className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-[8px] bg-gradient-to-tr from-blue-600 to-orange-500 flex items-center justify-center text-white font-black text-sm shadow-md shrink-0">
             M
           </div>
           {!collapsed && (
-            <div>
+            <div className="min-w-0">
               <div className="font-black text-sm tracking-wide text-white font-['Inter'] uppercase">
                 Mova
               </div>
@@ -100,6 +103,18 @@ export function Sidebar({ collapsed = false, onToggleCollapse }) {
             </div>
           )}
         </Link>
+
+        {/* Floating Border Toggle Button */}
+        {onToggleCollapse && (
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            title={collapsed ? "Perbesar Sidebar" : "Perkecil Sidebar"}
+            className="hidden lg:flex absolute -right-3.5 top-3.5 w-7 h-7 rounded-full bg-[#1e293b] border border-slate-700 text-slate-300 hover:text-white hover:bg-blue-600 hover:border-blue-500 shadow-lg items-center justify-center cursor-pointer z-50 transition-all duration-200"
+          >
+            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          </button>
+        )}
       </div>
 
       {/* Navigation Links Scrollable */}

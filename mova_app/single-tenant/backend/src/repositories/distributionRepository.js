@@ -369,6 +369,145 @@ export class DistributionRepository {
   }
 
   /**
+   * Aggregate complete rider operational status summary for today
+   */
+  async getRidersSummary() {
+    // 1. Fetch all registered riders
+    const ridersQuery = `
+      SELECT id, name, username, email, phone, status AS user_status
+      FROM users
+      WHERE role = 'RIDER'
+      ORDER BY name ASC;
+    `;
+    const { rows: allRiders } = await this.pool.query(ridersQuery);
+
+    // 2. Fetch today's duty queue
+    const queueQuery = `
+      SELECT rider_id, status, confirmed_at
+      FROM rider_duty_queues
+      WHERE duty_date = CURRENT_DATE;
+    `;
+    const { rows: queueRows } = await this.pool.query(queueQuery);
+    const queueMap = {};
+    queueRows.forEach((q) => {
+      queueMap[q.rider_id] = q;
+    });
+
+    // 3. Fetch today's assignments
+    const assignQuery = `
+      SELECT za.*, z.name AS zone_name, a.code AS armada_code
+      FROM zone_assignments za
+      JOIN zones z ON za.zone_id = z.id
+      LEFT JOIN armadas a ON za.armada_id = a.id
+      WHERE za.assignment_date = CURRENT_DATE;
+    `;
+    const { rows: assignRows } = await this.pool.query(assignQuery);
+    const assignMap = {};
+    assignRows.forEach((a) => {
+      assignMap[a.rider_id] = a;
+    });
+
+    // 4. Fetch active operational sessions & live position
+    const sessionQuery = `
+      SELECT os.rider_id, os.status AS session_status, os.started_at, os.checked_in_at,
+             lrp.latitude, lrp.longitude, lrp.zone_compliance, lrp.speed, lrp.is_inside_zone
+      FROM operational_sessions os
+      LEFT JOIN latest_rider_positions lrp ON os.rider_id = lrp.rider_id
+      WHERE os.completed_at IS NULL;
+    `;
+    let sessionMap = {};
+    try {
+      const { rows: sessionRows } = await this.pool.query(sessionQuery);
+      sessionRows.forEach((s) => {
+        sessionMap[s.rider_id] = s;
+      });
+    } catch (e) {
+      // ignore if tables not present
+    }
+
+    let unconfirmedCount = 0;
+    let waitingQueueCount = 0;
+    let plottedCount = 0;
+    let operatingCount = 0;
+    let deviatedCount = 0;
+    let offDutyCount = 0;
+
+    const detailedRiders = allRiders.map((r) => {
+      const queueItem = queueMap[r.id] || null;
+      const assignItem = assignMap[r.id] || null;
+      const sessionItem = sessionMap[r.id] || null;
+
+      let operationalStatus = "UNCONFIRMED";
+
+      if (sessionItem && (sessionItem.session_status === "OPERATING" || sessionItem.session_status === "CHECKED_IN")) {
+        if (sessionItem.zone_compliance === "DEVIATED") {
+          operationalStatus = "DEVIATION";
+          deviatedCount++;
+        } else {
+          operationalStatus = "OPERATING";
+          operatingCount++;
+        }
+      } else if (assignItem) {
+        if (assignItem.status === "CHECKED_IN") {
+          operationalStatus = "OPERATING";
+          operatingCount++;
+        } else if (assignItem.status === "COMPLETED") {
+          operationalStatus = "OFF_DUTY";
+          offDutyCount++;
+        } else if (assignItem.status === "CANCELLED") {
+          operationalStatus = "OFF_DUTY";
+          offDutyCount++;
+        } else {
+          operationalStatus = "PLOTTED";
+          plottedCount++;
+        }
+      } else if (queueItem) {
+        if (queueItem.status === "WAITING") {
+          operationalStatus = "WAITING";
+          waitingQueueCount++;
+        } else if (queueItem.status === "CANCELLED") {
+          operationalStatus = "OFF_DUTY";
+          offDutyCount++;
+        } else {
+          operationalStatus = "PLOTTED";
+          plottedCount++;
+        }
+      } else {
+        operationalStatus = "UNCONFIRMED";
+        unconfirmedCount++;
+      }
+
+      return {
+        rider_id: r.id,
+        name: r.name,
+        username: r.username,
+        email: r.email,
+        phone: r.phone,
+        status: operationalStatus,
+        zone_id: assignItem?.zone_id || null,
+        zone_name: assignItem?.zone_name || null,
+        armada_code: assignItem?.armada_code || null,
+        topsis_rank: assignItem?.topsis_rank || null,
+        duty_confirmed_at: queueItem?.confirmed_at || null,
+        checked_in_at: sessionItem?.checked_in_at || null,
+        latitude: sessionItem?.latitude || null,
+        longitude: sessionItem?.longitude || null,
+      };
+    });
+
+    return {
+      total_riders: allRiders.length,
+      unconfirmed: unconfirmedCount,
+      waiting_queue: waitingQueueCount,
+      plotted: plottedCount,
+      operating: operatingCount,
+      deviated: deviatedCount,
+      off_duty: offDutyCount,
+      riders: detailedRiders,
+    };
+  }
+
+  /**
    * Reset today's distribution assignments and duty queue for testing
    */
   async resetTodayDistribution() {

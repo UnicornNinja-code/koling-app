@@ -13,6 +13,7 @@ import {
 import { cn } from "../../lib/utils.js";
 import { Button } from "../ui/Button.jsx";
 import { CriteriaProgressBar } from "../ui/CriteriaProgressBar.jsx";
+import { WeatherIcon } from "../ui/WeatherIcon.jsx";
 
 /**
  * MOVA ZoneDetailDrawer Component — Design System v3.0 SSOT
@@ -200,7 +201,7 @@ export function ZoneDetailDrawer({
               Cuaca di Zona
             </span>
             <div className="flex items-center gap-1.5 font-medium text-[#0F172A] dark:text-white">
-              <CloudSun className="w-3.5 h-3.5 text-sky-500" />
+              <WeatherIcon condition={zone.weather.condition || zone.weather.label || "Cerah Berawan"} size={18} />
               <span>{zone.weather.temp}</span>
               <span className="text-[11px] text-[#64748B] dark:text-[#94A3B8]">
                 Hujan: {zone.weather.rainProb}

@@ -3568,6 +3568,432 @@ paths:
       responses:
         '200':
           description: 'Aggregated Quick Alerts Payload with Summary and Readiness Matrix'
+  /distribution/duty/confirm:
+    post:
+      tags:
+        - 'Distribution & Plotting'
+      summary: 'Confirm Rider Availability for Today Duty (Enters FIFO Waiting Queue)'
+      description: 'Rider confirms readiness to work today. Inserts rider into today FIFO duty queue with WAITING status.'
+      security:
+        -
+          BearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rider_id:
+                  type: string
+                  format: uuid
+                  description: 'Optional Rider ID (if executed by supervisor on behalf of rider)'
+      responses:
+        '200':
+          description: 'Successfully joined today FIFO duty queue'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  msg:
+                    type: string
+                    example: 'Konfirmasi kesediaan bertugas berhasil. Rider telah masuk ke Antrean FIFO.'
+                  queue:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      rider_id:
+                        type: string
+                        format: uuid
+                      duty_date:
+                        type: string
+                        format: date
+                      status:
+                        type: string
+                        example: WAITING
+                      confirmed_at:
+                        type: string
+                        format: date-time
+        '400':
+          description: 'Bad Request - Missing Rider ID'
+  /distribution/duty-confirm:
+    post:
+      tags:
+        - 'Distribution & Plotting'
+      summary: 'Confirm Rider Duty (Alias)'
+      security:
+        -
+          BearerAuth: []
+      responses:
+        '200':
+          description: 'Successfully joined FIFO queue'
+  /distribution/duty/status:
+    get:
+      tags:
+        - 'Distribution & Plotting'
+      summary: 'Get Unified Operational Duty & Assignment Status for Rider'
+      description: 'Fetch current operational state for authenticated rider (UNCONFIRMED, WAITING in FIFO, PLOTTED, OPERATING, COMPLETED)'
+      security:
+        -
+          BearerAuth: []
+      parameters:
+        -
+          in: query
+          name: rider_id
+          schema:
+            type: string
+          description: 'Optional Rider ID for Supervisor lookup'
+      responses:
+        '200':
+          description: 'Unified rider operational status'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    type: object
+                    properties:
+                      duty_status:
+                        type: string
+                        example: WAITING
+                      queue_position:
+                        type: integer
+                        example: 1
+                      duty_confirmed_at:
+                        type: string
+                        format: date-time
+                      assignment:
+                        type: object
+                        nullable: true
+                      fleet:
+                        type: object
+                        nullable: true
+  /distribution/riders-summary:
+    get:
+      tags:
+        - 'Distribution & Plotting'
+      summary: 'Get Aggregate Rider Operational Status Summary (Dashboard Counter Chips)'
+      description: 'Provides high-level aggregate counters (total_riders, operating, plotted, waiting_queue, deviated, unconfirmed, off_duty) and individual rider status list for supervisor dashboard.'
+      security:
+        -
+          BearerAuth: []
+      responses:
+        '200':
+          description: 'Aggregate rider status summary'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    type: object
+                    properties:
+                      total_riders:
+                        type: integer
+                        example: 12
+                      unconfirmed:
+                        type: integer
+                        example: 1
+                      waiting_queue:
+                        type: integer
+                        example: 1
+                      plotted:
+                        type: integer
+                        example: 2
+                      operating:
+                        type: integer
+                        example: 8
+                      deviated:
+                        type: integer
+                        example: 1
+                      off_duty:
+                        type: integer
+                        example: 0
+                      riders:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            rider_id:
+                              type: string
+                            name:
+                              type: string
+                            status:
+                              type: string
+                              example: OPERATING
+                            zone_id:
+                              type: string
+                            zone_name:
+                              type: string
+                            armada_code:
+                              type: string
+  /distribution/riders/summary:
+    get:
+      tags:
+        - 'Distribution & Plotting'
+      summary: 'Get Aggregate Rider Operational Status Summary (Alias)'
+      security:
+        -
+          BearerAuth: []
+      responses:
+        '200':
+          description: 'Aggregate rider status summary'
+  /distribution/overview:
+    get:
+      tags:
+        - 'Distribution & Plotting'
+      summary: 'Get Distribution & Shift Capacity Overview'
+      description: 'Returns real-time capacity and FIFO queue distribution overview across active zones with TOPSIS rankings'
+      security:
+        -
+          BearerAuth: []
+      parameters:
+        -
+          in: query
+          name: time
+          schema:
+            type: string
+          description: 'Optional time slot evaluation override'
+      responses:
+        '200':
+          description: 'Shift capacity and zone distribution overview'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    type: object
+                    properties:
+                      time_slot:
+                        type: string
+                        example: pagi
+                      total_waiting_riders:
+                        type: integer
+                        example: 1
+                      total_remaining_capacity:
+                        type: integer
+                        example: 16
+                      is_capacity_sufficient:
+                        type: boolean
+                        example: true
+                      waiting_queue:
+                        type: array
+                        items:
+                          type: object
+                      zones_overview:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            zone_id:
+                              type: string
+                            zone_name:
+                              type: string
+                            rank:
+                              type: integer
+                            preference_score:
+                              type: number
+                            max_capacity:
+                              type: integer
+                            assigned_count:
+                              type: integer
+                            remaining_capacity:
+                              type: integer
+                            is_full:
+                              type: boolean
+  /distribution/daily-status:
+    get:
+      tags:
+        - 'Distribution & Plotting'
+      summary: 'Get Distribution Overview (Alias)'
+      security:
+        -
+          BearerAuth: []
+      responses:
+        '200':
+          description: 'Shift capacity overview'
+  /distribution/auto-assign:
+    post:
+      tags:
+        - 'Distribution & Plotting'
+      summary: 'Trigger Automatic Distribution Engine (FIFO Queue -> TOPSIS Zone Rankings)'
+      description: 'Automatically assigns all waiting riders in FIFO order to highest ranked TOPSIS zones with available capacity.'
+      security:
+        -
+          BearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                time:
+                  type: string
+                  description: 'Optional custom time override'
+      responses:
+        '200':
+          description: 'Automatic distribution executed successfully'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                  assigned_riders_count:
+                    type: integer
+                  unassigned_riders_count:
+                    type: integer
+                  is_capacity_sufficient:
+                    type: boolean
+                  assignments:
+                    type: array
+                    items:
+                      type: object
+  /distribution/auto:
+    post:
+      tags:
+        - 'Distribution & Plotting'
+      summary: 'Trigger Automatic Distribution (Alias)'
+      security:
+        -
+          BearerAuth: []
+      responses:
+        '200':
+          description: 'Automatic distribution executed'
+  /distribution/manual-assign:
+    post:
+      tags:
+        - 'Distribution & Plotting'
+      summary: 'Manual Distribution / Supervisor Override Assignment'
+      description: 'Manually assigns a rider to a target zone with capacity validation and DSS snapshot linkage.'
+      security:
+        -
+          BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - rider_id
+                - zone_id
+              properties:
+                rider_id:
+                  type: string
+                  format: uuid
+                zone_id:
+                  type: string
+                time:
+                  type: string
+      responses:
+        '200':
+          description: 'Manual assignment completed'
+        '400':
+          description: 'Target zone is full or invalid parameters'
+  /distribution/manual:
+    post:
+      tags:
+        - 'Distribution & Plotting'
+      summary: 'Manual Distribution (Alias)'
+      security:
+        -
+          BearerAuth: []
+      responses:
+        '200':
+          description: 'Manual assignment completed'
+  /distribution/override:
+    post:
+      tags:
+        - 'Distribution & Plotting'
+      summary: 'Supervisor Distribution Override (Alias)'
+      security:
+        -
+          BearerAuth: []
+      responses:
+        '200':
+          description: 'Override assignment completed'
+  /distribution/runs:
+    get:
+      tags:
+        - 'Distribution & Plotting'
+      summary: 'Get Distribution Execution Runs Audit History'
+      description: 'Fetch historical audit logs of automatic and manual distribution runs.'
+      security:
+        -
+          BearerAuth: []
+      parameters:
+        -
+          in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: 'List of distribution execution records'
+  /distribution/runs/{id}:
+    get:
+      tags:
+        - 'Distribution & Plotting'
+      summary: 'Get Single Distribution Run Detail by ID'
+      security:
+        -
+          BearerAuth: []
+      parameters:
+        -
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 'Distribution run detail'
+        '404':
+          description: 'Distribution run record not found'
+  /distribution/my-history:
+    get:
+      tags:
+        - 'Distribution & Plotting'
+      summary: 'Get Personal Duty & Assignment History for Authenticated Rider'
+      description: 'Returns historical assignments, zones, and armada associations for current logged-in rider.'
+      security:
+        -
+          BearerAuth: []
+      parameters:
+        -
+          in: query
+          name: limit
+          schema:
+            type: integer
+            default: 30
+      responses:
+        '200':
+          description: 'Personal duty history'
 components:
   securitySchemes:
     BearerAuth:

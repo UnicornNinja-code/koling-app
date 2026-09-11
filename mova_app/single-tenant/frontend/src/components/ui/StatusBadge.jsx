@@ -23,19 +23,29 @@ export function StatusBadge({ status, label, size = "md", className = "" }) {
     MAINTENANCE: { variant: "warning", label: "Maintenance", dot: true },
     PERAWATAN: { variant: "warning", label: "Perawatan", dot: true },
     RESERVED: { variant: "warning", label: "Reserved", dot: true },
+    HELD: { variant: "warning", label: "Hold 5 Menit", dot: true },
+    CLAIMED: { variant: "primary", label: "Klaim Aktif", dot: true },
 
-    // Rider Operational Statuses
+    // Rider & Distribution Operational Statuses
     ON_DUTY: { variant: "warning", label: "Tugas", dot: true },
     TUGAS: { variant: "warning", label: "Tugas", dot: true },
     OPERATING: { variant: "success", label: "Aktif", dot: true },
+    CHECKED_IN: { variant: "success", label: "Check-in", dot: true },
     OFFLINE: { variant: "danger", label: "Offline", dot: true },
     DEVIATION: { variant: "danger", label: "Deviasi", dot: true },
     DEVIASI: { variant: "danger", label: "Deviasi", dot: true },
+    OUTSIDE_GEOFENCE: { variant: "danger", label: "Luar Geofence", dot: true },
     ON_TIME: { variant: "success", label: "On Time", dot: true },
     LATE: { variant: "warning", label: "Terlambat", dot: true },
     TERLAMBAT: { variant: "warning", label: "Terlambat", dot: true },
     COMPLETED: { variant: "info", label: "Selesai", dot: false },
     SELESAI: { variant: "info", label: "Selesai", dot: false },
+    OFF_DUTY: { variant: "neutral", label: "Off Duty", dot: false },
+    WAITING: { variant: "warning", label: "Siap Shift (FIFO)", dot: true },
+    PLOTTED: { variant: "info", label: "Terploting", dot: true },
+    ASSIGNED: { variant: "info", label: "Ditugaskan", dot: true },
+    UNCONFIRMED: { variant: "neutral", label: "Belum Hadir", dot: false },
+    BELUM_HADIR: { variant: "neutral", label: "Belum Hadir", dot: false },
 
     // TOPSIS Evaluation Badges
     TERBAIK: { variant: "success", label: "Terbaik", dot: false },

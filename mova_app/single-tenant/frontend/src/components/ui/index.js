@@ -19,4 +19,6 @@ export * from "./PageHeader.jsx";
 export * from "./WeatherIcon.jsx";
 export * from "./Avatar.jsx";
 export * from "./ArmadaIcon.jsx";
+export * from "./SummaryChips.jsx";
+export * from "./RiderStatusBadge.jsx";
 export * from "./ThemeToggle.jsx";

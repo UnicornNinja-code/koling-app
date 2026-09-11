@@ -7,6 +7,8 @@ import {
   Radio,
   Clock,
   Menu,
+  PanelLeft,
+  PanelLeftClose,
 } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext.jsx";
 import { useAuth } from "../../context/AuthContext.jsx";
@@ -19,14 +21,14 @@ export function Topbar({ onToggleSidebar }) {
   const { user } = useAuth();
 
   return (
-    <header className="h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 sm:px-6 sticky top-0 z-30 font-['Inter']">
-      {/* Left: Mobile Toggle & Title Context */}
-      <div className="flex items-center gap-3">
+    <header className="h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 sm:px-6 sticky top-0 z-40 font-['Inter']">
+      {/* Left: Mobile Toggle */}
+      <div className="flex items-center gap-2">
         {onToggleSidebar && (
           <button
             type="button"
             onClick={onToggleSidebar}
-            className="p-1.5 rounded-[6px] text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 lg:hidden"
+            className="p-1.5 rounded-[6px] text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 lg:hidden cursor-pointer"
           >
             <Menu className="w-5 h-5" />
           </button>

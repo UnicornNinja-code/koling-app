@@ -140,3 +140,19 @@ export const getMyDutyHistory = async (req, res) => {
     return res.status(statusCode).json({ msg: error.message || "Internal server error" });
   }
 };
+
+/**
+ * Aggregate complete rider status summary for Dashboard (SPV, MANAGEMENT, SUPERADMIN)
+ */
+export const getRidersSummary = async (req, res) => {
+  try {
+    const summary = await distributionService.getRidersSummary();
+    return res.status(200).json({
+      status: "success",
+      data: summary,
+    });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ msg: error.message || "Internal server error" });
+  }
+};

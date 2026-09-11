@@ -37,4 +37,8 @@ export const distributionService = {
     const res = await axiosInstance.get("/distribution/my-history");
     return res.data;
   },
+  getRidersSummary: async () => {
+    const res = await axiosInstance.get("/distribution/riders/summary");
+    return res.data;
+  },
 };

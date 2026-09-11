@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Target,
   Navigation,
@@ -11,12 +12,14 @@ import {
   ShieldAlert,
   ShieldCheck,
   ChevronRight,
+  ExternalLink,
 } from "lucide-react";
 import { poiService } from "../../services/poiService.js";
 import { lbsService } from "../../services/lbsService.js";
 import { competitorService } from "../../services/competitorService.js";
 
 export function DomainMetricsBar({ selectedZoneId = null, className = "" }) {
+  const navigate = useNavigate();
   const [poiData, setPoiData] = useState(null);
   const [lbsData, setLbsData] = useState(null);
   const [competitorData, setCompetitorData] = useState(null);
@@ -122,15 +125,25 @@ export function DomainMetricsBar({ selectedZoneId = null, className = "" }) {
               </div>
             </div>
 
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
-              C1 Benefit
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+                C1 Benefit
+              </span>
+              <button
+                type="button"
+                onClick={() => navigate("/pois")}
+                title="Buka Manajemen POI & Data Spasial"
+                className="p-1 rounded-lg text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
           {/* Main Numeric Metric */}
           <div className="pt-1">
             <div className="flex items-baseline gap-1.5">
-              <span className="text-xl font-black tracking-tight text-slate-900 dark:text-white font-mono">
+              <span className="text-xl font-black tracking-tight text-slate-900 dark:text-white">
                 {Number(totalPois).toLocaleString("id-ID")}
               </span>
               <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
@@ -157,7 +170,7 @@ export function DomainMetricsBar({ selectedZoneId = null, className = "" }) {
           </div>
           <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
             <span>Kepadatan Rata-rata:</span>
-            <strong className="font-mono text-slate-700 dark:text-slate-300 font-semibold">
+            <strong className="text-slate-700 dark:text-slate-300 font-bold">
               {avgDensity} POI/km²
             </strong>
           </div>
@@ -167,7 +180,7 @@ export function DomainMetricsBar({ selectedZoneId = null, className = "" }) {
       {/* ------------------------------------------------------------- */}
       {/* CARD 2: Telemetri Jarak Rider                                 */}
       {/* ------------------------------------------------------------- */}
-      <div className="h-full p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-all">
+      <div className="h-full p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-all font-['Inter']">
         <div className="space-y-2">
           {/* Header Row */}
           <div className="flex items-center justify-between">
@@ -185,15 +198,25 @@ export function DomainMetricsBar({ selectedZoneId = null, className = "" }) {
               </div>
             </div>
 
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-              C5 Cost
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                C5 Cost
+              </span>
+              <button
+                type="button"
+                onClick={() => navigate("/map-ops")}
+                title="Buka Peta Operasi & Telemetri"
+                className="p-1 rounded-lg text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
           {/* Main Numeric Metric */}
           <div className="pt-1">
             <div className="flex items-baseline gap-1.5">
-              <span className="text-xl font-black tracking-tight text-slate-900 dark:text-white font-mono">
+              <span className="text-xl font-black tracking-tight text-slate-900 dark:text-white">
                 {avgRiderDist}
               </span>
               <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
@@ -213,14 +236,14 @@ export function DomainMetricsBar({ selectedZoneId = null, className = "" }) {
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
               Rider Terdekat:
             </span>
-            <span className="px-2 py-0.5 rounded font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800">
+            <span className="px-2 py-0.5 rounded font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800">
               {nearestRiderDist} km
             </span>
           </div>
 
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
             <span>Jarak Central Hub:</span>
-            <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">
+            <span className="font-semibold text-slate-700 dark:text-slate-300">
               {hubDist} km
             </span>
           </div>
@@ -230,7 +253,7 @@ export function DomainMetricsBar({ selectedZoneId = null, className = "" }) {
       {/* ------------------------------------------------------------- */}
       {/* CARD 3: Kepadatan Kompetitor                                  */}
       {/* ------------------------------------------------------------- */}
-      <div className="h-full p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs sm:col-span-2 lg:col-span-1 flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-all">
+      <div className="h-full p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs sm:col-span-2 lg:col-span-1 flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-all font-['Inter']">
         <div className="space-y-2">
           {/* Header Row */}
           <div className="flex items-center justify-between">
@@ -248,23 +271,33 @@ export function DomainMetricsBar({ selectedZoneId = null, className = "" }) {
               </div>
             </div>
 
-            <span
-              className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                competitionRisk === "TINGGI"
-                  ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800"
-                  : competitionRisk === "SEDANG"
-                  ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800"
-                  : "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800"
-              }`}
-            >
-              Persaingan: {competitionRisk}
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                  competitionRisk === "TINGGI"
+                    ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800"
+                    : competitionRisk === "SEDANG"
+                    ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800"
+                    : "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800"
+                }`}
+              >
+                Persaingan: {competitionRisk}
+              </span>
+              <button
+                type="button"
+                onClick={() => navigate("/competitors")}
+                title="Buka Manajemen Kompetitor"
+                className="p-1 rounded-lg text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
           {/* Main Numeric Metric */}
           <div className="pt-1">
             <div className="flex items-baseline gap-1.5">
-              <span className="text-xl font-black tracking-tight text-slate-900 dark:text-white font-mono">
+              <span className="text-xl font-black tracking-tight text-slate-900 dark:text-white">
                 {totalCompetitors}
               </span>
               <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
@@ -278,14 +311,14 @@ export function DomainMetricsBar({ selectedZoneId = null, className = "" }) {
         <div className="pt-3 mt-3 border-t border-slate-100 dark:border-slate-800/80 space-y-2 text-[11px]">
           <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
             <span className="text-slate-500 dark:text-slate-400">Survei Lapangan:</span>
-            <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+            <span className="font-bold text-slate-800 dark:text-slate-200">
               {fieldSurveyCount} Titik
             </span>
           </div>
 
           <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
             <span className="text-slate-500 dark:text-slate-400">Kedai Kopi (POI):</span>
-            <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+            <span className="font-bold text-slate-800 dark:text-slate-200">
               {coffeePoiCount} Titik
             </span>
           </div>

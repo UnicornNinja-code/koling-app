@@ -348,6 +348,13 @@ export class DistributionService {
       history,
     };
   }
+
+  /**
+   * Fetch aggregate riders status summary
+   */
+  async getRidersSummary() {
+    return await this.repo.getRidersSummary();
+  }
 }
 
 export const distributionService = DistributionService.getInstance();

@@ -92,13 +92,13 @@ export function BwmWeightTooltip({ className = "" }) {
       >
         <Info className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
         <span>BWM Active</span>
-        <span className="text-[10px] font-mono opacity-80">(CR: {consistencyRatio.toFixed(3)})</span>
+        <span className="text-[10px] font-medium opacity-80">(CR: {consistencyRatio.toFixed(3)})</span>
         {isOpen ? <ChevronUp className="w-3 h-3 opacity-60" /> : <ChevronDown className="w-3 h-3 opacity-60" />}
       </button>
 
       {/* Floating Popover Card */}
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150">
+        <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 font-['Inter']">
           <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2">
               <Sliders className="w-4 h-4 text-blue-500" />
@@ -124,7 +124,7 @@ export function BwmWeightTooltip({ className = "" }) {
           {/* CR Status Indicator */}
           <div className="mt-2.5 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 flex items-center justify-between text-xs">
             <span className="text-slate-600 dark:text-slate-300 font-medium">Consistency Ratio (CR):</span>
-            <span className="inline-flex items-center gap-1 font-mono font-bold text-emerald-600 dark:text-emerald-400">
+            <span className="inline-flex items-center gap-1 font-bold text-emerald-600 dark:text-emerald-400">
               <CheckCircle2 className="w-3 h-3" />
               {consistencyRatio.toFixed(4)} ({isConsistent ? "Konsisten" : "Perlu Penyesuaian"})
             </span>
@@ -139,10 +139,10 @@ export function BwmWeightTooltip({ className = "" }) {
                 <div key={c.code} className="space-y-1">
                   <div className="flex items-center justify-between text-[11px]">
                     <span className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                      <span className="font-mono text-blue-600 dark:text-blue-400 font-bold">{c.code}:</span>
+                      <span className="text-blue-600 dark:text-blue-400 font-bold">{c.code}:</span>
                       {c.name}
                     </span>
-                    <span className="font-mono font-bold text-slate-700 dark:text-slate-300">
+                    <span className="font-bold text-slate-700 dark:text-slate-300">
                       {formatWeightPct(weightVal)}
                     </span>
                   </div>

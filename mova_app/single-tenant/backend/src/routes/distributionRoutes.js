@@ -14,6 +14,7 @@ import {
   getDistributionRuns,
   getDistributionRunById,
   getMyDutyHistory,
+  getRidersSummary,
 } from "../controllers/distributionController.js";
 import { authenticateToken } from "../middlewares/authMiddleware.js";
 import { checkRole } from "../middlewares/roleMiddleware.js";
@@ -37,6 +38,20 @@ router.get(
   "/duty/status",
   authenticateToken,
   getRiderDutyStatus
+);
+
+// 2.1 Rider Operational Aggregated Status Summary (SPV, MANAGEMENT, SUPERADMIN)
+router.get(
+  "/riders/summary",
+  authenticateToken,
+  checkRole(["SUPERADMIN", "MANAGEMENT", "SUPERVISOR"]),
+  getRidersSummary
+);
+router.get(
+  "/riders-summary",
+  authenticateToken,
+  checkRole(["SUPERADMIN", "MANAGEMENT", "SUPERVISOR"]),
+  getRidersSummary
 );
 
 // 3. Fetch Distribution Overview (SPV, MANAGEMENT, SUPERADMIN)

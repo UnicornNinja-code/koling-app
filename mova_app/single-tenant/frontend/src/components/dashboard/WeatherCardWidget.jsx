@@ -1,13 +1,13 @@
 import React from "react";
 import { cn } from "../../lib/utils.js";
 import {
-  WeatherCloudSun,
   Droplets,
   CloudRain,
   WindSpeed,
   Visibility,
   ChevronRight,
 } from "../common/icons.jsx";
+import { WeatherIcon } from "../ui/WeatherIcon.jsx";
 
 /**
  * MOVA WeatherCardWidget — Kondisi Cuaca & Lingkungan
@@ -49,8 +49,8 @@ export function WeatherCardWidget({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
         {/* Left: Main Temp & Visual */}
         <div className="flex items-center gap-3 bg-[#FAFAFA] dark:bg-[#18202F] p-3 rounded-lg border border-[#E5E5E5]/60 dark:border-[#263244]">
-          <div className="w-12 h-12 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-500 border border-amber-200 dark:border-amber-800/50 flex items-center justify-center shrink-0">
-            <WeatherCloudSun className="w-7 h-7" />
+          <div className="w-12 h-12 rounded-lg bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/50 flex items-center justify-center shrink-0">
+            <WeatherIcon condition={condition} size={36} />
           </div>
           <div>
             <div className="text-2xl font-bold font-heading text-[#171717] dark:text-white leading-none">
@@ -120,8 +120,8 @@ export function WeatherHeaderWidget({
         className
       )}
     >
-      <div className="w-7 h-7 rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-500 flex items-center justify-center shrink-0">
-        <WeatherCloudSun className="w-4.5 h-4.5" />
+      <div className="w-7 h-7 rounded-md bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/50 flex items-center justify-center shrink-0">
+        <WeatherIcon condition={condition} size={22} />
       </div>
       <div className="leading-tight">
         <div className="text-xs font-bold text-[#171717] dark:text-white font-heading">
