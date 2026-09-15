@@ -1,3 +1,3 @@
-export * from "./LoginPage.jsx";
-export * from "./RegisterPage.jsx";
-export * from "./ForgotPasswordPage.jsx";
+export { LoginPage } from "./LoginPage.jsx";
+export { RegisterPage } from "./RegisterPage.jsx";
+export { ForgotPasswordPage } from "./ForgotPasswordPage.jsx";

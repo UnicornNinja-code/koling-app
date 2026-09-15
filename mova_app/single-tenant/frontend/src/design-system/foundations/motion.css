@@ -1,0 +1,105 @@
+/* ==========================================================================
+   IBM CARBON MOTION SYSTEM SPECIFICATION (@carbon/motion)
+   ========================================================================== */
+
+:root {
+  /* Carbon Motion Durations */
+  --cds-motion-duration-fast-01: 70ms;   /* Micro-interactions: hover, focus */
+  --cds-motion-duration-fast-02: 110ms;  /* Micro-interactions: small fading, toggles */
+  --cds-motion-duration-moderate-01: 150ms; /* Small expansions, toast appearance */
+  --cds-motion-duration-moderate-02: 240ms; /* Large expansions, drawer slides, accordion */
+  --cds-motion-duration-slow-01: 400ms;  /* Full page layout transitions, complex master-detail */
+  --cds-motion-duration-slow-02: 700ms;  /* Background ambiance transitions, theme shifts */
+
+  /* Carbon Productive Easing Curves (Task-oriented, efficient, no overshoot) */
+  --cds-motion-productive-standard: cubic-bezier(0.2, 0, 0.38, 0.9);
+  --cds-motion-productive-entrance: cubic-bezier(0, 0, 0.38, 0.9);
+  --cds-motion-productive-exit: cubic-bezier(0.2, 0, 1, 0.9);
+
+  /* Carbon Expressive Easing Curves (Stylistic, engaging, natural deceleration) */
+  --cds-motion-expressive-standard: cubic-bezier(0.4, 0.14, 0.3, 1);
+  --cds-motion-expressive-entrance: cubic-bezier(0, 0, 0.3, 1);
+  --cds-motion-expressive-exit: cubic-bezier(0.4, 0.14, 1, 1);
+}
+
+/* Carbon Motion Utility Classes */
+.cds-motion-fade-in {
+  animation: cdsFadeIn var(--cds-motion-duration-moderate-01) var(--cds-motion-productive-entrance) forwards;
+}
+
+.cds-motion-fade-out {
+  animation: cdsFadeOut var(--cds-motion-duration-fast-02) var(--cds-motion-productive-exit) forwards;
+}
+
+.cds-motion-slide-in-right {
+  animation: cdsSlideInRight var(--cds-motion-duration-moderate-02) var(--cds-motion-productive-entrance) forwards;
+}
+
+.cds-motion-slide-in-up {
+  animation: cdsSlideInUp var(--cds-motion-duration-moderate-02) var(--cds-motion-productive-entrance) forwards;
+}
+
+.cds-motion-expand {
+  transition: all var(--cds-motion-duration-moderate-02) var(--cds-motion-productive-standard);
+}
+
+.cds-motion-interactive {
+  transition: background-color var(--cds-motion-duration-fast-01) var(--cds-motion-productive-standard),
+              border-color var(--cds-motion-duration-fast-01) var(--cds-motion-productive-standard),
+              color var(--cds-motion-duration-fast-01) var(--cds-motion-productive-standard),
+              transform var(--cds-motion-duration-fast-01) var(--cds-motion-productive-standard);
+}
+
+@keyframes cdsFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes cdsFadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes cdsSlideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes cdsSlideInUp {
+  from {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Accessibility: Respect prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,87 +1,149 @@
+/*
+ * authService.js
+ * Single Source of Truth (SSOT) Authentication Service
+ * Strictly conforms to Swagger OpenAPI 3.0.3 Contract for MOVA Single-Tenant
+ */
+
 import { axiosInstance } from "../lib/axios.js";
 
 export const authService = {
   /**
-   * User login with identifier (username or email) and password
+   * User Login (Email or Username + Password + Cloudflare Turnstile Token)
+   * @param {Object} params
+   * @param {string} params.identifier - Email address or username (case-insensitive)
+   * @param {string} params.password - Plaintext password
+   * @param {string} [params.turnstileToken] - Cloudflare Turnstile token
+   * @returns {Promise<{ msg: string, token: string, user: Object }>}
    */
-  login: async (credentials) => {
+  async login({ identifier, password, turnstileToken }) {
     const payload = {
-      identifier: credentials.username || credentials.identifier || credentials.email,
-      password: credentials.password,
+      identifier: identifier.trim(),
+      password,
+      ...(turnstileToken && { turnstileToken, "cf-turnstile-response": turnstileToken }),
     };
     const res = await axiosInstance.post("/auth/login", payload);
-    return res.data;
+    const data = res.data;
+    if (data?.token) {
+      axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${data.token}`;
+      localStorage.setItem("token", data.token);
+      if (data.refreshToken) {
+        localStorage.setItem("refreshToken", data.refreshToken);
+      }
+    }
+    return data;
   },
 
   /**
-   * Register or activate user account
+   * Fetch Authenticated User Profile & Active Session
+   * @returns {Promise<{ user: Object }>}
    */
-  register: async (userData) => {
-    const res = await axiosInstance.post("/auth/register", userData);
-    return res.data;
-  },
-
-  /**
-   * Fetch currently authenticated user profile
-   */
-  getMe: async () => {
+  async getMe() {
     const res = await axiosInstance.get("/auth/me");
     return res.data;
   },
 
   /**
-   * Request password reset / activation link for a provisioned email
+   * Activate User Account via Invitation Token
+   * @param {Object} params
+   * @param {string} params.token - 32-character invitation/activation token
+   * @param {string} params.password - New password to set
+   * @param {string} [params.email] - Optional verified email
+   * @param {string} [params.name] - Optional full name
+   * @param {string} [params.birth_date] - Optional birth date (YYYY-MM-DD)
+   * @returns {Promise<{ msg: string, user: Object }>}
    */
-  forgotPassword: async (email) => {
-    const res = await axiosInstance.post("/auth/forgot-password", { email });
+  async activateAccount({ token, password, email, name, birth_date }) {
+    const payload = {
+      token: token?.trim(),
+      password,
+      ...(email && { email: email.trim() }),
+      ...(name && { name: name.trim() }),
+      ...(birth_date && { birth_date }),
+    };
+    const res = await axiosInstance.post("/auth/activate", payload);
     return res.data;
   },
 
   /**
-   * Complete password reset / activation with secure token
+   * Register New User (Restricted by Role Hierarchy Guard)
+   * @param {Object} userData
+   * @returns {Promise<{ msg: string, user: Object }>}
    */
-  resetPassword: async ({ token, password }) => {
-    const res = await axiosInstance.post("/auth/reset-password", { token, password });
+  async register(userData) {
+    const res = await axiosInstance.post("/auth/register", userData);
     return res.data;
   },
 
   /**
-   * Verify whether a password reset / activation token is valid
+   * Request Password Reset Link / Token
+   * @param {string} email
+   * @returns {Promise<{ msg: string, previewUrl?: string }>}
    */
-  verifyResetToken: async (token) => {
-    const res = await axiosInstance.get(`/auth/verify-reset-token/${token}`);
+  async forgotPassword(email) {
+    const res = await axiosInstance.post("/auth/forgot-password", {
+      email: email.trim(),
+    });
     return res.data;
   },
 
   /**
-   * Complete First Login by updating initial password
+   * Submit New Password with Reset Token
+   * @param {Object} params
+   * @param {string} params.token
+   * @param {string} params.password
+   * @returns {Promise<{ msg: string }>}
    */
-  completeFirstLogin: async ({ newPassword }) => {
-    const res = await axiosInstance.post("/auth/first-login", { newPassword });
+  async resetPassword({ token, password, newPassword }) {
+    const payload = {
+      token: token?.trim(),
+      password: password || newPassword,
+    };
+    const res = await axiosInstance.post("/auth/reset-password", payload);
     return res.data;
   },
 
   /**
-   * Activate account using token and set initial password & optional birth_date
+   * Verify Reset / Activation Token Validity
+   * @param {string} token
+   * @returns {Promise<{ valid: boolean, msg?: string, email?: string }>}
    */
-  activateAccount: async ({ token, password, name, birth_date }) => {
-    const res = await axiosInstance.post("/auth/activate", { token, password, name, birth_date });
+  async verifyResetToken(token) {
+    const res = await axiosInstance.get(`/auth/verify-token/${encodeURIComponent(token)}`);
     return res.data;
   },
 
   /**
-   * Refresh JWT authentication token
+   * Force Password Change on First Superadmin / Staff Login
+   * @param {Object} params
+   * @param {string} params.newPassword
+   * @returns {Promise<{ success: boolean, msg: string, user: Object }>}
    */
-  refreshToken: async () => {
+  async completeFirstLogin({ newPassword }) {
+    const payload = {
+      newPassword,
+      new_password: newPassword,
+    };
+    const res = await axiosInstance.post("/auth/first-login", payload);
+    return res.data;
+  },
+
+  /**
+   * Refresh Expired Access Token
+   * @returns {Promise<{ msg: string, token: string }>}
+   */
+  async refreshToken() {
     const res = await axiosInstance.post("/auth/refresh-token");
     return res.data;
   },
 
   /**
-   * Logout current session
+   * Invalidate Session & Revoke Token
+   * @returns {Promise<{ msg: string }>}
    */
-  logout: async (token) => {
-    const res = await axiosInstance.post("/auth/logout", token ? { token } : {});
+  async logout() {
+    const res = await axiosInstance.post("/auth/logout");
     return res.data;
   },
 };
+
+export default authService;

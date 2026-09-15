@@ -184,34 +184,35 @@ export const loginService = async ({ identifier, password }) => {
  * In development without SMTP config, auto-uses Ethereal test account.
  */
 export const sendPasswordResetInstructionService = async (email, token) => {
-    const resetUrl = `${env.FRONTEND_URL}/reset-password?token=${token}`;
+    const resetUrl = `${env.FRONTEND_URL}/reset-password?token=${token}&email=${encodeURIComponent(email)}`;
 
     const html = `
-        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
-            <h2 style="color: #1a1a2e;">🔑 Reset Password — MantaKopi DSS</h2>
-            <p>Anda menerima email ini karena ada permintaan reset password untuk akun Anda.</p>
-            <p>Klik tombol di bawah untuk mengatur password baru:</p>
-            <a href="${resetUrl}" 
-               style="display: inline-block; padding: 12px 28px; background: #6366f1; color: #fff; text-decoration: none; border-radius: 8px; font-weight: 600; margin: 16px 0;">
-                Reset Password
-            </a>
-            <p style="color: #666; font-size: 13px;">Link ini berlaku selama <strong>1 jam</strong>. Jika Anda tidak meminta reset password, abaikan email ini.</p>
-            <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
-            <p style="color: #999; font-size: 12px;">© 2026 MantaKopi DSS — Mobile Coffee Vendor Decision Support System</p>
+        <div style="font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; border: 1px solid #e0e0e0; background-color: #ffffff; color: #161616;">
+            <h3 style="color: #0f62fe; margin-top: 0; font-size: 18px; font-weight: 700;">Permintaan Reset Password — MOVA DSS</h3>
+            <p style="font-size: 14px; line-height: 1.5; color: #525252;">Gunakan tautan berikut untuk memperbarui kata sandi akun MOVA Anda:</p>
+            <div style="margin: 24px 0;">
+                <a href="${resetUrl}" 
+                   style="background-color: #0f62fe; color: #ffffff; padding: 12px 24px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block;">
+                    Atur Ulang Kata Sandi
+                </a>
+            </div>
+            <p style="color: #8d8d8d; font-size: 13px; margin-bottom: 0;">Tautan ini kedaluwarsa dalam <strong>15 menit</strong>. Jika Anda tidak meminta pengaturan ulang kata sandi, abaikan pesan ini.</p>
+            <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 20px 0;" />
+            <p style="color: #a8a8a8; font-size: 11px; margin: 0;">© 2026 MOVA Decision Support System — Sejuta Jiwa HUB Sidoarjo</p>
         </div>
     `;
 
     try {
         const result = await sendMail({
             to: email,
-            subject: "Reset Password — MantaKopi DSS",
+            subject: "Instruksi Atur Ulang Kata Sandi — MOVA DSS",
             html,
-            text: `Reset password Anda di: ${resetUrl} (berlaku 1 jam)`,
+            text: `Atur ulang kata sandi akun MOVA Anda melalui tautan berikut (berlaku 15 menit): ${resetUrl}`,
         });
 
         console.log(`[AUTH SERVICE] Email reset password terkirim ke ${email} (ID: ${result.messageId})`);
         if (result.previewUrl) {
-            console.log(`[AUTH SERVICE] Preview Ethereal: ${result.previewUrl}`);
+            console.log(`[AUTH SERVICE] ✉️ Ethereal Preview URL: ${result.previewUrl}`);
         }
 
         return { sent: true, messageId: result.messageId, previewUrl: result.previewUrl };
@@ -233,13 +234,16 @@ export const forgotPasswordService = async (email) => {
         throw error;
     }
 
-    let resetToken = null;
-    const user = await UserModel.findByEmail(email);
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const user = await UserModel.findByEmail(normalizedEmail);
 
     if (user) {
-        resetToken = crypto.randomBytes(32).toString("hex");
+        // Invalidate all prior unused reset tokens for this user
+        await PasswordResetTokenModel.revokeAllForUser(user.id);
+
+        const resetToken = crypto.randomBytes(32).toString("hex");
         const resetId = crypto.randomUUID();
-        const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+        const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes short lifetime
 
         await PasswordResetTokenModel.create({
             id: resetId,
@@ -248,12 +252,14 @@ export const forgotPasswordService = async (email) => {
             expiresAt,
         });
 
-        await sendPasswordResetInstructionService(email, resetToken);
+        await sendPasswordResetInstructionService(user.email, resetToken);
     }
 
+    // Anti-Enumeration: Always return the exact same neutral response
     return {
-        msg: "If the email is registered, a password reset link has been sent.",
-        ...(resetToken && { resetToken }),
+        status: "success",
+        msg: "Jika email Anda terdaftar dalam sistem, tautan pengaturan ulang kata sandi telah dikirimkan ke kotak masuk Anda.",
+        retryAfter: 120,
     };
 };
 

@@ -21,9 +21,9 @@ const REFRESH_TOKEN_DAYS = parseInt(process.env.REFRESH_TOKEN_DAYS || "30", 10);
 const getRefreshCookieOptions = () => ({
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "Strict",
+    sameSite: process.env.NODE_ENV === "production" ? "Strict" : "Lax",
     maxAge: REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000,
-    path: "/api/auth",
+    path: "/",
 });
 
 export const register = async (req, res) => {
@@ -66,12 +66,13 @@ export const login = async (req, res) => {
 
         const result = await loginService({ identifier, password });
 
-        // Set refresh token in HTTP-Only cookie (not in JSON response body)
+        // Set refresh token in HTTP-Only cookie
         res.cookie(REFRESH_TOKEN_COOKIE_NAME, result.refreshToken, getRefreshCookieOptions());
 
         return res.status(200).json({
             msg: "Login successful",
             token: result.token,
+            refreshToken: result.refreshToken,
             user: result.user,
         });
     } catch (error) {
@@ -118,8 +119,8 @@ export const verifyResetToken = async (req, res) => {
 
 export const refreshToken = async (req, res) => {
     try {
-        // Read refresh token from cookie first, fallback to body for backward compatibility
-        const token = req.cookies?.[REFRESH_TOKEN_COOKIE_NAME] || req.body?.token;
+        // Read refresh token from cookie first, fallback to body
+        const token = req.cookies?.[REFRESH_TOKEN_COOKIE_NAME] || req.body?.refreshToken || req.body?.token;
 
         const result = await refreshTokenService(token);
 
@@ -129,6 +130,7 @@ export const refreshToken = async (req, res) => {
         return res.status(200).json({
             msg: "Token refreshed successfully",
             token: result.token,
+            refreshToken: result.refreshToken,
         });
     } catch (error) {
         const statusCode = error.statusCode || 500;
@@ -139,7 +141,7 @@ export const refreshToken = async (req, res) => {
 export const logout = async (req, res) => {
     try {
         // Read refresh token from cookie first, fallback to body
-        const token = req.cookies?.[REFRESH_TOKEN_COOKIE_NAME] || req.body?.token;
+        const token = req.cookies?.[REFRESH_TOKEN_COOKIE_NAME] || req.body?.refreshToken || req.body?.token;
 
         const result = await logoutService(token);
 
@@ -147,8 +149,8 @@ export const logout = async (req, res) => {
         res.clearCookie(REFRESH_TOKEN_COOKIE_NAME, {
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
-            sameSite: "Strict",
-            path: "/api/auth",
+            sameSite: process.env.NODE_ENV === "production" ? "Strict" : "Lax",
+            path: "/",
         });
 
         return res.status(200).json(result);

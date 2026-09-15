@@ -1,343 +1,248 @@
 import React, { useState, useEffect } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import {
-  Mail,
-  Key,
-  Lock,
-  ArrowRight,
-  ArrowLeft,
-  CheckCircle2,
-  AlertCircle,
-  RefreshCw,
-  Coffee,
-} from "lucide-react";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { ArrowRight, ArrowLeft, Mail, Clock, Lock, KeyRound } from "lucide-react";
+import { Button, Input, useToast } from "../../components/ui/index.js";
 import { authService } from "../../services/authService.js";
-import { useToast } from "../../components/ui/Toast.jsx";
-import { Button } from "../../components/ui/Button.jsx";
-import { AuthLayout } from "../../components/layout/AuthLayout.jsx";
+import {
+  setForgotPasswordCooldown,
+  getRemainingForgotPasswordCooldown,
+  formatCooldownTime,
+} from "../../utils/cooldown.js";
 
 export function ForgotPasswordPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { toast } = useToast();
+  const toast = useToast();
 
-  const urlToken = searchParams.get("token") || "";
+  // Reset Token from query parameter (from Ethereal Email Link)
+  const token = searchParams.get("token") || searchParams.get("t");
+  const queryEmail = searchParams.get("email") || "";
 
-  // Step 1: Request Reset Token via Email | Step 2: Reset Password with Token
-  const [step, setStep] = useState(urlToken ? 2 : 1);
-  const [email, setEmail] = useState("");
-  const [token, setToken] = useState(urlToken);
+  // Request Reset Link state
+  const [email, setEmail] = useState(queryEmail);
+  const [loading, setLoading] = useState(false);
+  const [sentSuccess, setSentSuccess] = useState(false);
+  const [cooldown, setCooldown] = useState(() => getRemainingForgotPasswordCooldown());
+
+  // Reset Password form state (when token is present)
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  const [isLoading, setIsLoading] = useState(false);
-  const [isVerifyingToken, setIsVerifyingToken] = useState(false);
-  const [isTokenValid, setIsTokenValid] = useState(null);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
-
-  // Verify token if present
+  // Real-time interval countdown for cooldown timer
   useEffect(() => {
-    if (token) {
-      async function verify() {
-        setIsVerifyingToken(true);
-        try {
-          const res = await authService.verifyResetToken(token);
-          if (res.valid !== false) {
-            setIsTokenValid(true);
-          } else {
-            setIsTokenValid(false);
-            setErrorMessage("Token reset tidak valid atau telah kedaluwarsa.");
-          }
-        } catch (err) {
-          setIsTokenValid(false);
-          setErrorMessage("Token reset tidak valid atau telah kedaluwarsa.");
-        } finally {
-          setIsVerifyingToken(false);
+    if (cooldown <= 0) return;
+
+    const timer = setInterval(() => {
+      setCooldown((prev) => {
+        const next = prev - 1;
+        if (next <= 0) {
+          clearInterval(timer);
+          return 0;
         }
-      }
-      verify();
-    }
-  }, [token]);
+        return next;
+      });
+    }, 1000);
 
-  // Handle Step 1: Request Email Reset Token
-  const handleRequestToken = async (e) => {
+    return () => clearInterval(timer);
+  }, [cooldown]);
+
+  const handleRequestReset = async (e) => {
     e.preventDefault();
-    setErrorMessage("");
-    setSuccessMessage("");
-
-    if (!email.trim()) {
-      setErrorMessage("Mohon masukkan alamat email Anda.");
+    if (cooldown > 0) {
+      toast.warning(
+        "Batas Waktu Tunggu",
+        `Harap tunggu ${formatCooldownTime(cooldown)} sebelum mengirim ulang permintaan.`
+      );
       return;
     }
 
-    setIsLoading(true);
+    if (!email) {
+      toast.error("Validasi Input", "Masukkan alamat email Anda.");
+      return;
+    }
+
+    setLoading(true);
     try {
       const res = await authService.forgotPassword(email);
-      const msg = res.msg || "Tautan dan instruksi reset kata sandi telah dikirim ke email Anda.";
-      setSuccessMessage(msg);
-      toast.success("Permintaan Terkirim", msg);
+      setSentSuccess(true);
 
-      if (res.token) {
-        setToken(res.token);
-      }
+      const retryAfter = res?.retryAfter || 120;
+      setForgotPasswordCooldown(retryAfter);
+      setCooldown(retryAfter);
 
-      setStep(2);
+      toast.success(
+        "Permintaan Diproses",
+        res?.msg ||
+          "Jika email Anda terdaftar dalam sistem, instruksi pemulihan kata sandi telah dikirimkan."
+      );
     } catch (err) {
-      const msg =
-        err.response?.data?.msg ||
-        err.response?.data?.message ||
-        "Gagal memproses permintaan. Pastikan email terdaftar di sistem.";
-      setErrorMessage(msg);
-      toast.danger("Gagal", msg);
+      if (err?.response?.status === 429) {
+        const retryAfter =
+          err?.response?.data?.retryAfter || getRemainingForgotPasswordCooldown() || 120;
+        setForgotPasswordCooldown(retryAfter);
+        setCooldown(retryAfter);
+
+        const errorMsg =
+          err?.response?.data?.message ||
+          err?.response?.data?.msg ||
+          `Terlalu banyak permintaan. Silakan tunggu ${retryAfter} detik.`;
+        toast.warning("Batas Permintaan", errorMsg);
+      } else {
+        const errorMsg =
+          err?.response?.data?.msg ||
+          err?.response?.data?.message ||
+          err?.message ||
+          "Gagal memproses permintaan reset password.";
+        toast.error("Permintaan Gagal", errorMsg);
+      }
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  // Handle Step 2: Submit New Password
-  const handleResetPassword = async (e) => {
+  const handleSetNewPassword = async (e) => {
     e.preventDefault();
-    setErrorMessage("");
-    setSuccessMessage("");
-
-    if (!token.trim()) {
-      setErrorMessage("Mohon isi token reset kata sandi.");
+    if (!token) {
+      toast.error("Validasi Input", "Token pemulihan kata sandi tidak valid atau hilang.");
       return;
     }
-
-    if (!newPassword.trim() || newPassword.length < 6) {
-      setErrorMessage("Kata sandi baru minimal 6 karakter.");
+    if (newPassword.length < 6) {
+      toast.error("Validasi Input", "Kata sandi baru minimal 6 karakter.");
       return;
     }
-
     if (newPassword !== confirmPassword) {
-      setErrorMessage("Konfirmasi kata sandi tidak cocok.");
+      toast.error("Validasi Gagal", "Konfirmasi kata sandi baru tidak cocok.");
       return;
     }
 
-    setIsLoading(true);
+    setLoading(true);
     try {
       const res = await authService.resetPassword({ token, password: newPassword });
-      const msg = res.msg || "Kata sandi berhasil diperbarui! Silakan masuk dengan kata sandi baru.";
-      setSuccessMessage(msg);
-      toast.success("Berhasil", msg);
-
-      setTimeout(() => {
-        navigate("/login");
-      }, 1500);
+      toast.success(
+        "Kata Sandi Diperbarui",
+        res?.msg || "Kata sandi berhasil diatur ulang. Silakan masuk dengan kata sandi baru Anda."
+      );
+      navigate("/login");
     } catch (err) {
-      const msg =
-        err.response?.data?.msg ||
-        err.response?.data?.message ||
-        "Gagal mereset kata sandi. Token mungkin salah atau kedaluwarsa.";
-      setErrorMessage(msg);
-      toast.danger("Gagal", msg);
+      const errorMsg =
+        err?.response?.data?.msg ||
+        err?.response?.data?.message ||
+        err?.message ||
+        "Token reset password tidak valid atau telah kedaluwarsa.";
+      toast.error("Gagal Reset Password", errorMsg);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
+  const isButtonDisabled = loading || (!token && cooldown > 0);
+
   return (
-    <AuthLayout
-      title="Pemulihan Keamanan Akun"
-      subtitle="Reset kata sandi terverifikasi aman melalui protokol token terenkripsi."
-    >
-      {/* Right Side Crisp White Form */}
-      <div className="w-full max-w-md mx-auto my-auto py-2">
+    <div className="min-h-screen bg-[var(--cds-background)] text-[var(--cds-text-primary)] flex items-center justify-center p-[24px]">
+      <div className="w-full max-w-[420px] bg-[var(--cds-layer-01)] border border-[var(--cds-border-subtle)] shadow-[var(--cds-shadow-overlay)]">
         {/* Header */}
-        <div className="mb-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 text-xs font-bold mb-3 border border-blue-100 dark:border-blue-900">
-            <Key className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-            <span>Reset Kredensial Akun</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-            {step === 1 ? "Lupa Kata Sandi" : "Atur Sandi Baru"}
+        <div className="p-[24px] border-b border-[var(--cds-border-subtle)] bg-[var(--cds-layer-02)]">
+          <Link
+            to="/login"
+            className="inline-flex items-center gap-[var(--cds-spacing-02)] cds-label-01 text-[var(--cds-text-secondary)] hover:text-[var(--cds-text-primary)] hover:underline mb-[var(--cds-spacing-03)] cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Kembali ke Login</span>
+          </Link>
+          <h1 className="cds-heading-03 text-[var(--cds-text-primary)] font-bold mt-1">
+            {token ? "Atur Ulang Kata Sandi" : "Lupa Password"}
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            {step === 1
-              ? "Masukkan email terdaftar Anda untuk menerima token verifikasi."
-              : "Masukkan token reset dan buat kata sandi baru yang aman."}
+          <p className="cds-body-compact-01 text-[var(--cds-text-secondary)] mt-1">
+            {token
+              ? "Masukkan kata sandi baru untuk akun Anda."
+              : "Masukkan alamat email terdaftar untuk menerima tautan pemulihan kata sandi."}
           </p>
         </div>
 
-        {/* Success Notification */}
-        {successMessage && (
-          <div className="mb-4 p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 text-emerald-700 dark:text-emerald-300 text-xs flex items-start gap-2.5">
-            <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
-            <span>{successMessage}</span>
-          </div>
-        )}
+        {/* Form: Token Reset Mode vs Request Mode */}
+        {token ? (
+          <form onSubmit={handleSetNewPassword} className="p-[24px] space-y-[var(--cds-spacing-05)]">
+            <Input
+              id="newPassword"
+              label="Kata Sandi Baru"
+              type="password"
+              icon={Lock}
+              placeholder="Minimal 6 karakter"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              required
+              autoComplete="new-password"
+            />
 
-        {/* Error Notification */}
-        {errorMessage && (
-          <div className="mb-4 p-3.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 text-red-600 dark:text-red-400 text-xs flex items-start gap-2.5">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-            <span>{errorMessage}</span>
-          </div>
-        )}
+            <Input
+              id="confirmPassword"
+              label="Konfirmasi Kata Sandi Baru"
+              type="password"
+              icon={KeyRound}
+              placeholder="Ulangi kata sandi baru"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              autoComplete="new-password"
+            />
 
-        {/* Step 1: Request Email */}
-        {step === 1 && (
-          <form onSubmit={handleRequestToken} className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                Alamat Email Terdaftar
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                  <Mail className="w-4 h-4" />
-                </div>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="superadmin@kopikeliling.com"
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
-                  required
-                />
-              </div>
-            </div>
-
-            <Button
-              type="submit"
-              variant="primary"
-              size="lg"
-              className="w-full mt-2 font-bold py-3 text-sm rounded-xl shadow-md shadow-blue-500/20"
-              isLoading={isLoading}
-              icon={ArrowRight}
-            >
-              Kirim Tautan Reset
-            </Button>
-
-            <div className="text-center pt-2">
-              <button
-                type="button"
-                onClick={() => setStep(2)}
-                className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-semibold"
+            <div className="pt-[var(--cds-spacing-02)]">
+              <Button
+                kind="primary"
+                size="lg"
+                type="submit"
+                loading={loading}
+                disabled={isButtonDisabled}
+                icon={ArrowRight}
+                className="w-full justify-between"
               >
-                Sudah memiliki token reset? Masukkan di sini →
-              </button>
+                Simpan Kata Sandi Baru
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <form onSubmit={handleRequestReset} className="p-[24px] space-y-[var(--cds-spacing-05)]">
+            <Input
+              id="email"
+              label="Alamat Email Terdaftar"
+              type="email"
+              icon={Mail}
+              placeholder="nama@perusahaan.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoComplete="email"
+              disabled={cooldown > 0}
+            />
+
+            <div className="pt-[var(--cds-spacing-02)]">
+              <Button
+                kind={cooldown > 0 ? "secondary" : "primary"}
+                size="lg"
+                type="submit"
+                loading={loading}
+                disabled={isButtonDisabled}
+                icon={cooldown > 0 ? Clock : ArrowRight}
+                className="w-full justify-between"
+              >
+                {cooldown > 0
+                  ? `Kirim Ulang (${formatCooldownTime(cooldown)})`
+                  : sentSuccess
+                  ? "Kirim Ulang Tautan Reset"
+                  : "Kirim Tautan Reset"}
+              </Button>
             </div>
           </form>
         )}
 
-        {/* Step 2: Set New Password */}
-        {step === 2 && (
-          <form onSubmit={handleResetPassword} className="space-y-4">
-            {/* Token Input */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Token Reset Kata Sandi
-                </label>
-                {isVerifyingToken && (
-                  <span className="text-[10px] text-blue-500 flex items-center gap-1 font-semibold">
-                    <RefreshCw className="w-3 h-3 animate-spin" /> Memeriksa token...
-                  </span>
-                )}
-                {isTokenValid === true && (
-                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
-                    ✓ Token Valid
-                  </span>
-                )}
-              </div>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                  <Key className="w-4 h-4" />
-                </div>
-                <input
-                  type="text"
-                  value={token}
-                  onChange={(e) => setToken(e.target.value)}
-                  placeholder="Salin token reset dari email"
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 font-mono"
-                  required
-                />
-              </div>
-            </div>
-
-            {/* New Password */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                Kata Sandi Baru
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                  <Lock className="w-4 h-4" />
-                </div>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Min. 6 karakter"
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Confirm New Password */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                Konfirmasi Kata Sandi Baru
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                  <Lock className="w-4 h-4" />
-                </div>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Ulangi kata sandi baru"
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
-                  required
-                />
-              </div>
-            </div>
-
-            <Button
-              type="submit"
-              variant="primary"
-              size="lg"
-              className="w-full mt-2 font-bold py-3 text-sm rounded-xl shadow-md shadow-blue-500/20"
-              isLoading={isLoading}
-              icon={ArrowRight}
-            >
-              Simpan Kata Sandi Baru
-            </Button>
-
-            <div className="text-center pt-2">
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
-              >
-                ← Kembali ke Permintaan Email
-              </button>
-            </div>
-          </form>
-        )}
-
-        {/* Back to Login Footer */}
-        <div className="mt-6 text-center space-y-2">
-          <div>
-            <Link
-              to="/login"
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              Kembali ke Halaman Masuk
-            </Link>
-          </div>
-          <div className="text-[11px] text-slate-400">
-            Dibuat untuk operasional <span className="font-semibold text-slate-600 dark:text-slate-300">Sejuta Jiwa Cabang Sidoarjo</span>
-          </div>
+        {/* Footer */}
+        <div className="p-[16px] border-t border-[var(--cds-border-subtle)] bg-[var(--cds-layer-02)] flex items-center justify-between cds-label-01 text-[var(--cds-text-secondary)]">
+          <span>Sejuta Jiwa HUB Sidoarjo</span>
         </div>
       </div>
-    </AuthLayout>
+    </div>
   );
 }
 
 export default ForgotPasswordPage;
+

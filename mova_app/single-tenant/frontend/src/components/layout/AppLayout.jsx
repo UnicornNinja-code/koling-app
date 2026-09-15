@@ -1,49 +1,56 @@
 import React, { useState } from "react";
+import { Content } from "@carbon/react";
+import { Header } from "./Header.jsx";
 import { Sidebar } from "./Sidebar.jsx";
-import { Topbar } from "./Topbar.jsx";
+import { useAuth } from "../../context/AuthContext.jsx";
+import { useTheme } from "../../context/ThemeContext.jsx";
 
-export function AppLayout({ children }) {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+/**
+ * Enterprise Application Shell
+ * Orchestrates Carbon Header & SideNav with application Auth and Theme State
+ */
+export function AppLayout({ children, user: customUser, onLogout: customLogout, fullWidth = false }) {
+  const authContext = useAuth();
+  const themeContext = useTheme();
+
+  const user = customUser || authContext?.user;
+  const onLogout = customLogout || authContext?.logout;
+
+  const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
+
+  const currentTheme = themeContext?.carbonTheme || (themeContext?.isDark ? "g100" : "white");
+
+  const handleThemeChange = (newTheme) => {
+    if (themeContext) {
+      themeContext.setTheme(newTheme === "white" || newTheme === "light" ? "light" : "dark");
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 flex font-['Inter']">
-      {/* Desktop Sidebar */}
-      <div className="hidden lg:block">
-        <Sidebar
-          collapsed={sidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-        />
-      </div>
+    <div className="h-screen w-full bg-[var(--cds-background)] text-[var(--cds-text-primary)] flex flex-col antialiased overflow-hidden">
+      {/* Carbon Fixed Header */}
+      <Header
+        isSidebarExpanded={isSidebarExpanded}
+        onToggleSidebar={() => setIsSidebarExpanded(!isSidebarExpanded)}
+        currentTheme={currentTheme}
+        onThemeChange={handleThemeChange}
+        user={user}
+        onLogout={onLogout}
+      />
 
-      {/* Mobile Drawer Sidebar */}
-      {mobileSidebarOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <div
-            onClick={() => setMobileSidebarOpen(false)}
-            className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs"
-          />
-          <div className="fixed inset-y-0 left-0 w-64 z-10">
-            <Sidebar collapsed={false} />
+      {/* Main App Body with Carbon SideNav */}
+      <div className="flex flex-1 overflow-hidden relative">
+        <Sidebar isExpanded={isSidebarExpanded} />
+
+        {/* Carbon Content Viewport */}
+        <Content className="flex-1 overflow-y-auto bg-[var(--cds-background)] p-[24px]">
+          <div className={fullWidth ? "w-full space-y-[var(--cds-spacing-06)]" : "max-w-[1600px] mx-auto w-full space-y-[var(--cds-spacing-06)]"}>
+            {children}
           </div>
-        </div>
-      )}
-
-      {/* Main Content Area */}
-      <div
-        className={`flex-1 flex flex-col min-w-0 transition-all duration-200 ${
-          sidebarCollapsed ? "lg:pl-16" : "lg:pl-64"
-        }`}
-      >
-        <Topbar
-          onToggleSidebar={() => setMobileSidebarOpen(true)}
-          sidebarCollapsed={sidebarCollapsed}
-          onToggleDesktopSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
-        />
-        <main className="flex-1 p-4 sm:p-6 lg:p-7 max-w-full overflow-x-hidden">
-          {children}
-        </main>
+        </Content>
       </div>
     </div>
   );
 }
+
+export default AppLayout;

@@ -1,35 +1,40 @@
 import React from "react";
-import { Inbox } from "lucide-react";
+import { FolderOpen } from "lucide-react";
 import { Button } from "./Button.jsx";
+import { cn } from "./Button.jsx";
 
 /**
- * MOVA Design System v3.0 EmptyState Component
+ * Carbon Empty State Component
+ * Quiet, informative message without decorative cartoon illustrations.
  */
 export function EmptyState({
-  icon: Icon = Inbox,
   title = "Tidak Ada Data Ditemukan",
-  description = "Belum ada data atau catatan yang sesuai dengan filter yang dipilih saat ini.",
+  description = "Belum ada rekaman operasional atau filter yang dipilih tidak menghasilkan data.",
   actionText,
   onAction,
+  icon: Icon = FolderOpen,
   className = "",
 }) {
   return (
     <div
-      className={`flex flex-col items-center justify-center p-8 text-center bg-white dark:bg-slate-900 border border-dashed border-slate-200 dark:border-slate-800 rounded-[12px] ${className}`}
+      className={cn(
+        "p-[32px] text-center flex flex-col items-center justify-center border border-[var(--cds-border-subtle)] bg-[var(--cds-layer-01)] space-y-[var(--cds-spacing-03)] select-none",
+        className
+      )}
     >
-      <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-400 dark:text-slate-500 mb-3.5">
+      <div className="p-[12px] bg-[var(--cds-layer-02)] text-[var(--cds-icon-secondary)]">
         <Icon className="w-6 h-6" />
       </div>
-      <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 font-['Inter'] mb-1">
-        {title}
-      </h4>
-      <p className="text-xs text-slate-500 dark:text-slate-400 font-['Inter'] max-w-sm mb-4 leading-relaxed">
-        {description}
-      </p>
+      <div className="space-y-[var(--cds-spacing-01)] max-w-sm">
+        <h4 className="cds-heading-02 text-[var(--cds-text-primary)] font-semibold">{title}</h4>
+        <p className="cds-body-compact-01 text-[var(--cds-text-secondary)] text-[13px]">{description}</p>
+      </div>
       {actionText && onAction && (
-        <Button variant="primary" size="sm" onClick={onAction}>
-          {actionText}
-        </Button>
+        <div className="pt-[var(--cds-spacing-02)]">
+          <Button kind="tertiary" size="sm" onClick={onAction}>
+            {actionText}
+          </Button>
+        </div>
       )}
     </div>
   );

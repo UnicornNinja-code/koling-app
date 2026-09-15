@@ -1,916 +1,698 @@
 import React, { useState } from "react";
 import {
-  MapPin,
-  Bike,
-  Truck,
-  ShieldCheck,
-  BadgeDollarSign,
-  Plus,
-  Send,
-  Download,
-  Filter,
-  Check,
-  AlertTriangle,
-  Info,
-  Layers,
-  Sparkles,
-  Sliders,
-} from "lucide-react";
-import { AppLayout } from "../../components/layout/AppLayout.jsx";
-import {
+  Grid,
+  Row,
+  Column,
   Button,
-  Card,
-  CardHeader,
-  CardContent,
-  CardFooter,
-  MetricCard,
-  Badge,
-  StatusBadge,
-  Input,
+  TextInput,
+  PasswordInput,
   Select,
-  Switch,
+  SelectItem,
+  ComboBox,
+  Dropdown,
   Checkbox,
-  TableContainer,
-  Table,
-  TableHead,
-  TableBody,
-  TableRow,
-  TableHeaderCell,
-  TableCell,
-  TablePagination,
-  Modal,
-  Drawer,
+  Toggle,
   Tabs,
+  TabList,
+  Tab,
+  TabPanels,
+  TabPanel,
+  Modal,
+  ComposedModal,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  Tag,
+  Tile,
+  ClickableTile,
+  ExpandableTile,
+  Accordion,
+  AccordionItem,
+  ToastNotification,
+  InlineNotification,
+  ProgressBar,
+  InlineLoading,
+  SkeletonText,
+  SkeletonPlaceholder,
+  DataTableSkeleton,
   Tooltip,
-  Skeleton,
-  MetricCardSkeleton,
-  TableSkeleton,
-  EmptyState,
+  CarbonBarChart,
+  CarbonLineChart,
+  CarbonDonutChart,
+  CarbonMeterChart,
+  CarbonComboChart,
+} from "../../design-system/components/index.js";
+import {
   PageHeader,
-  useToast,
-  WeatherIcon,
-  Avatar,
-  ArmadaIcon,
-  ThemeToggle,
-} from "../../components/ui/index.js";
+  FilterBar,
+  MasterDetailPanel,
+  ConfirmationModal,
+  EmptyStatePattern,
+  OperationalDataTable,
+} from "../../design-system/patterns/index.js";
+import { useTheme } from "../../context/ThemeContext.jsx";
+import {
+  Add,
+  TrashCan,
+  Filter,
+  Map,
+  Settings,
+  Location,
+  UserFollow,
+  DeliveryTruck,
+  Analytics,
+  Renew,
+  CheckmarkOutline,
+  WarningAlt,
+  Error,
+  Information,
+  View,
+} from "@carbon/icons-react";
 
 export function ShowcasePage() {
-  const { toast } = useToast();
-
-  // State controls for showcase interactive testing
-  const [activeTab, setActiveTab] = useState("components");
+  const { theme, setTheme, carbonTheme } = useTheme();
+  const [activeTab, setActiveTab] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [switchVal, setSwitchVal] = useState(true);
-  const [checkboxVal, setCheckboxVal] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [selectedRows, setSelectedRows] = useState([]);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState(null);
+  const [searchFilter, setSearchFilter] = useState("");
+  const [motionActive, setMotionActive] = useState(false);
 
-  // Sample Table Data for Demonstration
-  const sampleTableData = [
+  // Sample Table Data for Operational DataTable
+  const tableHeaders = [
+    { key: "id", header: "Zone ID" },
+    { key: "name", header: "Zone Name" },
+    { key: "code", header: "Area Code" },
+    { key: "riders", header: "Active Riders" },
+    { key: "compliance", header: "SLA / Compliance" },
+    { key: "status", header: "Status" },
+  ];
+
+  const tableRows = [
     {
-      id: "R-012",
-      name: "Budi Santoso",
-      zone: "ZON-SDA-01",
-      location: "Jl. Alun-Alun Sidoarjo",
-      status: "AKTIF",
-      task: "Titik 1 - Alun-Alun",
-      duration: "34 mnt",
+      id: "Z-01",
+      name: "Alun-Alun Sidoarjo Hub",
+      code: "Z-SDA-01",
+      riders: "4 Riders",
+      compliance: "94.5%",
+      status: <Tag type="green" size="sm">OPTIMAL</Tag>,
     },
     {
-      id: "R-018",
-      name: "Citra Lestari",
-      zone: "ZON-SDA-03",
-      location: "Jl. RS Siti Hajar",
-      status: "AKTIF",
-      task: "Titik 2 - RS Siti Hajar",
-      duration: "18 mnt",
+      id: "Z-02",
+      name: "Kawasan Industri Gedangan",
+      code: "Z-GDG-02",
+      riders: "2 Riders",
+      compliance: "68.2%",
+      status: <Tag type="yellow" size="sm">WARNING</Tag>,
     },
     {
-      id: "R-021",
-      name: "Dedi Kurniawan",
-      zone: "ZON-SDA-04",
-      location: "Jl. Taman Pinang",
-      status: "TUGAS",
-      task: "Titik 5 - Taman Pinang",
-      duration: "42 mnt",
+      id: "Z-03",
+      name: "Krian Central Sub-hub",
+      code: "Z-KRN-03",
+      riders: "0 Riders",
+      compliance: "0.0%",
+      status: <Tag type="gray" size="sm">INACTIVE</Tag>,
     },
     {
-      id: "R-030",
-      name: "Eka Wahyuni",
-      zone: "ZON-SDA-02",
-      location: "Jl. Gajah Mada",
-      status: "TERSEDIA",
-      task: "-",
-      duration: "-",
+      id: "Z-04",
+      name: "Jalan Pahlawan Restricted",
+      code: "Z-PHL-04",
+      riders: "1 Rider",
+      compliance: "32.0%",
+      status: <Tag type="red" size="sm">DEVIATED</Tag>,
     },
     {
-      id: "R-041",
-      name: "Fajar Nugroho",
-      zone: "ZON-SDA-01",
-      location: "Jl. Kartini",
-      status: "OFFLINE",
-      task: "-",
-      duration: "-",
+      id: "Z-05",
+      name: "Waru Logistics Corridor",
+      code: "Z-WRU-05",
+      riders: "5 Riders",
+      compliance: "98.0%",
+      status: <Tag type="green" size="sm">OPTIMAL</Tag>,
     },
   ];
 
-  const toggleRow = (id) => {
-    setSelectedRows((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-    );
-  };
+  // Chart Sample Datasets
+  const barChartData = [
+    { group: "Alun-Alun", value: 120 },
+    { group: "Gedangan", value: 85 },
+    { group: "Krian", value: 45 },
+    { group: "Pahlawan", value: 30 },
+    { group: "Waru", value: 160 },
+  ];
 
-  const toggleAll = () => {
-    if (selectedRows.length === sampleTableData.length) {
-      setSelectedRows([]);
-    } else {
-      setSelectedRows(sampleTableData.map((d) => d.id));
-    }
-  };
+  const lineChartData = [
+    { date: "08:00", value: 40, group: "Rider Activity" },
+    { date: "10:00", value: 85, group: "Rider Activity" },
+    { date: "12:00", value: 130, group: "Rider Activity" },
+    { date: "14:00", value: 95, group: "Rider Activity" },
+    { date: "16:00", value: 150, group: "Rider Activity" },
+    { date: "18:00", value: 110, group: "Rider Activity" },
+  ];
+
+  const donutChartData = [
+    { group: "Active Dispatch", value: 18 },
+    { group: "Idle / Standby", value: 6 },
+    { group: "Charging / Maint", value: 3 },
+    { group: "Off-Duty", value: 5 },
+  ];
+
+  const meterChartData = [
+    { group: "Compliance Rate", value: 88 },
+  ];
+
+  const comboChartData = [
+    { date: "Mon", orders: 120, compliance: 92 },
+    { date: "Tue", orders: 140, compliance: 95 },
+    { date: "Wed", orders: 180, compliance: 88 },
+    { date: "Thu", orders: 160, compliance: 90 },
+    { date: "Fri", orders: 210, compliance: 96 },
+  ];
 
   return (
-    <AppLayout>
+    <div className="min-h-screen bg-[var(--cds-background)] text-[var(--cds-text-primary)] p-[24px] space-y-[24px]">
+      {/* Master Lab Header */}
       <PageHeader
-        title="Design System v3.0 Showcase"
-        subtitle="Koleksi token, komponen atomik, dan pola antarmuka MOVA Single-Tenant SSOT."
-        breadcrumbs={[
-          { label: "MOVA", href: "#" },
-          { label: "Sistem Desain", href: "#" },
-          { label: "Showcase" },
-        ]}
+        eyebrow="IBM Carbon Design System × MOVA"
+        title="Design System Laboratory"
+        subtitle="Single-source-of-truth canonical verification environment for Foundations, Components, Carbon Patterns, MOVA Patterns, Motion, and Accessibility."
+        statusTag={{ label: `Carbon ${carbonTheme.toUpperCase()}`, type: theme === "dark" ? "purple" : "blue" }}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-[8px]">
             <Button
-              variant="secondary"
-              size="sm"
-              icon={Download}
-              onClick={() => toast.info("Ekspor", "Data desain sistem berhasil diunduh.")}
+              kind={theme === "dark" ? "secondary" : "tertiary"}
+              size="md"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             >
-              Export Tokens
+              Switch to {theme === "dark" ? "Light (White)" : "Dark (Gray 100)"}
             </Button>
             <Button
-              variant="accent"
-              size="sm"
-              icon={Plus}
-              onClick={() => setIsModalOpen(true)}
+              kind="primary"
+              size="md"
+              renderIcon={Renew}
+              onClick={() => {
+                setMotionActive(true);
+                setTimeout(() => setMotionActive(false), 800);
+              }}
             >
-              + Modal Preview
+              Trigger Motion Choreography
             </Button>
           </div>
         }
       />
 
-      {/* Navigation Tabs */}
-      <div className="mb-6">
-        <Tabs
-          activeTab={activeTab}
-          onChange={setActiveTab}
-          tabs={[
-            { id: "components", label: "Komponen UI", icon: Layers },
-            { id: "graphic-assets", label: "Aset Gambar, Avatar & Gerobak", icon: Sparkles },
-            { id: "colors", label: "Token Warna & Status", icon: Sparkles },
-            { id: "tables", label: "Tabel & Data Grid", icon: Filter },
-            { id: "feedback", label: "Feedback & Toast", icon: Info },
-          ]}
-        />
-      </div>
+      {/* Main Tab Navigation for 7 Lab Modules */}
+      <Tabs selectedIndex={activeTab} onChange={({ selectedIndex }) => setActiveTab(selectedIndex)}>
+        <TabList aria-label="Design System Lab Modules" contained>
+          <Tab>01 Foundations</Tab>
+          <Tab>02 Components</Tab>
+          <Tab>03 Data Visualization</Tab>
+          <Tab>04 Carbon Patterns</Tab>
+          <Tab>05 MOVA Patterns</Tab>
+          <Tab>06 Motion & Interaction</Tab>
+          <Tab>07 Accessibility</Tab>
+        </TabList>
 
-      {/* TAB 1: Core Components & Cards */}
-      {activeTab === "components" && (
-        <div className="space-y-8">
-          {/* Section 1: KPI Metric Cards (As seen in Reference Mockups) */}
-          <div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-              <span>1. Top KPI Metric Cards</span>
-              <span className="text-xs text-slate-400 font-normal">(Sesuai superadmin-dashboard.png & mapops.png)</span>
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-              <MetricCard
-                title="Zona Aktif"
-                value="12"
-                subtext="dari 17 zona"
-                trend="↑ 2"
-                trendDirection="up"
-                trendText="zona"
-                icon={MapPin}
-                iconColor="text-emerald-600 dark:text-emerald-400"
-                iconBg="bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800"
-              />
-              <MetricCard
-                title="Rider Aktif"
-                value="8"
-                subtext="dari 12 rider"
-                trend="↑ 1"
-                trendDirection="up"
-                trendText="rider"
-                icon={Bike}
-                iconColor="text-blue-600 dark:text-blue-400"
-                iconBg="bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800"
-              />
-              <MetricCard
-                title="Armada Tersedia"
-                value="5"
-                subtext="dari 8 unit"
-                trend="→ 0"
-                trendDirection="neutral"
-                trendText="unit"
-                icon={Truck}
-                iconColor="text-purple-600 dark:text-purple-400"
-                iconBg="bg-purple-50 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800"
-              />
-              <MetricCard
-                title="Tingkat Kepatuhan Zona"
-                value="87%"
-                subtext="berdasarkan GPS & geofence"
-                trend="↑ 5%"
-                trendDirection="up"
-                icon={ShieldCheck}
-                iconColor="text-orange-600 dark:text-orange-400"
-                iconBg="bg-orange-50 dark:bg-orange-950/40 border-orange-200 dark:border-orange-800"
-              />
-              <MetricCard
-                title="Penjualan Hari Ini"
-                value="Rp 2.450.000"
-                subtext="dari 163 transaksi"
-                trend="↑ 12%"
-                trendDirection="up"
-                icon={BadgeDollarSign}
-                iconColor="text-cyan-600 dark:text-cyan-400"
-                iconBg="bg-cyan-50 dark:bg-cyan-950/40 border-cyan-200 dark:border-cyan-800"
-              />
-            </div>
-          </div>
+        <TabPanels className="mt-[24px]">
+          {/* ============================================================ */}
+          {/* TAB 01: FOUNDATIONS */}
+          {/* ============================================================ */}
+          <TabPanel>
+            <div className="space-y-[32px]">
+              {/* Colors & Elevation Layers */}
+              <section className="space-y-[16px]">
+                <h3 className="text-[20px] font-semibold">1.1 Carbon Color Layers & Tokens</h3>
+                <Grid fullWidth>
+                  <Row className="gap-y-[16px]">
+                    <Column lg={4} md={4} sm={4}>
+                      <Tile className="bg-[var(--cds-background)] border border-[var(--cds-border-subtle)] p-[16px]">
+                        <span className="text-[12px] text-[var(--cds-text-secondary)] font-mono">--cds-background</span>
+                        <div className="text-[16px] font-semibold mt-1">Base Canvas</div>
+                      </Tile>
+                    </Column>
+                    <Column lg={4} md={4} sm={4}>
+                      <Tile className="bg-[var(--cds-layer-01)] border border-[var(--cds-border-subtle)] p-[16px]">
+                        <span className="text-[12px] text-[var(--cds-text-secondary)] font-mono">--cds-layer-01</span>
+                        <div className="text-[16px] font-semibold mt-1">Layer 01 (Panels)</div>
+                      </Tile>
+                    </Column>
+                    <Column lg={4} md={4} sm={4}>
+                      <Tile className="bg-[var(--cds-layer-02)] border border-[var(--cds-border-subtle)] p-[16px]">
+                        <span className="text-[12px] text-[var(--cds-text-secondary)] font-mono">--cds-layer-02</span>
+                        <div className="text-[16px] font-semibold mt-1">Layer 02 (Cards)</div>
+                      </Tile>
+                    </Column>
+                    <Column lg={4} md={4} sm={4}>
+                      <Tile className="bg-[var(--cds-layer-03)] border border-[var(--cds-border-subtle)] p-[16px]">
+                        <span className="text-[12px] text-[var(--cds-text-secondary)] font-mono">--cds-layer-03</span>
+                        <div className="text-[16px] font-semibold mt-1">Layer 03 (Popovers)</div>
+                      </Tile>
+                    </Column>
+                  </Row>
+                </Grid>
+              </section>
 
-          {/* Section: Dark & Light Theme Switcher */}
-          <Card>
-            <CardHeader
-              title="2. Pengontrol Tema (Theme Switchers)"
-              subtitle="Komponen pengalih tema Terang & Gelap yang tersinkronisasi ke seluruh layout (Pill, Segmented, Button)."
-            />
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80">
-                  <div className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Pill Switcher (Aktif di Auth & Topbar)</div>
-                  <div className="text-[11px] text-slate-400 mb-3">Interaktif dengan status label</div>
-                  <ThemeToggle variant="pill" showLabel={true} />
-                </div>
-
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80">
-                  <div className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Segmented Control</div>
-                  <div className="text-[11px] text-slate-400 mb-3">Cocok untuk panel pengaturan</div>
-                  <ThemeToggle variant="segmented" />
-                </div>
-
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80">
-                  <div className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Icon Button (Compact)</div>
-                  <div className="text-[11px] text-slate-400 mb-3">Tersedia dalam ukuran sm, md, lg</div>
-                  <div className="flex items-center gap-2">
-                    <ThemeToggle variant="button" size="sm" />
-                    <ThemeToggle variant="button" size="md" />
-                    <ThemeToggle variant="button" size="lg" />
+              {/* Typography Scale */}
+              <section className="space-y-[16px]">
+                <h3 className="text-[20px] font-semibold">1.2 Carbon Typography Scale (IBM Plex)</h3>
+                <div className="bg-[var(--cds-layer-01)] p-[20px] border border-[var(--cds-border-subtle)] space-y-[12px]">
+                  <div className="flex items-center justify-between border-b border-[var(--cds-border-subtle)] pb-2">
+                    <span className="text-[28px] font-semibold">heading-04 (28px / SemiBold)</span>
+                    <code className="text-[12px] text-[var(--cds-text-secondary)]">28px / 36px</code>
+                  </div>
+                  <div className="flex items-center justify-between border-b border-[var(--cds-border-subtle)] pb-2">
+                    <span className="text-[20px]">heading-03 (20px / Regular)</span>
+                    <code className="text-[12px] text-[var(--cds-text-secondary)]">20px / 26px</code>
+                  </div>
+                  <div className="flex items-center justify-between border-b border-[var(--cds-border-subtle)] pb-2">
+                    <span className="text-[16px] font-semibold">heading-02 (16px / SemiBold)</span>
+                    <code className="text-[12px] text-[var(--cds-text-secondary)]">16px / 22px</code>
+                  </div>
+                  <div className="flex items-center justify-between border-b border-[var(--cds-border-subtle)] pb-2">
+                    <span className="text-[14px]">body-compact-01 (14px / Regular)</span>
+                    <code className="text-[12px] text-[var(--cds-text-secondary)]">14px / 18px</code>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[12px] uppercase tracking-wider text-[var(--cds-text-secondary)]">label-01 (12px / Monospace & Sans)</span>
+                    <code className="text-[12px] text-[var(--cds-text-secondary)]">12px / 16px</code>
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </section>
 
-          {/* Section 3: Buttons */}
-          <Card>
-            <CardHeader
-              title="3. Tombol (Buttons) & Variasi Aksi"
-              subtitle="Warna primary biru #2563EB, accent orange #F97316, secondary outline, dan ghost."
-            />
-            <CardContent>
-              <div className="flex flex-wrap items-center gap-3">
-                <Button variant="primary">Primary Blue</Button>
-                <Button variant="accent">Accent Orange</Button>
-                <Button variant="secondary">Secondary Outline</Button>
-                <Button variant="ghost">Ghost Button</Button>
-                <Button variant="success">Success</Button>
-                <Button variant="danger">Danger</Button>
-                <Button variant="primary" icon={Plus}>With Icon</Button>
-                <Button variant="accent" iconRight={Send}>Next Step</Button>
-                <Button variant="primary" isLoading>Loading State</Button>
-                <Button variant="primary" disabled>Disabled</Button>
-              </div>
+              {/* 2x Grid Layout System */}
+              <section className="space-y-[16px]">
+                <h3 className="text-[20px] font-semibold">1.3 Carbon 2x 16-Column Grid System</h3>
+                <Grid fullWidth>
+                  <Row className="gap-y-[8px]">
+                    <Column lg={4} md={2} sm={4}>
+                      <div className="bg-[var(--cds-layer-02)] border border-[var(--cds-border-subtle)] p-3 text-center text-[12px]">
+                        lg=4 / md=2 / sm=4
+                      </div>
+                    </Column>
+                    <Column lg={4} md={2} sm={4}>
+                      <div className="bg-[var(--cds-layer-02)] border border-[var(--cds-border-subtle)] p-3 text-center text-[12px]">
+                        lg=4 / md=2 / sm=4
+                      </div>
+                    </Column>
+                    <Column lg={4} md={2} sm={4}>
+                      <div className="bg-[var(--cds-layer-02)] border border-[var(--cds-border-subtle)] p-3 text-center text-[12px]">
+                        lg=4 / md=2 / sm=4
+                      </div>
+                    </Column>
+                    <Column lg={4} md={2} sm={4}>
+                      <div className="bg-[var(--cds-layer-02)] border border-[var(--cds-border-subtle)] p-3 text-center text-[12px]">
+                        lg=4 / md=2 / sm=4
+                      </div>
+                    </Column>
+                  </Row>
+                </Grid>
+              </section>
+            </div>
+          </TabPanel>
 
-              <div className="flex flex-wrap items-center gap-3 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                <span className="text-xs text-slate-400">Ukuran:</span>
-                <Button variant="primary" size="sm">Small (sm)</Button>
-                <Button variant="primary" size="md">Medium (md)</Button>
-                <Button variant="primary" size="lg">Large (lg)</Button>
-              </div>
-            </CardContent>
-          </Card>
+          {/* ============================================================ */}
+          {/* TAB 02: COMPONENTS */}
+          {/* ============================================================ */}
+          <TabPanel>
+            <div className="space-y-[32px]">
+              {/* Buttons Hierarchy */}
+              <section className="space-y-[12px]">
+                <h3 className="text-[20px] font-semibold">2.1 Button Hierarchy & Actions</h3>
+                <div className="flex flex-wrap items-center gap-[12px]">
+                  <Button kind="primary" renderIcon={Add}>Primary Action</Button>
+                  <Button kind="secondary" renderIcon={Renew}>Secondary Action</Button>
+                  <Button kind="tertiary">Tertiary Action</Button>
+                  <Button kind="ghost" renderIcon={Settings}>Ghost Action</Button>
+                  <Button kind="danger" renderIcon={TrashCan}>Danger Action</Button>
+                  <Button kind="primary" disabled>Disabled State</Button>
+                </div>
+              </section>
 
-          {/* Section 3: Form Controls */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader title="3. Form Input & Controls" subtitle="Input field, select dropdown, dan state error." />
-              <CardContent className="space-y-4">
-                <Input
-                  label="Nama Zona Geofence"
-                  placeholder="Contoh: Alun-Alun Sidoarjo"
-                  required
-                  helperText="Nama unik untuk identifikasi poligon wilayah operasional."
-                />
-                <Input
-                  label="Pencarian Rider"
-                  placeholder="Ketik nama atau ID..."
-                  icon={Filter}
-                />
-                <Input
-                  label="Input dengan Validasi Error"
-                  defaultValue="Invalid Value"
-                  error="Kapasitas maksimal harus lebih besar dari 0."
-                />
-                <Select
-                  label="Pilih Status Operasional"
-                  options={[
-                    { value: "ACTIVE", label: "Aktif (Beroperasi)" },
-                    { value: "INACTIVE", label: "Nonaktif" },
-                    { value: "MAINTENANCE", label: "Dalam Pemeliharaan" },
-                  ]}
-                />
-              </CardContent>
-            </Card>
+              {/* Form Controls */}
+              <section className="space-y-[12px]">
+                <h3 className="text-[20px] font-semibold">2.2 Form Controls & Inputs</h3>
+                <Grid fullWidth>
+                  <Row className="gap-y-[16px]">
+                    <Column lg={8} md={4} sm={4}>
+                      <TextInput id="test-text" labelText="Fleet Identifier" placeholder="e.g. ARM-SDA-09" helperText="Unique hardware tag ID" />
+                    </Column>
+                    <Column lg={8} md={4} sm={4}>
+                      <PasswordInput id="test-pass" labelText="Security Passcode" placeholder="Enter password" />
+                    </Column>
+                    <Column lg={8} md={4} sm={4}>
+                      <Select id="test-select" labelText="Zone Assignment">
+                        <SelectItem value="z1" text="Alun-Alun Sidoarjo Hub" />
+                        <SelectItem value="z2" text="Kawasan Gedangan" />
+                        <SelectItem value="z3" text="Krian Logistics" />
+                      </Select>
+                    </Column>
+                    <Column lg={8} md={4} sm={4}>
+                      <div className="flex items-center gap-[24px] pt-[24px]">
+                        <Checkbox id="chk-1" labelText="Active Telemetry" defaultChecked />
+                        <Toggle id="tgl-1" labelA="Off" labelB="Live" defaultToggled labelText="Live GPS Feed" />
+                      </div>
+                    </Column>
+                  </Row>
+                </Grid>
+              </section>
 
-            <Card>
-              <CardHeader title="4. Switches, Checkboxes, & Tooltips" subtitle="Kontrol interaktif seleksi dan toggling." />
-              <CardContent className="space-y-5">
-                <Switch
-                  checked={switchVal}
-                  onChange={setSwitchVal}
-                  label="Aktifkan Geofence GPS Auto-Tracking"
-                  description="Kirim sinyal telemetri lokasi rider setiap 10 detik."
-                />
-
-                <Switch
-                  checked={false}
-                  label="Kunci Spot Penjualan Otomatis"
-                  description="Cegah rider lain masuk ke radius 100m dari spot yang sedang ditempati."
-                />
-
-                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
-                  <Checkbox
-                    checked={checkboxVal}
-                    onChange={setCheckboxVal}
-                    label="Pilih seluruh rider di zona ini untuk penugasan massal"
+              {/* Status Tags & Feedback */}
+              <section className="space-y-[12px]">
+                <h3 className="text-[20px] font-semibold">2.3 Status Tags & Notifications</h3>
+                <div className="flex flex-wrap items-center gap-[8px]">
+                  <Tag type="green">ACTIVE / COMPLIANT</Tag>
+                  <Tag type="yellow">ATTENTION / WARNING</Tag>
+                  <Tag type="red">DEVIATED / CRITICAL</Tag>
+                  <Tag type="blue">IN TRANSIT</Tag>
+                  <Tag type="purple">DSS OPTIMIZED</Tag>
+                  <Tag type="gray">STANDBY</Tag>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-[12px] pt-[8px]">
+                  <InlineNotification
+                    kind="info"
+                    title="Real-time Dispatch Active:"
+                    subtitle="Zone geofencing telemetry synchronized with Sidoarjo sub-hub."
+                    hideCloseButton
                   />
-                  <Checkbox
-                    checked={false}
-                    label="Kirim notifikasi push ke aplikasi mobile rider"
+                  <InlineNotification
+                    kind="warning"
+                    title="Battery Warning:"
+                    subtitle="2 riders reporting battery levels below 20% in Gedangan."
+                    hideCloseButton
                   />
                 </div>
+              </section>
 
-                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center gap-4">
-                  <span className="text-xs font-semibold text-slate-500">Tooltips:</span>
-                  <Tooltip content="Informasi algoritma Best-Worst Method (BWM)">
-                    <Button variant="secondary" size="sm">Hover Me (BWM Info)</Button>
-                  </Tooltip>
-                  <Tooltip content="Detail batas kuota armada">
-                    <Button variant="ghost" size="sm">Hover Me (Armada)</Button>
-                  </Tooltip>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      )}
-
-      {/* TAB: Graphic Assets (Weather, Avatars, Gerobak/Armada) */}
-      {activeTab === "graphic-assets" && (
-        <div className="space-y-8">
-          {/* Section 1: Weather Graphic Icons (Rich SVGs replacing Material Icons) */}
-          <Card>
-            <CardHeader
-              title="1. Ikon Grafis Cuaca (Weather Image Assets)"
-              subtitle="Asset grafis cuaca SVG / gambar beresolusi tinggi menggantikan ikon font/material."
-            />
-            <CardContent>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-                <div className="p-4 rounded-[12px] bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-col items-center text-center gap-3">
-                  <WeatherIcon condition="Cerah" size={56} />
-                  <div>
-                    <div className="text-xs font-bold text-slate-900 dark:text-white">Cerah / Sunny</div>
-                    <div className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">32°C • Terang</div>
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-[12px] bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-col items-center text-center gap-3">
-                  <WeatherIcon condition="Cerah Berawan" size={56} />
-                  <div>
-                    <div className="text-xs font-bold text-slate-900 dark:text-white">Cerah Berawan</div>
-                    <div className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">30°C • Teduh</div>
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-[12px] bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-col items-center text-center gap-3">
-                  <WeatherIcon condition="Berawan" size={56} />
-                  <div>
-                    <div className="text-xs font-bold text-slate-900 dark:text-white">Mendung / Cloudy</div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">28°C • Berawan</div>
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-[12px] bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-col items-center text-center gap-3">
-                  <WeatherIcon condition="Hujan Ringan" size={56} />
-                  <div>
-                    <div className="text-xs font-bold text-slate-900 dark:text-white">Hujan / Rainy</div>
-                    <div className="text-[11px] text-blue-500 font-medium">25°C • Presipitasi</div>
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-[12px] bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-col items-center text-center gap-3">
-                  <WeatherIcon condition="Petir Badai" size={56} />
-                  <div>
-                    <div className="text-xs font-bold text-slate-900 dark:text-white">Badai Petir</div>
-                    <div className="text-[11px] text-purple-600 dark:text-purple-400 font-medium">24°C • Waspada</div>
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-[12px] bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-col items-center text-center gap-3">
-                  <WeatherIcon condition="Kabut" size={56} />
-                  <div>
-                    <div className="text-xs font-bold text-slate-900 dark:text-white">Berkabut / Foggy</div>
-                    <div className="text-[11px] text-slate-500 font-medium">26°C • Visibilitas</div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Section 2: User Avatar SVGs */}
-          <Card>
-            <CardHeader
-              title="2. Avatar User (Role-Based SVG & Status Badges)"
-              subtitle="Asset grafis avatar pengguna khusus Superadmin, Rider Lapangan, Area Manager, dan Operator."
-            />
-            <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="p-4 rounded-[12px] bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center gap-4">
-                  <Avatar role="admin" size="lg" status="online" />
-                  <div>
-                    <div className="text-sm font-bold text-slate-900 dark:text-white">Super Admin</div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400">Headquarters Control</div>
-                    <span className="inline-block mt-1 px-2 py-0.5 rounded-[4px] text-[10px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
-                      SUPERADMIN
-                    </span>
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-[12px] bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center gap-4">
-                  <Avatar role="rider" size="lg" status="online" />
-                  <div>
-                    <div className="text-sm font-bold text-slate-900 dark:text-white">Ahmad Fauzi</div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400">Rider ZON-SDA-01</div>
-                    <span className="inline-block mt-1 px-2 py-0.5 rounded-[4px] text-[10px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                      RIDER AKTIF
-                    </span>
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-[12px] bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center gap-4">
-                  <Avatar role="rider" size="lg" status="busy" />
-                  <div>
-                    <div className="text-sm font-bold text-slate-900 dark:text-white">Budi Santoso</div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400">Rider ZON-SDA-02</div>
-                    <span className="inline-block mt-1 px-2 py-0.5 rounded-[4px] text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
-                      DALAM TUGAS
-                    </span>
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-[12px] bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center gap-4">
-                  <Avatar role="manager" size="lg" status="offline" />
-                  <div>
-                    <div className="text-sm font-bold text-slate-900 dark:text-white">Dian Pratama</div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400">Area Manager Sidoarjo</div>
-                    <span className="inline-block mt-1 px-2 py-0.5 rounded-[4px] text-[10px] font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
-                      SUPERVISOR
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Section 3: Gerobak Kopi Keliling (Armada Cart Asset) */}
-          <Card>
-            <CardHeader
-              title="3. Gambar Gerobak Kopi Keliling (Mobile Coffee Cart / Armada)"
-              subtitle="Asset ilustrasi gerobak kopi keliling Indonesia dengan barista machine, canopy MOVA, dan roda mobilitas."
-            />
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div className="p-6 rounded-[12px] bg-gradient-to-b from-blue-50/50 to-white dark:from-slate-800 dark:to-slate-850 border border-slate-200 dark:border-slate-700 flex flex-col items-center text-center">
-                  <ArmadaIcon size={160} />
-                  <div className="mt-4">
-                    <div className="text-base font-bold text-slate-900 dark:text-white font-['Inter']">
-                      Gerobak Kopi Standar MOVA
-                    </div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                      Armada tipe sepeda kopi dorong lengkap dengan mesin espresso & grinder.
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-6 rounded-[12px] bg-gradient-to-b from-emerald-50/50 to-white dark:from-slate-800 dark:to-slate-850 border border-slate-200 dark:border-slate-700 flex flex-col items-center text-center">
-                  <ArmadaIcon size={120} />
-                  <div className="mt-6 flex items-center justify-between w-full pt-4 border-t border-slate-200 dark:border-slate-700">
-                    <div className="text-left">
-                      <div className="text-xs font-bold text-slate-900 dark:text-white">ARM-SDA-01</div>
-                      <div className="text-[11px] text-slate-500">Unit Siap Pakai</div>
-                    </div>
-                    <StatusBadge status="AVAILABLE" />
-                  </div>
-                </div>
-
-                <div className="p-6 rounded-[12px] bg-gradient-to-b from-amber-50/50 to-white dark:from-slate-800 dark:to-slate-850 border border-slate-200 dark:border-slate-700 flex flex-col items-center text-center">
-                  <ArmadaIcon size={120} />
-                  <div className="mt-6 flex items-center justify-between w-full pt-4 border-t border-slate-200 dark:border-slate-700">
-                    <div className="text-left">
-                      <div className="text-xs font-bold text-slate-900 dark:text-white">ARM-SDA-04</div>
-                      <div className="text-[11px] text-slate-500">Dalam Penugasan</div>
-                    </div>
-                    <StatusBadge status="IN_USE" />
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* TAB 2: Colors & Badges */}
-      {activeTab === "colors" && (
-        <div className="space-y-6">
-          <Card>
-            <CardHeader title="Status Badges SSOT" subtitle="Daftar badge status terstandarisasi untuk seluruh domain operasi." />
-            <CardContent>
-              <div className="flex flex-wrap gap-2.5">
-                <StatusBadge status="ACTIVE" />
-                <StatusBadge status="INACTIVE" />
-                <StatusBadge status="AVAILABLE" />
-                <StatusBadge status="IN_USE" />
-                <StatusBadge status="MAINTENANCE" />
-                <StatusBadge status="ON_DUTY" />
-                <StatusBadge status="ON_TIME" />
-                <StatusBadge status="LATE" />
-                <StatusBadge status="DEVIATION" />
-                <StatusBadge status="OFFLINE" />
-                <StatusBadge status="TERBAIK" />
-                <StatusBadge status="SANGAT_BAIK" />
-                <StatusBadge status="BAIK" />
-                <StatusBadge status="CUKUP" />
-                <StatusBadge status="SUPERADMIN" />
-                <StatusBadge status="MANAGEMENT" />
-                <StatusBadge status="SUPERVISOR" />
-                <StatusBadge status="RIDER" />
-                <StatusBadge status="COMPLIANT" />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Color Palettes Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
-            <div className="p-4 rounded-[10px] bg-blue-600 text-white shadow-xs text-center">
-              <div className="font-bold text-sm">Primary</div>
-              <div className="text-xs opacity-80 font-mono">#2563EB</div>
+              {/* Surfaces & Accordion */}
+              <section className="space-y-[12px]">
+                <h3 className="text-[20px] font-semibold">2.4 Surfaces & Expandable Tiles</h3>
+                <Grid fullWidth>
+                  <Row className="gap-y-[16px]">
+                    <Column lg={8} md={4} sm={4}>
+                      <ExpandableTile tileCollapsedIconText="Expand" tileExpandedIconText="Collapse">
+                        <div className="font-semibold text-[16px]">Expandable Operational Metadata</div>
+                        <p className="cds-body-compact-01 text-[var(--cds-text-secondary)] mt-1">
+                          Click to inspect underlying MQTT telemetry topics and socket buffers.
+                        </p>
+                      </ExpandableTile>
+                    </Column>
+                    <Column lg={8} md={4} sm={4}>
+                      <Accordion>
+                        <AccordionItem title="Decision Support System (BWM Criteria Weighting)">
+                          <p className="cds-body-compact-01 text-[var(--cds-text-secondary)]">
+                            Best-Worst Method applies pairwise matrix vectors across Distance, Demand Density, Road Quality, and Battery Margin.
+                          </p>
+                        </AccordionItem>
+                      </Accordion>
+                    </Column>
+                  </Row>
+                </Grid>
+              </section>
             </div>
-            <div className="p-4 rounded-[10px] bg-orange-500 text-white shadow-xs text-center">
-              <div className="font-bold text-sm">Accent Orange</div>
-              <div className="text-xs opacity-80 font-mono">#F97316</div>
-            </div>
-            <div className="p-4 rounded-[10px] bg-emerald-500 text-white shadow-xs text-center">
-              <div className="font-bold text-sm">Success</div>
-              <div className="text-xs opacity-80 font-mono">#10B981</div>
-            </div>
-            <div className="p-4 rounded-[10px] bg-amber-500 text-white shadow-xs text-center">
-              <div className="font-bold text-sm">Warning</div>
-              <div className="text-xs opacity-80 font-mono">#F59E0B</div>
-            </div>
-            <div className="p-4 rounded-[10px] bg-red-500 text-white shadow-xs text-center">
-              <div className="font-bold text-sm">Danger</div>
-              <div className="text-xs opacity-80 font-mono">#EF4444</div>
-            </div>
-            <div className="p-4 rounded-[10px] bg-slate-900 text-white border border-slate-800 shadow-xs text-center">
-              <div className="font-bold text-sm">Surface Dark</div>
-              <div className="text-xs opacity-80 font-mono">#131822</div>
-            </div>
-          </div>
-        </div>
-      )}
+          </TabPanel>
 
-      {/* TAB 3: Tables & Data Grid */}
-      {activeTab === "tables" && (
-        <div className="space-y-6">
-          <TableContainer>
-            <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white font-['Inter']">
-                  Daftar Rider Operasional
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Data rider, lokasi terkini, status tugas, dan riwayat penugasan.
+          {/* ============================================================ */}
+          {/* TAB 03: DATA VISUALIZATION (CHARTS) */}
+          {/* ============================================================ */}
+          <TabPanel>
+            <div className="space-y-[32px]">
+              <div className="border-b border-[var(--cds-border-subtle)] pb-[12px]">
+                <h3 className="text-[20px] font-semibold">IBM Carbon Data Visualization Suite</h3>
+                <p className="cds-body-compact-01 text-[var(--cds-text-secondary)]">
+                  Native Carbon Charts with dynamic multi-theme support (Dark Gray 100 / Light White).
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  icon={Filter}
-                  onClick={() => setIsDrawerOpen(true)}
-                >
-                  Filter & Detail
-                </Button>
-                <Button
-                  variant="accent"
-                  size="sm"
-                  onClick={() => toast.success("Penugasan Massal", `${selectedRows.length} rider dipilih.`)}
-                >
-                  + Penugasan Massal
-                </Button>
-              </div>
-            </div>
 
-            <Table>
-              <TableHead>
-                <TableRow hoverable={false}>
-                  <TableHeaderCell width="40px">
-                    <input
-                      type="checkbox"
-                      checked={selectedRows.length === sampleTableData.length}
-                      onChange={toggleAll}
-                      className="w-4 h-4 text-blue-600 rounded-[4px] cursor-pointer"
-                    />
-                  </TableHeaderCell>
-                  <TableHeaderCell>ID Rider</TableHeaderCell>
-                  <TableHeaderCell>Nama Rider</TableHeaderCell>
-                  <TableHeaderCell>Zona Saat Ini</TableHeaderCell>
-                  <TableHeaderCell>Lokasi Terakhir</TableHeaderCell>
-                  <TableHeaderCell>Status</TableHeaderCell>
-                  <TableHeaderCell>Tugas Aktif</TableHeaderCell>
-                  <TableHeaderCell>Waktu Tugas</TableHeaderCell>
-                  <TableHeaderCell width="80px">Aksi</TableHeaderCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {sampleTableData.map((row) => (
-                  <TableRow
-                    key={row.id}
-                    selected={selectedRows.includes(row.id)}
-                    onClick={() => toggleRow(row.id)}
-                  >
-                    <TableCell>
-                      <input
-                        type="checkbox"
-                        checked={selectedRows.includes(row.id)}
-                        onChange={() => toggleRow(row.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="w-4 h-4 text-blue-600 rounded-[4px] cursor-pointer"
+              <Grid fullWidth>
+                <Row className="gap-y-[24px]">
+                  <Column lg={8} md={4} sm={4}>
+                    <Tile className="p-[16px] bg-[var(--cds-layer-01)]">
+                      <CarbonBarChart
+                        data={barChartData}
+                        options={{ title: "Daily Orders by Operational Zone", yAxisTitle: "Orders" }}
                       />
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-mono font-semibold text-slate-900 dark:text-white">
-                        {row.id}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 text-[10px] font-bold flex items-center justify-center">
-                          {row.name.charAt(0)}
-                        </div>
-                        <span className="font-medium text-slate-800 dark:text-slate-200">{row.name}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-semibold text-blue-600 dark:text-blue-400">
-                        {row.zone}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-slate-500">{row.location}</TableCell>
-                    <TableCell>
-                      <StatusBadge status={row.status} size="sm" />
-                    </TableCell>
-                    <TableCell className="text-slate-500">{row.task}</TableCell>
-                    <TableCell className="font-medium">{row.duration}</TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsDrawerOpen(true);
-                        }}
-                      >
-                        <Sliders className="w-3.5 h-3.5" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                    </Tile>
+                  </Column>
 
-            <TablePagination
-              currentPage={currentPage}
-              totalPages={5}
-              totalItems={48}
-              pageSize={pageSize}
-              onPageChange={setCurrentPage}
-              onPageSizeChange={setPageSize}
-            />
-          </TableContainer>
+                  <Column lg={8} md={4} sm={4}>
+                    <Tile className="p-[16px] bg-[var(--cds-layer-01)]">
+                      <CarbonLineChart
+                        data={lineChartData}
+                        options={{ title: "Hourly Active Rider Density", yAxisTitle: "Riders" }}
+                      />
+                    </Tile>
+                  </Column>
 
-          {/* Skeleton Loaders Preview */}
-          <div className="pt-4 space-y-4">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-              Skeleton Loaders (State Memuat Data)
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <MetricCardSkeleton />
-              <MetricCardSkeleton />
-              <MetricCardSkeleton />
+                  <Column lg={8} md={4} sm={4}>
+                    <Tile className="p-[16px] bg-[var(--cds-layer-01)]">
+                      <CarbonDonutChart
+                        data={donutChartData}
+                        options={{ title: "Fleet Telemetry Status Allocation", centerLabel: "32 Armadas" }}
+                      />
+                    </Tile>
+                  </Column>
+
+                  <Column lg={8} md={4} sm={4}>
+                    <Tile className="p-[16px] bg-[var(--cds-layer-01)]">
+                      <CarbonMeterChart
+                        data={meterChartData}
+                        options={{ title: "Zone Geofencing Compliance SLA Rate", peak: 100 }}
+                      />
+                    </Tile>
+                  </Column>
+
+                  <Column lg={16} md={8} sm={4}>
+                    <Tile className="p-[16px] bg-[var(--cds-layer-01)]">
+                      <CarbonComboChart
+                        data={comboChartData}
+                        options={{ title: "Order Volume vs SLA Compliance Correlation", yAxisTitle: "Orders", rightYAxisTitle: "Compliance %" }}
+                      />
+                    </Tile>
+                  </Column>
+                </Row>
+              </Grid>
             </div>
-            <TableSkeleton rows={3} columns={6} />
-          </div>
-        </div>
-      )}
+          </TabPanel>
 
-      {/* TAB 4: Feedback & Toast Triggers */}
-      {activeTab === "feedback" && (
-        <div className="space-y-6">
-          <Card>
-            <CardHeader title="Toast Notification Triggers" subtitle="Uji coba sistem floating toast notifications." />
-            <CardContent>
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  variant="success"
-                  onClick={() =>
-                    toast.success(
-                      "Data Berhasil Disimpan",
-                      "Perubahan konfigurasi bobot BWM telah diterapkan ke seluruh zona."
-                    )
-                  }
+          {/* ============================================================ */}
+          {/* TAB 04: CARBON PATTERNS */}
+          {/* ============================================================ */}
+          <TabPanel>
+            <div className="space-y-[32px]">
+              {/* Pattern: Filter Bar */}
+              <section className="space-y-[12px]">
+                <h3 className="text-[20px] font-semibold">4.1 Standard FilterBar Pattern</h3>
+                <FilterBar
+                  searchValue={searchFilter}
+                  onSearchChange={setSearchFilter}
+                  searchPlaceholder="Search zones or riders..."
+                  onReset={() => setSearchFilter("")}
+                  showApplyButton
+                  onApply={() => {}}
                 >
-                  Trigger Success Toast
-                </Button>
-                <Button
-                  variant="danger"
-                  onClick={() =>
-                    toast.error(
-                      "Koneksi GPS Terputus",
-                      "Rider #R-041 tidak merespons sinyal telemetri selama 15 menit."
-                    )
-                  }
-                >
-                  Trigger Error Toast
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() =>
-                    toast.warning(
-                      "Deviasi Geofence Terdeteksi",
-                      "Rider #R-021 berada 120m di luar poligon zona tugas."
-                    )
-                  }
-                >
-                  Trigger Warning Toast
-                </Button>
-                <Button
-                  variant="primary"
-                  onClick={() =>
-                    toast.info(
-                      "Sinkronisasi Cuaca Selesai",
-                      "Data Open-Meteo untuk Sidoarjo Hub telah dimutakhirkan."
-                    )
-                  }
-                >
-                  Trigger Info Toast
-                </Button>
+                  <div className="w-[180px]">
+                    <Select id="filter-status" labelText="Status" size="md" inline>
+                      <SelectItem value="all" text="All Statuses" />
+                      <SelectItem value="active" text="Active Only" />
+                      <SelectItem value="warning" text="Warning Only" />
+                    </Select>
+                  </div>
+                </FilterBar>
+              </section>
+
+              {/* Pattern: Full Native Carbon DataTable */}
+              <section className="space-y-[12px]">
+                <h3 className="text-[20px] font-semibold">4.2 Operational DataTable with Batch Actions & Pagination</h3>
+                <OperationalDataTable
+                  title="Operational Zones Management"
+                  description="Real-time geofence parameters and rider assignment status."
+                  headers={tableHeaders}
+                  rows={tableRows}
+                  batchActions={[
+                    { id: "activate", label: "Bulk Activate", icon: Renew },
+                    { id: "delete", label: "Delete Selected", icon: TrashCan },
+                  ]}
+                  onBatchAction={(action, selected) => {
+                    setIsConfirmOpen(true);
+                  }}
+                  toolbarActions={[
+                    { label: "Refresh Data", icon: Renew, onClick: () => {} },
+                  ]}
+                />
+              </section>
+
+              {/* Pattern: Empty State */}
+              <section className="space-y-[12px]">
+                <h3 className="text-[20px] font-semibold">4.3 Empty State Pattern</h3>
+                <EmptyStatePattern
+                  title="No Deviated Armadas"
+                  description="All active riders are currently operating within their designated polygon boundaries."
+                  actionLabel="View Fleet Operations"
+                  onAction={() => {}}
+                />
+              </section>
+            </div>
+          </TabPanel>
+
+          {/* ============================================================ */}
+          {/* TAB 05: MOVA PATTERNS */}
+          {/* ============================================================ */}
+          <TabPanel>
+            <div className="space-y-[24px]">
+              <div className="border-b border-[var(--cds-border-subtle)] pb-[12px]">
+                <h3 className="text-[20px] font-semibold">MOVA Domain-Specific Pattern Compositions</h3>
+                <p className="cds-body-compact-01 text-[var(--cds-text-secondary)]">
+                  Operational architectures built purely with Carbon primitives to resolve complex logistics & GIS challenges.
+                </p>
               </div>
-            </CardContent>
-          </Card>
 
-          <Card>
-            <CardHeader title="Empty State Component" subtitle="Tampilan saat query atau filter tidak menemukan hasil." />
-            <CardContent>
-              <EmptyState
-                title="Tidak Ada Armada Tersedia di Hub"
-                description="Seluruh 80 unit armada saat ini sedang beroperasi di lapangan atau dalam status perawatan berkala."
-                actionText="+ Tambah Unit Armada"
-                onAction={() => setIsModalOpen(true)}
-              />
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Interactive Demonstration Modal */}
-      <Modal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title="Tambah Zona Geofence Baru"
-        subtitle="Wizard 3 Langkah pembuatan zona operasional PostGIS."
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setIsModalOpen(false)}>
-              Batal
-            </Button>
-            <Button
-              variant="primary"
-              onClick={() => {
-                setIsModalOpen(false);
-                toast.success("Zona Berhasil Dibuat", "Zona baru telah ditambahkan ke sistem.");
-              }}
-            >
-              Simpan Zona
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-          <Input label="Nama Zona *" placeholder="Contoh: Zona E - Pasar Porong" />
-          <Input label="Deskripsi Area" placeholder="Deskripsi potensi wilayah komersial..." />
-          <Input label="Kapasitas Maksimal Rider" type="number" defaultValue="20" />
-          <Select
-            label="Status Operasional"
-            options={[
-              { value: "ACTIVE", label: "Aktif" },
-              { value: "INACTIVE", label: "Nonaktif" },
-            ]}
-          />
-        </div>
-      </Modal>
-
-      {/* Interactive Demonstration Drawer */}
-      <Drawer
-        isOpen={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
-        title="Detail Zona & Performa Kriteria"
-        subtitle="Analisis multi-kriteria DSS BWM-TOPSIS ZON-SDA-01."
-        footer={
-          <div className="flex items-center justify-between w-full">
-            <Button variant="secondary" size="sm" onClick={() => setIsDrawerOpen(false)}>
-              Tutup
-            </Button>
-            <Button
-              variant="accent"
-              size="sm"
-              onClick={() => {
-                setIsDrawerOpen(false);
-                toast.success("Penugasan Disimpan", "Penugasan rider ke zona ini telah diperbarui.");
-              }}
-            >
-              Simpan Penugasan
-            </Button>
-          </div>
-        }
-      >
-        <div className="space-y-5">
-          <div className="bg-slate-50 dark:bg-slate-850 p-4 rounded-[10px] border border-slate-200 dark:border-slate-800">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-slate-500 font-medium">Skor Preferensi (Ci)</span>
-              <StatusBadge status="TERBAIK" />
-            </div>
-            <div className="text-3xl font-extrabold text-blue-600 dark:text-blue-400 font-['Inter']">
-              0.823
-            </div>
-            <div className="text-[11px] text-slate-500 mt-1">
-              Peringkat #1 dari 17 zona aktif di Kabupaten Sidoarjo.
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
-              Breakdown Kriteria (C1-C6)
-            </h4>
-            {[
-              { code: "C1", name: "Densitas POI", score: "0.87", color: "bg-emerald-500" },
-              { code: "C2", name: "Diversitas POI", score: "0.76", color: "bg-blue-500" },
-              { code: "C3", name: "Keramaian Jam Operasi", score: "0.84", color: "bg-purple-500" },
-              { code: "C4", name: "Kesesuaian Cuaca", score: "0.82", color: "bg-amber-500" },
-              { code: "C5", name: "Jarak Hub ke Zona", score: "0.71", color: "bg-red-500" },
-              { code: "C6", name: "Kepadatan Kompetitor", score: "0.58", color: "bg-slate-500" },
-            ].map((crit) => (
-              <div key={crit.code} className="space-y-1">
-                <div className="flex justify-between text-xs font-medium">
-                  <span>{crit.code} - {crit.name}</span>
-                  <span className="font-bold">{crit.score}</span>
+              {/* MOVA Pattern 1: Map Operations Master-Detail */}
+              <Tile className="p-[20px] bg-[var(--cds-layer-01)] space-y-[16px]">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-[18px] font-semibold flex items-center gap-2">
+                      <Map size={20} /> MOVA Map Operations Master-Detail Composition
+                    </h4>
+                    <p className="text-[14px] text-[var(--cds-text-secondary)] mt-1">
+                      Split-screen layout: Leaflet GIS Canvas on left + Carbon MasterDetailPanel on right.
+                    </p>
+                  </div>
+                  <Button
+                    kind="primary"
+                    size="md"
+                    renderIcon={View}
+                    onClick={() => {
+                      setSelectedRecord({ name: "Alun-Alun Sidoarjo Hub", code: "Z-SDA-01", riders: 4, compliance: "94.5%" });
+                      setIsDetailOpen(true);
+                    }}
+                  >
+                    Open Inspection Panel
+                  </Button>
                 </div>
-                <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full ${crit.color} rounded-full`}
-                    style={{ width: `${parseFloat(crit.score) * 100}%` }}
-                  />
+
+                <div className="h-[280px] bg-[var(--cds-layer-02)] border border-[var(--cds-border-subtle)] flex items-center justify-center relative overflow-hidden">
+                  <div className="text-center space-y-2">
+                    <Location size={32} className="mx-auto text-[var(--cds-interactive)] animate-bounce" />
+                    <div className="font-semibold">Interactive GIS Simulation Canvas</div>
+                    <div className="text-[12px] text-[var(--cds-text-secondary)]">Polygon Geofences: 5 Zones | Active Telemetry: 18 Nodes</div>
+                  </div>
+                </div>
+              </Tile>
+            </div>
+          </TabPanel>
+
+          {/* ============================================================ */}
+          {/* TAB 06: MOTION & INTERACTION */}
+          {/* ============================================================ */}
+          <TabPanel>
+            <div className="space-y-[24px]">
+              <h3 className="text-[20px] font-semibold">IBM Carbon Motion Easing & Choreography</h3>
+              <p className="cds-body-compact-01 text-[var(--cds-text-secondary)]">
+                Carbon Productive Curve (<code className="font-mono text-[12px]">cubic-bezier(0.2, 0, 0.38, 0.9)</code>) and Expressive Curve for natural enterprise feedback.
+              </p>
+
+              <Grid fullWidth>
+                <Row className="gap-y-[16px]">
+                  <Column lg={8} md={4} sm={4}>
+                    <div className={`p-[20px] bg-[var(--cds-layer-01)] border border-[var(--cds-border-subtle)] ${motionActive ? "cds-motion-slide-in-up" : ""}`}>
+                      <h4 className="font-semibold">Productive Entrance (240ms)</h4>
+                      <p className="text-[14px] text-[var(--cds-text-secondary)] mt-1">
+                        Applied to modal entries, side-drawer sliding, and dropdown expansions.
+                      </p>
+                    </div>
+                  </Column>
+                  <Column lg={8} md={4} sm={4}>
+                    <div className={`p-[20px] bg-[var(--cds-layer-01)] border border-[var(--cds-border-subtle)] ${motionActive ? "cds-motion-fade-in" : ""}`}>
+                      <h4 className="font-semibold">Micro-Interaction Transition (70ms)</h4>
+                      <p className="text-[14px] text-[var(--cds-text-secondary)] mt-1">
+                        Instant focus indicators, hover elevation, and tag status changes.
+                      </p>
+                    </div>
+                  </Column>
+                </Row>
+              </Grid>
+            </div>
+          </TabPanel>
+
+          {/* ============================================================ */}
+          {/* TAB 07: ACCESSIBILITY */}
+          {/* ============================================================ */}
+          <TabPanel>
+            <div className="space-y-[24px]">
+              <h3 className="text-[20px] font-semibold">Enterprise Accessibility & Compliance</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-[16px]">
+                <Tile className="p-[16px] bg-[var(--cds-layer-01)]">
+                  <div className="flex items-center gap-2 font-semibold text-[16px]">
+                    <CheckmarkOutline className="text-[var(--cds-support-success)]" /> High-Contrast Ratios
+                  </div>
+                  <p className="text-[14px] text-[var(--cds-text-secondary)] mt-2">
+                    WCAG 2.1 AA Compliant (Minimum 4.5:1 text contrast on Gray 100/White).
+                  </p>
+                </Tile>
+
+                <Tile className="p-[16px] bg-[var(--cds-layer-01)]">
+                  <div className="flex items-center gap-2 font-semibold text-[16px]">
+                    <CheckmarkOutline className="text-[var(--cds-support-success)]" /> Keyboard Navigation
+                  </div>
+                  <p className="text-[14px] text-[var(--cds-text-secondary)] mt-2">
+                    Full TabIndex sequence, 2px focus ring offsets, and accessible ARIA attributes.
+                  </p>
+                </Tile>
+
+                <Tile className="p-[16px] bg-[var(--cds-layer-01)]">
+                  <div className="flex items-center gap-2 font-semibold text-[16px]">
+                    <CheckmarkOutline className="text-[var(--cds-support-success)]" /> Reduced Motion Support
+                  </div>
+                  <p className="text-[14px] text-[var(--cds-text-secondary)] mt-2">
+                    Media query <code className="font-mono text-[12px]">prefers-reduced-motion</code> disables non-essential animations.
+                  </p>
+                </Tile>
+              </div>
+            </div>
+          </TabPanel>
+        </TabPanels>
+      </Tabs>
+
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={isConfirmOpen}
+        danger
+        title="Confirm Batch Zone Action"
+        description="Are you sure you want to perform this batch action on the selected operational entities?"
+        onConfirm={() => setIsConfirmOpen(false)}
+        onClose={() => setIsConfirmOpen(false)}
+      />
+
+      {/* Master Detail Side Drawer */}
+      <div className="fixed inset-y-0 right-0 z-50 pointer-events-none">
+        {isDetailOpen && (
+          <div className="pointer-events-auto h-full">
+            <MasterDetailPanel
+              isOpen={isDetailOpen}
+              onClose={() => setIsDetailOpen(false)}
+              title={selectedRecord?.name || "Zone Detail"}
+              subtitle={selectedRecord?.code || "Operational Code"}
+              footer={
+                <div className="flex items-center justify-end gap-2">
+                  <Button kind="secondary" size="md" onClick={() => setIsDetailOpen(false)}>Close</Button>
+                  <Button kind="primary" size="md">Modify Geofence</Button>
+                </div>
+              }
+            >
+              <div className="space-y-[16px]">
+                <div className="p-3 bg-[var(--cds-layer-02)] border border-[var(--cds-border-subtle)] space-y-1">
+                  <div className="text-[12px] text-[var(--cds-text-secondary)]">Active Dispatch Load</div>
+                  <div className="text-[20px] font-semibold">{selectedRecord?.riders}</div>
+                </div>
+                <div className="p-3 bg-[var(--cds-layer-02)] border border-[var(--cds-border-subtle)] space-y-1">
+                  <div className="text-[12px] text-[var(--cds-text-secondary)]">Geofence Compliance SLA</div>
+                  <div className="text-[20px] font-semibold text-[var(--cds-support-success)]">{selectedRecord?.compliance}</div>
                 </div>
               </div>
-            ))}
+            </MasterDetailPanel>
           </div>
-        </div>
-      </Drawer>
-    </AppLayout>
+        )}
+      </div>
+    </div>
   );
 }

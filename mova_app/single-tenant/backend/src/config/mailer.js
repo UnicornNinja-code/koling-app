@@ -13,38 +13,53 @@ import { env } from "./env.js";
 let transporter = null;
 
 /**
+ * Creates dynamic Ethereal test account and transporter.
+ */
+export async function createEtherealTransporter() {
+    const testAccount = await nodemailer.createTestAccount();
+    console.log("--- KREDENSIAL ETHEREAL SEMENTARA ---");
+    console.log(`User: ${testAccount.user}`);
+    console.log(`Pass: ${testAccount.pass}`);
+    console.log("------------------------------------");
+
+    return nodemailer.createTransport({
+        host: testAccount.smtp.host,
+        port: testAccount.smtp.port,
+        secure: testAccount.smtp.secure,
+        auth: {
+            user: testAccount.user,
+            pass: testAccount.pass,
+        },
+    });
+}
+
+/**
  * Get or create Nodemailer transporter (singleton).
- * In development without SMTP config, auto-creates an Ethereal test account.
+ * In development without SMTP config or if configured SMTP fails, auto-creates an Ethereal test account.
  */
 export const getMailTransporter = async () => {
     if (transporter) return transporter;
 
     if (env.SMTP?.HOST) {
-        // Production / configured SMTP
-        transporter = nodemailer.createTransport({
-            host: env.SMTP.HOST,
-            port: env.SMTP.PORT,
-            secure: env.SMTP.PORT === 465,
-            auth: {
-                user: env.SMTP.USER,
-                pass: env.SMTP.PASS,
-            },
-        });
-        console.log(`📧 Mailer: SMTP terkonfigurasi (${env.SMTP.HOST}:${env.SMTP.PORT})`);
+        try {
+            // Production / configured SMTP
+            transporter = nodemailer.createTransport({
+                host: env.SMTP.HOST,
+                port: env.SMTP.PORT,
+                secure: env.SMTP.PORT === 465,
+                auth: {
+                    user: env.SMTP.USER,
+                    pass: env.SMTP.PASS,
+                },
+            });
+            console.log(`📧 Mailer: SMTP terkonfigurasi (${env.SMTP.HOST}:${env.SMTP.PORT})`);
+        } catch (err) {
+            console.warn(`⚠️ Gagal inisialisasi SMTP terkonfigurasi: ${err.message}. Beralih ke Ethereal dinamis...`);
+            transporter = await createEtherealTransporter();
+        }
     } else {
         // Development fallback: Ethereal test account
-        const testAccount = await nodemailer.createTestAccount();
-        transporter = nodemailer.createTransport({
-            host: "smtp.ethereal.email",
-            port: 587,
-            secure: false,
-            auth: {
-                user: testAccount.user,
-                pass: testAccount.pass,
-            },
-        });
-        console.log(`📧 Mailer: Ethereal test account aktif (${testAccount.user})`);
-        console.log(`   Preview email di: https://ethereal.email/login`);
+        transporter = await createEtherealTransporter();
     }
 
     return transporter;
@@ -52,24 +67,47 @@ export const getMailTransporter = async () => {
 
 /**
  * Send an email using the configured transporter.
- * Returns { messageId, previewUrl } — previewUrl only available with Ethereal.
+ * Returns { messageId, previewUrl } — previewUrl generated via nodemailer.getTestMessageUrl(info).
  */
 export const sendMail = async ({ to, subject, html, text }) => {
-    const mailer = await getMailTransporter();
+    try {
+        let mailer = await getMailTransporter();
 
-    const info = await mailer.sendMail({
-        from: env.SMTP?.FROM || '"MantaKopi DSS" <noreply@mantakopi.com>',
-        to,
-        subject,
-        html,
-        text,
-    });
+        let info;
+        try {
+            info = await mailer.sendMail({
+                from: env.SMTP?.FROM || '"Mova Support" <noreply@mova_app.com>',
+                to,
+                subject,
+                html,
+                text,
+            });
+        } catch (sendErr) {
+            console.warn(`⚠️ Pengiriman via transporter utama gagal (${sendErr.message}), mencoba fallback Ethereal...`);
+            mailer = await createEtherealTransporter();
+            transporter = mailer;
+            info = await mailer.sendMail({
+                from: '"Mova Support" <noreply@mova_app.com>',
+                to,
+                subject,
+                html,
+                text,
+            });
+        }
 
-    // Generate Ethereal preview URL (only works with Ethereal accounts)
-    const previewUrl = nodemailer.getTestMessageUrl(info);
+        // KUNCI ETHEREAL: Cetak URL preview ke terminal
+        const previewUrl = nodemailer.getTestMessageUrl(info);
+        if (previewUrl) {
+            console.log("✉️ Email berhasil ditangkap Ethereal!");
+            console.log("🔗 Buka preview email di browser:", previewUrl);
+        }
 
-    return {
-        messageId: info.messageId,
-        previewUrl: previewUrl || null,
-    };
+        return {
+            messageId: info.messageId,
+            previewUrl: previewUrl || null,
+        };
+    } catch (err) {
+        console.error("❌ Gagal mengirim email:", err.message);
+        throw err;
+    }
 };

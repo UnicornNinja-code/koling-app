@@ -1,0 +1,122 @@
+/*
+ * MOVA Design System v3.0 CSS Tokens (Single-Tenant SSOT)
+ * Color Palette: Primary #2563EB, Accent Orange #F97316, Success #10B981, Warning #F59E0B, Danger #EF4444
+ * Font Family: Strictly Inter Only
+ */
+
+:root {
+  /* Brand Accent & Primary Colors */
+  --color-primary: #2563EB;
+  --color-primary-hover: #1D4ED8;
+  --color-primary-dark: #1E40AF;
+  --color-primary-soft: rgba(37, 99, 235, 0.1);
+
+  --color-accent: #F97316;
+  --color-accent-hover: #EA580C;
+  --color-accent-soft: rgba(249, 115, 22, 0.1);
+
+  /* Canvas & Surface Colors (Light Mode) */
+  --color-background: #F8FAFC;
+  --color-surface: #FFFFFF;
+  --color-surface-hover: #F1F5F9;
+  --color-surface-soft: #F8FAFC;
+
+  /* Border & Separators */
+  --color-border: #E2E8F0;
+  --color-border-hover: #CBD5E1;
+
+  /* Text & Hierarchy */
+  --color-foreground: #0F172A;
+  --color-muted: #64748B;
+  --color-subtle: #94A3B8;
+
+  /* Status Colors */
+  --color-success: #10B981;
+  --color-success-bg: rgba(16, 185, 129, 0.12);
+  --color-success-border: rgba(16, 185, 129, 0.25);
+
+  --color-warning: #F59E0B;
+  --color-warning-bg: rgba(245, 158, 11, 0.12);
+  --color-warning-border: rgba(245, 158, 11, 0.25);
+
+  --color-danger: #EF4444;
+  --color-danger-bg: rgba(239, 68, 68, 0.12);
+  --color-danger-border: rgba(239, 68, 68, 0.25);
+
+  --color-info: #3B82F6;
+  --color-info-bg: rgba(59, 130, 246, 0.12);
+  --color-info-border: rgba(59, 130, 246, 0.25);
+
+  --color-neutral: #64748B;
+  --color-neutral-bg: rgba(100, 116, 139, 0.12);
+  --color-neutral-border: #E2E8F0;
+
+  /* Typography - STRICTLY INTER ONLY */
+  --font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-heading: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* Geometry & Radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 8px 24px -2px rgba(0, 0, 0, 0.10), 0 4px 8px -2px rgba(0, 0, 0, 0.06);
+
+  /* Layout Dimensions */
+  --sidebar-width: 240px;
+  --sidebar-collapsed-width: 68px;
+  --topbar-height: 56px;
+}
+
+:root.dark, [data-theme="dark"] {
+  /* Brand Colors in Dark */
+  --color-primary: #3B82F6;
+  --color-primary-hover: #2563EB;
+  --color-primary-soft: rgba(59, 130, 246, 0.15);
+
+  --color-accent: #FB923C;
+  --color-accent-hover: #F97316;
+  --color-accent-soft: rgba(249, 115, 22, 0.15);
+
+  /* Canvas & Surface Colors (Dark Mode) */
+  --color-background: #0B0F17;
+  --color-surface: #131822;
+  --color-surface-hover: #1E293B;
+  --color-surface-soft: #0F172A;
+
+  /* Border & Separators */
+  --color-border: #1E293B;
+  --color-border-hover: #334155;
+
+  /* Text & Hierarchy */
+  --color-foreground: #F8FAFC;
+  --color-muted: #94A3B8;
+  --color-subtle: #64748B;
+
+  /* Status Colors in Dark */
+  --color-success-bg: rgba(16, 185, 129, 0.18);
+  --color-success-border: rgba(16, 185, 129, 0.35);
+
+  --color-warning-bg: rgba(245, 158, 11, 0.18);
+  --color-warning-border: rgba(245, 158, 11, 0.35);
+
+  --color-danger-bg: rgba(239, 68, 68, 0.18);
+  --color-danger-border: rgba(239, 68, 68, 0.35);
+
+  --color-info-bg: rgba(59, 130, 246, 0.18);
+  --color-info-border: rgba(59, 130, 246, 0.35);
+
+  --color-neutral-bg: rgba(148, 163, 184, 0.12);
+  --color-neutral-border: #1E293B;
+
+  /* Shadows Dark */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 8px 24px -2px rgba(0, 0, 0, 0.6), 0 4px 8px -2px rgba(0, 0, 0, 0.4);
+}

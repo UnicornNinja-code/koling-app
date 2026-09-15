@@ -30,5 +30,15 @@ export const PasswordResetTokenModel = {
     `;
     const { rows } = await pool.query(query, [token]);
     return rows[0];
+  },
+
+  async revokeAllForUser(userId) {
+    const query = `
+      UPDATE password_reset_tokens 
+      SET used = TRUE 
+      WHERE user_id = $1 AND used = FALSE;
+    `;
+    await pool.query(query, [userId]);
   }
 };
+

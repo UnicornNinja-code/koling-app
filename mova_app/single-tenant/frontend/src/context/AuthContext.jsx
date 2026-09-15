@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { authService } from "../services/authService.js";
+import { setLoggingOut } from "../lib/axios.js";
 
 const AuthContext = createContext(null);
 
@@ -7,14 +8,14 @@ const AuthContext = createContext(null);
  * Returns the canonical landing route for each role post-authentication.
  */
 export function getRoleLandingPath(role) {
-  switch (role) {
+  switch (String(role).toUpperCase()) {
     case "RIDER":
-      return "/rider/zone";
+      return "/operational-rider";
     case "SUPERVISOR":
     case "MANAGEMENT":
     case "SUPERADMIN":
     default:
-      return "/superadmin/dashboard";
+      return "/dashboard";
   }
 }
 
@@ -31,21 +32,48 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => localStorage.getItem("token") || null);
   const [loading, setLoading] = useState(true);
 
-  // Logout handler
-  const logout = useCallback(async () => {
-    try {
-      await authService.logout();
-    } catch {
-      // Ignore network errors on logout
-    } finally {
-      setUser(null);
-      setToken(null);
-      localStorage.removeItem("user");
-      localStorage.removeItem("token");
-    }
-  }, []);
+  // Optimistic Non-Blocking Logout handler
+  const logout = useCallback(() => {
+    // 1. Mark logging out to cancel pending Axios calls and suppress refresh-token loops
+    setLoggingOut(true);
 
-  // Hydrate user profile on mount / resume
+    // 2. Grab current token before wiping storage
+    const currentToken = token || localStorage.getItem("token");
+
+    // 3. Immediately wipe local auth state & storage synchronously
+    setUser(null);
+    setToken(null);
+    localStorage.removeItem("user");
+    localStorage.removeItem("token");
+    localStorage.removeItem("refreshToken");
+    sessionStorage.clear();
+
+    // 4. Send background cleanup request to backend with keepalive (Fire-and-Forget)
+    const API_URL =
+      (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) ||
+      "http://localhost:8090/api";
+
+    try {
+      fetch(`${API_URL}/auth/logout`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(currentToken && { Authorization: `Bearer ${currentToken}` }),
+        },
+        credentials: "include",
+        keepalive: true,
+      }).catch(() => {});
+    } catch (err) {
+      // Ignored: Local session is already cleaned up
+    }
+
+    // 5. Instantly redirect browser to /login
+    if (typeof window !== "undefined") {
+      window.location.replace("/login");
+    }
+  }, [token]);
+
+  // Hydrate user profile on mount / resume from backend session
   useEffect(() => {
     async function checkAuth() {
       if (token) {
@@ -58,8 +86,10 @@ export function AuthProvider({ children }) {
             localStorage.setItem("user", JSON.stringify(safeUser));
           }
         } catch (err) {
-          console.warn("Session validation failed:", err?.message || err);
-          logout();
+          console.warn("Session validation notice:", err?.response?.data?.msg || err?.message || err);
+          if (err?.response?.status === 401) {
+            logout();
+          }
         }
       }
       setLoading(false);
@@ -67,14 +97,29 @@ export function AuthProvider({ children }) {
     checkAuth();
   }, [token, logout]);
 
-  // Login handler
-  const login = (userData, authToken) => {
-    const { password, password_hash, secret, refresh_token, ...safeUser } = userData || {};
+  // Real backend Login handler
+  const login = async ({ identifier, password, turnstileToken }) => {
+    const res = await authService.login({ identifier, password, turnstileToken });
+    const authToken = res.token;
+    const userData = res.user;
+
+    const { password: pw, password_hash, secret, refresh_token, ...safeUser } = userData || {};
+
     setUser(safeUser);
     setToken(authToken);
+    if (authToken) {
+      localStorage.setItem("token", authToken);
+    }
+    if (res.refreshToken) {
+      localStorage.setItem("refreshToken", res.refreshToken);
+    }
     localStorage.setItem("user", JSON.stringify(safeUser));
-    localStorage.setItem("token", authToken);
-    return safeUser;
+
+    return {
+      token: authToken,
+      user: safeUser,
+      msg: res.msg || "Login berhasil",
+    };
   };
 
   // Update user in state & storage
@@ -112,3 +157,5 @@ export function useAuth() {
   }
   return context;
 }
+
+export default AuthContext;

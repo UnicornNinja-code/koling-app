@@ -1,92 +1,59 @@
 import React from "react";
+import { cn } from "./Button.jsx";
 
 /**
- * MOVA Design System v3.0 Tabs Component
- * Variants: 'pill' (Background toggle) | 'underline' (Underlined active tab)
+ * Carbon Line Tabs Component
  */
-export function Tabs({
-  tabs = [],
-  activeTab,
-  onChange,
-  variant = "pill", // 'pill' | 'underline'
-  size = "md",
-  className = "",
-}) {
-  if (variant === "underline") {
-    return (
-      <div className={`border-b border-slate-200 dark:border-slate-800 flex gap-6 ${className}`}>
-        {tabs.map((tab) => {
-          const isActive = activeTab === tab.id;
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => onChange && onChange(tab.id)}
-              className={`pb-3 text-sm font-['Inter'] font-medium transition-all duration-150 flex items-center gap-2 relative ${
-                isActive
-                  ? "text-blue-600 dark:text-blue-400 font-semibold"
-                  : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-              }`}
-            >
-              {Icon && <Icon className="w-4 h-4" />}
-              <span>{tab.label}</span>
-              {tab.badge !== undefined && (
-                <span
-                  className={`text-[10px] font-semibold px-1.5 py-0.2 rounded-full ${
-                    isActive
-                      ? "bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300"
-                      : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
-                  }`}
-                >
-                  {tab.badge}
-                </span>
-              )}
-              {isActive && (
-                <span className="absolute bottom-0 inset-x-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-full" />
-              )}
-            </button>
-          );
-        })}
-      </div>
-    );
-  }
-
-  // Default: Pill style
+export function Tabs({ children, className = "", ...props }) {
   return (
-    <div
-      className={`inline-flex items-center bg-slate-100/90 dark:bg-slate-800/90 p-1 rounded-[10px] border border-slate-200/80 dark:border-slate-750 gap-1 ${className}`}
+    <div className={cn("flex items-center border-b border-[var(--cds-border-subtle)] bg-[var(--cds-layer-01)] overflow-x-auto", className)} role="tablist" {...props}>
+      {children}
+    </div>
+  );
+}
+
+export function Tab({
+  children,
+  active = false,
+  onClick,
+  icon: Icon,
+  badge,
+  className = "",
+  disabled = false,
+  ...props
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        "h-[40px] px-[16px] flex items-center gap-[var(--cds-spacing-03)] cds-heading-compact-01 text-[13px] font-medium border-b-2 transition-colors duration-100 select-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--cds-focus)] shrink-0",
+        active
+          ? "border-b-[var(--cds-interactive)] text-[var(--cds-text-primary)] bg-[var(--cds-layer-02)]"
+          : "border-b-transparent text-[var(--cds-text-secondary)] hover:text-[var(--cds-text-primary)] hover:bg-[var(--cds-layer-hover-01)]",
+        className
+      )}
+      {...props}
     >
-      {tabs.map((tab) => {
-        const isActive = activeTab === tab.id;
-        const Icon = tab.icon;
-        return (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => onChange && onChange(tab.id)}
-            className={`px-3 py-1.5 rounded-[7px] text-xs font-['Inter'] font-semibold transition-all duration-150 flex items-center gap-1.5 select-none ${
-              isActive
-                ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
-                : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
-            }`}
-          >
-            {Icon && <Icon className="w-3.5 h-3.5" />}
-            <span>{tab.label}</span>
-            {tab.badge !== undefined && (
-              <span
-                className={`text-[10px] font-semibold px-1.5 py-0.2 rounded-full ${
-                  isActive
-                    ? "bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400"
-                    : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-                }`}
-              >
-                {tab.badge}
-              </span>
-            )}
-          </button>
-        );
-      })}
+      {Icon && <Icon className="w-4 h-4 shrink-0" />}
+      <span className="truncate">{children}</span>
+      {badge !== undefined && (
+        <span className="ml-[var(--cds-spacing-01)] px-[6px] py-[1px] text-[11px] font-semibold bg-[var(--cds-layer-03)] text-[var(--cds-text-primary)]">
+          {badge}
+        </span>
+      )}
+    </button>
+  );
+}
+
+export function TabPanel({ children, active = false, className = "", ...props }) {
+  if (!active) return null;
+  return (
+    <div role="tabpanel" className={cn("p-[16px] focus:outline-none", className)} {...props}>
+      {children}
     </div>
   );
 }

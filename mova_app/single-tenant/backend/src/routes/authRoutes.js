@@ -12,6 +12,7 @@ import {
 } from "../controllers/authController.js";
 import { authenticateToken } from "../middlewares/authMiddleware.js";
 import { loginLimiter, registerLimiter, forgotPasswordLimiter } from "../middlewares/rateLimiterMiddleware.js";
+import { requireTurnstile } from "../middlewares/turnstileMiddleware.js";
 
 const router = express.Router();
 

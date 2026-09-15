@@ -75,21 +75,86 @@ const loginLimiter = rateLimit({
   ),
 });
 
+const FORGOT_PW_COOLDOWN_SECONDS = 120; // 2 minutes cooldown per email
+const memoryForgotCooldown = new Map(); // Memory fallback if Redis not active
+
 /**
- * Rate Limiter for Password Reset (3 requests per 1 hour)
+ * Cooldown Lock Rate Limiter for Forgot Password (2 Minutes Cooldown per Email + IP Guard)
  */
-const forgotPasswordLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: process.env.NODE_ENV === "production" ? 3 : 500,
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: (req) => process.env.NODE_ENV !== "production" || req.headers["x-test-suite"] === "true",
-  store: getStore("AUTH_FORGOT"),
-  handler: build429Response(
-    "Batas Reset Password",
-    "Batas pengajuan reset password tercapai. Harap coba lagi dalam 1 jam."
-  ),
-});
+const forgotPasswordLimiter = async (req, res, next) => {
+  try {
+    const email = req.body?.email?.trim().toLowerCase();
+    const clientIp = req.ip || req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "127.0.0.1";
+
+    if (!email) {
+      return res.status(400).json({ error: "Email wajib diisi", msg: "Email wajib diisi" });
+    }
+
+    if (redisClient && (redisClient.isOpen || redisClient.isReady)) {
+      const emailKey = `rate-limit:forgot-pw:email:${email}`;
+      const ipKey = `rate-limit:forgot-pw:ip:${clientIp}`;
+
+      // 1. Cek sisa cooldown berdasarkan email
+      const ttlEmail = await redisClient.ttl(emailKey);
+      if (ttlEmail > 0) {
+        return res.status(429).json({
+          status: "error",
+          statusCode: 429,
+          error: "Terlalu banyak permintaan.",
+          retryAfter: ttlEmail,
+          message: `Silakan tunggu ${ttlEmail} detik sebelum meminta tautan baru.`,
+          msg: `Silakan tunggu ${ttlEmail} detik sebelum meminta tautan baru.`,
+          ui_notice: {
+            type: "warning",
+            title: "Batas Permintaan",
+            message: `Silakan tunggu ${ttlEmail} detik sebelum meminta tautan baru.`,
+          },
+        });
+      }
+
+      // 2. Cek akumulasi request dari satu IP (mencegah bot spamming banyak email)
+      const ipRequests = await redisClient.incr(ipKey);
+      if (ipRequests === 1) {
+        await redisClient.expire(ipKey, 600); // Window 10 menit
+      }
+      if (ipRequests > 10) {
+        const ttlIp = await redisClient.ttl(ipKey);
+        return res.status(429).json({
+          status: "error",
+          statusCode: 429,
+          error: "Terlalu banyak permintaan dari jaringan ini.",
+          retryAfter: ttlIp > 0 ? ttlIp : 600,
+          message: "Terlalu banyak permintaan dari jaringan ini. Harap coba lagi nanti.",
+          msg: "Terlalu banyak permintaan dari jaringan ini. Harap coba lagi nanti.",
+        });
+      }
+
+      // Pasang lock 2 menit untuk email yang ditargetkan
+      await redisClient.set(emailKey, "locked", { EX: FORGOT_PW_COOLDOWN_SECONDS });
+    } else {
+      // In-memory fallback
+      const now = Date.now();
+      const existing = memoryForgotCooldown.get(email);
+      if (existing && existing > now) {
+        const remainingSec = Math.ceil((existing - now) / 1000);
+        return res.status(429).json({
+          status: "error",
+          statusCode: 429,
+          error: "Terlalu banyak permintaan.",
+          retryAfter: remainingSec,
+          message: `Silakan tunggu ${remainingSec} detik sebelum meminta tautan baru.`,
+          msg: `Silakan tunggu ${remainingSec} detik sebelum meminta tautan baru.`,
+        });
+      }
+      memoryForgotCooldown.set(email, now + FORGOT_PW_COOLDOWN_SECONDS * 1000);
+    }
+
+    next();
+  } catch (err) {
+    console.warn("[RateLimiter] Error in forgotPasswordLimiter:", err.message);
+    next();
+  }
+};
 
 /**
  * Rate Limiter for User Registration (5 requests per 1 hour)

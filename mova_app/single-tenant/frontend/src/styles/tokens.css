@@ -1,122 +1,98 @@
-/*
- * MOVA Design System v3.0 CSS Tokens (Single-Tenant SSOT)
- * Color Palette: Primary #2563EB, Accent Orange #F97316, Success #10B981, Warning #F59E0B, Danger #EF4444
- * Font Family: Strictly Inter Only
- */
-
 :root {
-  /* Brand Accent & Primary Colors */
-  --color-primary: #2563EB;
-  --color-primary-hover: #1D4ED8;
-  --color-primary-dark: #1E40AF;
-  --color-primary-soft: rgba(37, 99, 235, 0.1);
+  /* ==========================================================================
+     MOVA NEXT-GEN DESIGN SYSTEM TOKENS (Obsidian Kinetic & Electric Indigo)
+     ========================================================================== */
 
-  --color-accent: #F97316;
-  --color-accent-hover: #EA580C;
-  --color-accent-soft: rgba(249, 115, 22, 0.1);
+  /* Base Typography */
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-heading: 'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 
-  /* Canvas & Surface Colors (Light Mode) */
-  --color-background: #F8FAFC;
-  --color-surface: #FFFFFF;
-  --color-surface-hover: #F1F5F9;
-  --color-surface-soft: #F8FAFC;
+  /* Radiant Color Palette (Light Mode) */
+  --bg-app: #F8FAFC;
+  --bg-surface: #FFFFFF;
+  --bg-surface-elevated: #FFFFFF;
+  --bg-surface-glass: rgba(255, 255, 255, 0.82);
+  --bg-surface-subtle: #F1F5F9;
 
-  /* Border & Separators */
-  --color-border: #E2E8F0;
-  --color-border-hover: #CBD5E1;
+  --border-subtle: #E2E8F0;
+  --border-strong: #CBD5E1;
+  --border-glow: rgba(99, 102, 241, 0.25);
 
-  /* Text & Hierarchy */
-  --color-foreground: #0F172A;
-  --color-muted: #64748B;
-  --color-subtle: #94A3B8;
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-muted: #94A3B8;
+  --text-inverted: #FFFFFF;
+
+  /* Primary Accent: Electric Indigo / Cobalt Glow */
+  --primary-50: #EEF2FF;
+  --primary-100: #E0E7FF;
+  --primary-200: #C7D2FE;
+  --primary-300: #A5B4FC;
+  --primary-400: #818CF8;
+  --primary-500: #6366F1;
+  --primary-600: #4F46E5;
+  --primary-700: #4338CA;
+  --primary-800: #3730A3;
+  --primary-900: #312E81;
+  --primary-glow: rgba(99, 102, 241, 0.35);
+
+  /* Secondary Accent: Emerald Pulse (Operational / DSS Positive) */
+  --emerald-400: #34D399;
+  --emerald-500: #10B981;
+  --emerald-600: #059669;
+  --emerald-glow: rgba(16, 185, 129, 0.35);
 
   /* Status Colors */
-  --color-success: #10B981;
-  --color-success-bg: rgba(16, 185, 129, 0.12);
-  --color-success-border: rgba(16, 185, 129, 0.25);
+  --amber-500: #F59E0B;
+  --rose-500: #F43F5E;
+  --cyan-500: #06B6D4;
+  --purple-500: #A855F7;
 
-  --color-warning: #F59E0B;
-  --color-warning-bg: rgba(245, 158, 11, 0.12);
-  --color-warning-border: rgba(245, 158, 11, 0.25);
+  /* Shadows & Elevation */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+  --shadow-glow: 0 0 25px rgba(99, 102, 241, 0.2);
+  --shadow-emerald-glow: 0 0 20px rgba(16, 185, 129, 0.2);
 
-  --color-danger: #EF4444;
-  --color-danger-bg: rgba(239, 68, 68, 0.12);
-  --color-danger-border: rgba(239, 68, 68, 0.25);
-
-  --color-info: #3B82F6;
-  --color-info-bg: rgba(59, 130, 246, 0.12);
-  --color-info-border: rgba(59, 130, 246, 0.25);
-
-  --color-neutral: #64748B;
-  --color-neutral-bg: rgba(100, 116, 139, 0.12);
-  --color-neutral-border: #E2E8F0;
-
-  /* Typography - STRICTLY INTER ONLY */
-  --font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-heading: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-body: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-
-  /* Geometry & Radius */
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
+  /* Radii */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
   --radius-full: 9999px;
-
-  /* Shadows */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 12px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
-  --shadow-lg: 0 8px 24px -2px rgba(0, 0, 0, 0.10), 0 4px 8px -2px rgba(0, 0, 0, 0.06);
-
-  /* Layout Dimensions */
-  --sidebar-width: 240px;
-  --sidebar-collapsed-width: 68px;
-  --topbar-height: 56px;
 }
 
-:root.dark, [data-theme="dark"] {
-  /* Brand Colors in Dark */
-  --color-primary: #3B82F6;
-  --color-primary-hover: #2563EB;
-  --color-primary-soft: rgba(59, 130, 246, 0.15);
+/* ==========================================================================
+   OBSIDIAN KINETIC DARK MODE (Deep Space Slate & Neon Accents)
+   ========================================================================== */
+[data-theme="dark"], .dark {
+  --bg-app: #080B11;
+  --bg-surface: #0E131F;
+  --bg-surface-elevated: #151C2E;
+  --bg-surface-glass: rgba(14, 19, 31, 0.85);
+  --bg-surface-subtle: #1B243B;
 
-  --color-accent: #FB923C;
-  --color-accent-hover: #F97316;
-  --color-accent-soft: rgba(249, 115, 22, 0.15);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --border-glow: rgba(99, 102, 241, 0.4);
 
-  /* Canvas & Surface Colors (Dark Mode) */
-  --color-background: #0B0F17;
-  --color-surface: #131822;
-  --color-surface-hover: #1E293B;
-  --color-surface-soft: #0F172A;
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  --text-inverted: #0F172A;
 
-  /* Border & Separators */
-  --color-border: #1E293B;
-  --color-border-hover: #334155;
+  --primary-50: #1E1B4B;
+  --primary-100: #2E287A;
+  --primary-500: #6366F1;
+  --primary-600: #4F46E5;
+  --primary-glow: rgba(99, 102, 241, 0.45);
 
-  /* Text & Hierarchy */
-  --color-foreground: #F8FAFC;
-  --color-muted: #94A3B8;
-  --color-subtle: #64748B;
-
-  /* Status Colors in Dark */
-  --color-success-bg: rgba(16, 185, 129, 0.18);
-  --color-success-border: rgba(16, 185, 129, 0.35);
-
-  --color-warning-bg: rgba(245, 158, 11, 0.18);
-  --color-warning-border: rgba(245, 158, 11, 0.35);
-
-  --color-danger-bg: rgba(239, 68, 68, 0.18);
-  --color-danger-border: rgba(239, 68, 68, 0.35);
-
-  --color-info-bg: rgba(59, 130, 246, 0.18);
-  --color-info-border: rgba(59, 130, 246, 0.35);
-
-  --color-neutral-bg: rgba(148, 163, 184, 0.12);
-  --color-neutral-border: #1E293B;
-
-  /* Shadows Dark */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 12px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 8px 24px -2px rgba(0, 0, 0, 0.6), 0 4px 8px -2px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 12px 24px -4px rgba(0, 0, 0, 0.7);
+  --shadow-glow: 0 0 30px rgba(99, 102, 241, 0.35);
+  --shadow-emerald-glow: 0 0 25px rgba(16, 185, 129, 0.35);
 }

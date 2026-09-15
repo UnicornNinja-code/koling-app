@@ -1,0 +1,210 @@
+/* ==========================================================================
+   IBM CARBON DESIGN SYSTEM TOKENS (Official Productive Specification)
+   ========================================================================== */
+
+:root, [data-carbon-theme="g100"] {
+  /* Carbon Canonical Typography */
+  --cds-font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --cds-font-mono: 'IBM Plex Mono', monospace;
+
+  /* Carbon 13-Step Spacing Scale */
+  --cds-spacing-01: 2px;
+  --cds-spacing-02: 4px;
+  --cds-spacing-03: 8px;
+  --cds-spacing-04: 12px;
+  --cds-spacing-05: 16px;
+  --cds-spacing-06: 24px;
+  --cds-spacing-07: 32px;
+  --cds-spacing-08: 40px;
+  --cds-spacing-09: 48px;
+  --cds-spacing-10: 64px;
+  --cds-spacing-11: 80px;
+  --cds-spacing-12: 96px;
+  --cds-spacing-13: 160px;
+
+  /* Theme: Gray 100 (Default Dark Baseline) */
+  --cds-background: #161616;
+  --cds-layer-01: #262626;
+  --cds-layer-02: #393939;
+  --cds-layer-03: #525252;
+  --cds-layer-hover-01: #353535;
+  --cds-layer-hover-02: #4C4C4C;
+  --cds-layer-hover-03: #656565;
+
+  --cds-field: #262626;
+  --cds-field-hover: #353535;
+
+  /* Text & Icons */
+  --cds-text-primary: #F4F4F4;
+  --cds-text-secondary: #C6C6C6;
+  --cds-text-placeholder: #6F6F6F;
+  --cds-text-disabled: #525252;
+  --cds-text-helper: #8D8D8D;
+  --cds-text-error: #FF8389;
+  --cds-text-on-color: #FFFFFF;
+
+  --cds-icon-primary: #F4F4F4;
+  --cds-icon-secondary: #C6C6C6;
+  --cds-icon-interactive: #78A9FF;
+  --cds-icon-disabled: #525252;
+  --cds-icon-on-color: #FFFFFF;
+
+  /* Borders */
+  --cds-border-subtle: #393939;
+  --cds-border-strong: #6F6F6F;
+  --cds-border-interactive: #0F62FE;
+
+  /* Interactive Elements (Blue 60 / Blue 70 / Blue 80) */
+  --cds-interactive: #0F62FE;
+  --cds-interactive-hover: #0043CE;
+  --cds-interactive-active: #002D9C;
+  --cds-interactive-selected: #002D9C;
+
+  /* Focus Indicator */
+  --cds-focus: #FFFFFF;
+  --cds-focus-inset: #161616;
+
+  /* Support States (Current Carbon Specification) */
+  --cds-support-error: #DA1E28;   /* Red 60 */
+  --cds-support-success: #24A148; /* Green 50 */
+  --cds-support-warning: #F1C21B; /* Yellow 30 */
+  --cds-support-info: #0043CE;    /* Blue 70 */
+
+  --cds-support-error-inverse: #FA4D56;
+  --cds-support-success-inverse: #42BE65;
+  --cds-support-warning-inverse: #F1C21B;
+  --cds-support-info-inverse: #4589FF;
+
+  /* Shadows / Elevation (Minimal & Enterprise-Grade) */
+  --cds-shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --cds-shadow-elevated: 0 4px 8px rgba(0, 0, 0, 0.5);
+  --cds-shadow-overlay: 0 12px 24px rgba(0, 0, 0, 0.65);
+}
+
+/* ==========================================================================
+   THEME: GRAY 90 (Alternative Dark Theme)
+   ========================================================================== */
+[data-carbon-theme="g90"] {
+  --cds-background: #262626;
+  --cds-layer-01: #393939;
+  --cds-layer-02: #525252;
+  --cds-layer-03: #161616;
+  --cds-layer-hover-01: #4C4C4C;
+  --cds-layer-hover-02: #656565;
+  --cds-layer-hover-03: #353535;
+
+  --cds-field: #393939;
+  --cds-field-hover: #4C4C4C;
+
+  --cds-text-primary: #F4F4F4;
+  --cds-text-secondary: #C6C6C6;
+  --cds-text-placeholder: #6F6F6F;
+  --cds-text-disabled: #525252;
+  --cds-text-helper: #8D8D8D;
+  --cds-text-error: #FF8389;
+
+  --cds-icon-primary: #F4F4F4;
+  --cds-icon-secondary: #C6C6C6;
+  --cds-icon-interactive: #78A9FF;
+  --cds-icon-disabled: #525252;
+
+  --cds-border-subtle: #525252;
+  --cds-border-strong: #8D8D8D;
+  --cds-border-interactive: #0F62FE;
+
+  --cds-interactive: #0F62FE;
+  --cds-interactive-hover: #0043CE;
+  --cds-interactive-active: #002D9C;
+
+  --cds-focus: #FFFFFF;
+  --cds-focus-inset: #262626;
+}
+
+/* ==========================================================================
+   THEME: WHITE (Default Light Theme)
+   ========================================================================== */
+[data-carbon-theme="white"] {
+  --cds-background: #FFFFFF;
+  --cds-layer-01: #F4F4F4;
+  --cds-layer-02: #FFFFFF;
+  --cds-layer-03: #E0E0E0;
+  --cds-layer-hover-01: #E8E8E8;
+  --cds-layer-hover-02: #E8E8E8;
+  --cds-layer-hover-03: #D1D1D1;
+
+  --cds-field: #F4F4F4;
+  --cds-field-hover: #E8E8E8;
+
+  --cds-text-primary: #161616;
+  --cds-text-secondary: #525252;
+  --cds-text-placeholder: #A8A8A8;
+  --cds-text-disabled: #C6C6C6;
+  --cds-text-helper: #6F6F6F;
+  --cds-text-error: #DA1E28;
+  --cds-text-on-color: #FFFFFF;
+
+  --cds-icon-primary: #161616;
+  --cds-icon-secondary: #525252;
+  --cds-icon-interactive: #0F62FE;
+  --cds-icon-disabled: #C6C6C6;
+  --cds-icon-on-color: #FFFFFF;
+
+  --cds-border-subtle: #E0E0E0;
+  --cds-border-strong: #8D8D8D;
+  --cds-border-interactive: #0F62FE;
+
+  --cds-interactive: #0F62FE;
+  --cds-interactive-hover: #0043CE;
+  --cds-interactive-active: #002D9C;
+
+  --cds-focus: #0F62FE;
+  --cds-focus-inset: #FFFFFF;
+
+  --cds-support-error: #DA1E28;
+  --cds-support-success: #24A148;
+  --cds-support-warning: #F1C21B;
+  --cds-support-info: #0043CE;
+
+  --cds-shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.1);
+  --cds-shadow-elevated: 0 4px 8px rgba(0, 0, 0, 0.12);
+  --cds-shadow-overlay: 0 12px 24px rgba(0, 0, 0, 0.2);
+}
+
+/* ==========================================================================
+   THEME: GRAY 10 (Alternative Light Theme)
+   ========================================================================== */
+[data-carbon-theme="g10"] {
+  --cds-background: #F4F4F4;
+  --cds-layer-01: #FFFFFF;
+  --cds-layer-02: #F4F4F4;
+  --cds-layer-03: #E0E0E0;
+  --cds-layer-hover-01: #E8E8E8;
+  --cds-layer-hover-02: #E8E8E8;
+  --cds-layer-hover-03: #D1D1D1;
+
+  --cds-field: #FFFFFF;
+  --cds-field-hover: #E8E8E8;
+
+  --cds-text-primary: #161616;
+  --cds-text-secondary: #525252;
+  --cds-text-placeholder: #A8A8A8;
+  --cds-text-disabled: #C6C6C6;
+  --cds-text-helper: #6F6F6F;
+  --cds-text-error: #DA1E28;
+
+  --cds-icon-primary: #161616;
+  --cds-icon-secondary: #525252;
+  --cds-icon-interactive: #0F62FE;
+  --cds-icon-disabled: #C6C6C6;
+
+  --cds-border-subtle: #E0E0E0;
+  --cds-border-strong: #8D8D8D;
+  --cds-border-interactive: #0F62FE;
+
+  --cds-interactive: #0F62FE;
+  --cds-interactive-hover: #0043CE;
+  --cds-interactive-active: #002D9C;
+
+  --cds-focus: #0F62FE;
+  --cds-focus-inset: #F4F4F4;
+}

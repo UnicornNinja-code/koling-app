@@ -39,10 +39,18 @@ export class ArmadaRepository {
         a.status,
         a.current_rider_id,
         u.name AS current_rider_name,
+        a.reserved_by_rider_id,
+        a.reserved_until,
+        ru.name AS reserved_by_rider_name,
+        za.zone_id,
+        z.name AS zone_name,
         a.created_at,
         a.updated_at
       FROM armadas a
       LEFT JOIN users u ON a.current_rider_id = u.id
+      LEFT JOIN users ru ON a.reserved_by_rider_id = ru.id
+      LEFT JOIN zone_assignments za ON a.current_rider_id = za.rider_id AND za.assignment_date = CURRENT_DATE
+      LEFT JOIN zones z ON za.zone_id = z.id
       WHERE 1=1
     `;
     const values = [];
@@ -74,15 +82,24 @@ export class ArmadaRepository {
         a.status,
         a.current_rider_id,
         u.name AS current_rider_name,
+        a.reserved_by_rider_id,
+        a.reserved_until,
+        ru.name AS reserved_by_rider_name,
+        za.zone_id,
+        z.name AS zone_name,
         a.created_at,
         a.updated_at
       FROM armadas a
       LEFT JOIN users u ON a.current_rider_id = u.id
+      LEFT JOIN users ru ON a.reserved_by_rider_id = ru.id
+      LEFT JOIN zone_assignments za ON a.current_rider_id = za.rider_id AND za.assignment_date = CURRENT_DATE
+      LEFT JOIN zones z ON za.zone_id = z.id
       WHERE a.id = $1;
     `;
     const { rows } = await this.pool.query(query, [id]);
     return rows[0] || null;
   }
+
 
   /**
    * Fetch single armada unit by code / serial number (case insensitive)

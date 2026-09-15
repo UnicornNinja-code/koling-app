@@ -1,8 +1,9 @@
 import React, { useEffect } from "react";
 import { X } from "lucide-react";
+import { cn } from "./Button.jsx";
 
 /**
- * MOVA Design System v3.0 Slide-over Drawer Component
+ * Carbon Side Panel / Drawer Component
  */
 export function Drawer({
   isOpen = false,
@@ -11,74 +12,71 @@ export function Drawer({
   subtitle,
   children,
   footer,
-  width = "w-full max-w-md", // max-w-sm, max-w-md, max-w-lg, max-w-xl
+  width = "md", // sm (360px), md (480px), lg (640px)
   className = "",
 }) {
   useEffect(() => {
-    const handleKeyDown = (e) => {
+    function handleKeyDown(e) {
       if (e.key === "Escape" && isOpen && onClose) {
         onClose();
       }
-    };
+    }
     if (isOpen) {
-      document.body.style.overflow = "hidden";
       window.addEventListener("keydown", handleKeyDown);
     }
     return () => {
-      document.body.style.overflow = "unset";
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
+  const widthStyles = {
+    sm: "max-w-[360px]",
+    md: "max-w-[480px]",
+    lg: "max-w-[640px]",
+    full: "max-w-full",
+  };
+
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden">
-      {/* Backdrop */}
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/60 select-none animate-fadeIn">
       <div
-        onClick={onClose}
-        className="fixed inset-0 bg-slate-950/50 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
-      />
-
-      <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
-        <div
-          className={`relative ${width} bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col z-10 animate-in slide-in-from-right duration-250 ${className}`}
-        >
-          {/* Drawer Header */}
-          <div className="flex items-start justify-between p-5 border-b border-slate-100 dark:border-slate-800">
-            <div>
-              {title && (
-                <h3 className="text-base font-bold text-slate-900 dark:text-white font-['Inter']">
-                  {title}
-                </h3>
-              )}
-              {subtitle && (
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-['Inter']">
-                  {subtitle}
-                </p>
-              )}
-            </div>
-            {onClose && (
-              <button
-                type="button"
-                onClick={onClose}
-                className="p-1 rounded-[6px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
+        className={cn(
+          "w-full h-full bg-[var(--cds-layer-01)] border-l border-[var(--cds-border-subtle)] shadow-[var(--cds-shadow-overlay)] flex flex-col justify-between overflow-hidden animate-slideLeft",
+          widthStyles[width] || widthStyles.md,
+          className
+        )}
+        role="dialog"
+      >
+        {/* Drawer Header */}
+        <div className="p-[16px] border-b border-[var(--cds-border-subtle)] flex items-start justify-between gap-[var(--cds-spacing-03)] bg-[var(--cds-layer-02)]">
+          <div className="space-y-[var(--cds-spacing-01)]">
+            <h3 className="cds-heading-02 text-[var(--cds-text-primary)] font-semibold">{title}</h3>
+            {subtitle && <p className="cds-helper-text-01 text-[var(--cds-text-secondary)]">{subtitle}</p>}
           </div>
-
-          {/* Drawer Body */}
-          <div className="p-5 flex-1 overflow-y-auto">{children}</div>
-
-          {/* Drawer Footer */}
-          {footer && (
-            <div className="p-4 bg-slate-50/70 dark:bg-slate-850/70 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2.5">
-              {footer}
-            </div>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-[6px] hover:bg-[var(--cds-layer-hover-02)] text-[var(--cds-icon-secondary)] hover:text-[var(--cds-icon-primary)] focus:outline-none focus-visible:outline-2 focus-visible:outline-[var(--cds-focus)] cursor-pointer"
+              aria-label="Tutup panel"
+            >
+              <X className="w-5 h-5" />
+            </button>
           )}
         </div>
+
+        {/* Drawer Content */}
+        <div className="p-[20px] overflow-y-auto flex-1 text-[var(--cds-text-primary)] cds-body-compact-01 space-y-[var(--cds-spacing-04)]">
+          {children}
+        </div>
+
+        {/* Drawer Footer */}
+        {footer && (
+          <div className="border-t border-[var(--cds-border-subtle)] bg-[var(--cds-layer-02)]">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );

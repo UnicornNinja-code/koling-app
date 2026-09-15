@@ -1,88 +1,86 @@
 import React, { forwardRef } from "react";
+import { AlertCircle } from "lucide-react";
+import { cn } from "./Button.jsx";
 
 /**
- * MOVA Design System v3.0 Input Component
- * Supports left/right icons, error message, label, helper text, and clear button
+ * Carbon Text Input Component
+ * Follows Carbon form field specifications:
+ * - Label: label-01
+ * - Field: bg(--cds-field), bottom border 1px solid (--cds-border-strong)
+ * - Height: 32px (sm), 40px (md), 48px (lg)
+ * - Error: border 2px solid (--cds-support-error) with error message
  */
 export const Input = forwardRef(function Input(
   {
+    className = "",
+    type = "text",
+    id,
     label,
     error,
     helperText,
     icon: Icon,
-    iconRight: IconRight,
-    onRightIconClick,
-    className = "",
-    containerClassName = "",
-    id,
+    rightElement,
+    size = "md", // sm (32px) | md (40px) | lg (48px)
     disabled = false,
-    required = false,
     ...props
   },
   ref
 ) {
-  const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, "-") : undefined);
+  const sizeStyles = {
+    sm: "h-[32px] text-[12px] px-[12px]",
+    md: "h-[40px] text-[14px] px-[16px]",
+    lg: "h-[48px] text-[14px] px-[16px]",
+  };
 
   return (
-    <div className={`w-full flex flex-col gap-1.5 ${containerClassName}`}>
+    <div className="w-full flex flex-col gap-[var(--cds-spacing-02)]">
       {label && (
         <label
-          htmlFor={inputId}
-          className="text-xs font-semibold text-slate-700 dark:text-slate-300 font-['Inter'] flex items-center justify-between"
+          htmlFor={id}
+          className="cds-label-01 text-[var(--cds-text-secondary)] select-none flex items-center justify-between"
         >
-          <span>
-            {label}
-            {required && <span className="text-red-500 ml-0.5">*</span>}
-          </span>
+          <span>{label}</span>
         </label>
       )}
 
-      <div className="relative flex items-center">
+      <div className="relative flex items-center w-full">
         {Icon && (
-          <div className="absolute left-3 text-slate-400 dark:text-slate-500 pointer-events-none flex items-center justify-center">
+          <div className="absolute left-[12px] flex items-center pointer-events-none text-[var(--cds-icon-secondary)]">
             <Icon className="w-4 h-4" />
           </div>
         )}
 
         <input
           ref={ref}
-          id={inputId}
+          id={id}
+          type={type}
           disabled={disabled}
-          required={required}
-          className={`w-full text-sm font-['Inter'] rounded-[8px] bg-white dark:bg-slate-900 border text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all duration-150 focus:outline-none focus:ring-2 disabled:bg-slate-50 dark:disabled:bg-slate-800 disabled:text-slate-400 disabled:cursor-not-allowed ${
-            Icon ? "pl-9" : "pl-3.5"
-          } ${IconRight ? "pr-9" : "pr-3.5"} py-2 h-9.5 ${
-            error
-              ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
-              : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 focus:border-blue-500 focus:ring-blue-500/20"
-          } ${className}`}
+          className={cn(
+            "w-full bg-[var(--cds-field)] hover:bg-[var(--cds-field-hover)] text-[var(--cds-text-primary)] placeholder:text-[var(--cds-text-placeholder)] border-b border-[var(--cds-border-strong)] transition-colors focus:outline-none focus:outline-2 focus:outline-offset-[-2px] focus:outline-[var(--cds-focus)] disabled:opacity-50 disabled:cursor-not-allowed",
+            sizeStyles[size] || sizeStyles.md,
+            Icon && "pl-[36px]",
+            rightElement && "pr-[36px]",
+            error && "border-2 border-[var(--cds-support-error)] focus:outline-[var(--cds-support-error)]",
+            className
+          )}
           {...props}
         />
 
-        {IconRight && (
-          <button
-            type="button"
-            onClick={onRightIconClick}
-            tabIndex={onRightIconClick ? 0 : -1}
-            className={`absolute right-3 text-slate-400 dark:text-slate-500 flex items-center justify-center ${
-              onRightIconClick ? "hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer" : "pointer-events-none"
-            }`}
-          >
-            <IconRight className="w-4 h-4" />
-          </button>
+        {rightElement && (
+          <div className="absolute right-[12px] flex items-center text-[var(--cds-icon-secondary)]">
+            {rightElement}
+          </div>
         )}
       </div>
 
-      {error && (
-        <span className="text-xs text-red-500 font-medium font-['Inter']">
-          {error}
-        </span>
-      )}
-      {!error && helperText && (
-        <span className="text-xs text-slate-400 dark:text-slate-500 font-['Inter']">
-          {helperText}
-        </span>
-      )}
+      {error ? (
+        <div className="flex items-center gap-[var(--cds-spacing-02)] text-[var(--cds-support-error)] cds-helper-text-01 font-normal not-italic">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+          <span>{error}</span>
+        </div>
+      ) : helperText ? (
+        <p className="cds-helper-text-01 text-[var(--cds-text-helper)]">{helperText}</p>
+      ) : null}
     </div>
   );
 });

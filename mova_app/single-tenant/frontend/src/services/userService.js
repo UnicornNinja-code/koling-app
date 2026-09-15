@@ -39,6 +39,11 @@ export const userService = {
     return res.data;
   },
 
+  updateProfile: async (data) => {
+    const res = await axiosInstance.put("/users/profile", data);
+    return res.data;
+  },
+
   changePassword: async (data) => {
     const res = await axiosInstance.put("/users/change-password", data);
     return res.data;

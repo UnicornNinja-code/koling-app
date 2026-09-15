@@ -197,35 +197,41 @@ export function createCandidateLocationIcon(spot = {}) {
 
 // 7. Spatial Road Polylines Dataset for Sidoarjo
 export const TOLL_ROADS_COORDINATES = [
-  // Jalan Tol Waru - Sidoarjo - Porong Corridor
-  [
-    [-7.3600, 112.7240], // Simpang Waru
-    [-7.3850, 112.7260], // Tol Gedangan
-    [-7.4200, 112.7290], // Tol Buduran
-    [-7.4450, 112.7310], // Gerbang Tol Sidoarjo Kota
-    [-7.4750, 112.7300], // Tol Candi
-    [-7.5100, 112.7260], // Tol Tanggulangin
-    [-7.5450, 112.7150], // Tol Porong / Gempol
-  ],
+  {
+    name: "Jalan Tol Waru - Sidoarjo - Porong Corridor",
+    coordinates: [
+      [-7.3600, 112.7240], // Simpang Waru
+      [-7.3850, 112.7260], // Tol Gedangan
+      [-7.4200, 112.7290], // Tol Buduran
+      [-7.4450, 112.7310], // Gerbang Tol Sidoarjo Kota
+      [-7.4750, 112.7300], // Tol Candi
+      [-7.5100, 112.7260], // Tol Tanggulangin
+      [-7.5450, 112.7150], // Tol Porong / Gempol
+    ],
+  },
 ];
 
 export const PROTOCOL_ROADS_COORDINATES = [
-  // 1. Jl. Ahmad Yani - Jl. Gajah Mada (Arteri Utama Sidoarjo)
-  [
-    [-7.4250, 112.7180], // Jembatan Layang Waru Selatan
-    [-7.4380, 112.7175], // Jl. Raya Buduran
-    [-7.4478, 112.7183], // Depan Alun-Alun Sidoarjo (Jl. Ahmad Yani)
-    [-7.4580, 112.7160], // Jl. Gajah Mada
-    [-7.4700, 112.7140], // Jl. Mojopahit / Larangan
-    [-7.4900, 112.7150], // Jl. Raya Candi
-  ],
-  // 2. Jl. Pahlawan (Koridor Barat - Timur Pusat Kota & GOR Delta)
-  [
-    [-7.4520, 112.6950], // Akses Tol Sidoarjo
-    [-7.4525, 112.7050], // Kawasan Perkantoran Jl. Pahlawan
-    [-7.4530, 112.7170], // Pertigaan Alun-Alun & Jl. Pahlawan
-    [-7.4550, 112.7250], // Menuju Lingkar Timur
-  ],
+  {
+    name: "Jl. Ahmad Yani - Jl. Gajah Mada (Arteri Utama)",
+    coordinates: [
+      [-7.4250, 112.7180], // Jembatan Layang Waru Selatan
+      [-7.4380, 112.7175], // Jl. Raya Buduran
+      [-7.4478, 112.7183], // Depan Alun-Alun Sidoarjo (Jl. Ahmad Yani)
+      [-7.4580, 112.7160], // Jl. Gajah Mada
+      [-7.4700, 112.7140], // Jl. Mojopahit / Larangan
+      [-7.4900, 112.7150], // Jl. Raya Candi
+    ],
+  },
+  {
+    name: "Jl. Pahlawan (Koridor Barat - Timur Pusat Kota)",
+    coordinates: [
+      [-7.4520, 112.6950], // Akses Tol Sidoarjo
+      [-7.4525, 112.7050], // Kawasan Perkantoran Jl. Pahlawan
+      [-7.4530, 112.7170], // Pertigaan Alun-Alun & Jl. Pahlawan
+      [-7.4550, 112.7250], // Menuju Lingkar Timur
+    ],
+  },
 ];
 
 // 8. Mock POI Hotspots with Time-Based Peaks

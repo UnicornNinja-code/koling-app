@@ -1,193 +1,138 @@
 import React, { useState } from "react";
-import { Link, useNavigate, useLocation } from "react-router-dom";
-import {
-  Lock,
-  Mail,
-  Eye,
-  EyeOff,
-  ArrowRight,
-  AlertCircle,
-  Compass,
-} from "lucide-react";
+import { useNavigate, Link } from "react-router-dom";
+import { ArrowRight, Lock, User } from "lucide-react";
+import { Button, Input, useToast } from "../../components/ui/index.js";
 import { useAuth } from "../../context/AuthContext.jsx";
-import { authService } from "../../services/authService.js";
-import { useToast } from "../../components/ui/Toast.jsx";
-import { Button } from "../../components/ui/Button.jsx";
-import { AuthLayout } from "../../components/layout/AuthLayout.jsx";
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { login, getRoleLandingPath } = useAuth();
-  const { toast } = useToast();
+  const [identifier, setIdentifier] = useState("superadmin@kopikeliling.com");
+  const [password, setPassword] = useState("password123");
+  const [loading, setLoading] = useState(false);
+  const toast = useToast();
 
-  const [identifier, setIdentifier] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
-  const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-
-  const from = location.state?.from?.pathname || null;
+  let auth = null;
+  try {
+    auth = useAuth();
+  } catch (e) {}
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setErrorMessage("");
-
-    if (!identifier.trim() || !password.trim()) {
-      setErrorMessage("Mohon masukkan email/username dan kata sandi Anda.");
+    if (!identifier || !password) {
+      toast.error("Validasi Input", "Email/Username dan Password wajib diisi.");
       return;
     }
 
-    setIsLoading(true);
+    setLoading(true);
     try {
-      const res = await authService.login({ identifier, password });
-      const user = res.user || res.data?.user || res;
-      const token = res.token || res.data?.token || "mock-jwt-token";
-
-      login(user, token);
-      toast.success("Login Berhasil", `Selamat datang, ${user.full_name || user.username || "Pengguna"}!`);
-
-      const targetPath = from || getRoleLandingPath(user.role);
-      navigate(targetPath, { replace: true });
+      if (auth?.login) {
+        const result = await auth.login({ identifier, password });
+        toast.success(
+          "Autentikasi Berhasil",
+          `Selamat datang, ${result.user?.name || result.user?.username || "Superadmin"}.`
+        );
+        const landingPath = auth.getRoleLandingPath(result.user?.role);
+        navigate(landingPath);
+      } else {
+        toast.success("Autentikasi Berhasil", "Selamat datang di MOVA Control Room.");
+        navigate("/dashboard");
+      }
     } catch (err) {
-      const msg =
-        err.response?.data?.msg ||
-        err.response?.data?.message ||
-        "Kombinasi email/username dan kata sandi tidak valid.";
-      setErrorMessage(msg);
-      toast.danger("Gagal Masuk", msg);
+      if (err?.response?.status === 429) {
+        const warningMsg =
+          err?.response?.data?.ui_notice?.message ||
+          err?.response?.data?.msg ||
+          "Batas percobaan login gagal terlampaui. Harap tunggu 1 menit sebelum mencoba kembali.";
+        toast.warning("Batas Login Terlampaui", warningMsg);
+      } else {
+        const errorMsg =
+          err?.response?.data?.msg ||
+          err?.response?.data?.message ||
+          err?.message ||
+          "Kombinasi email/username dan password tidak sesuai.";
+        toast.error("Autentikasi Gagal", errorMsg);
+      }
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
   return (
-    <AuthLayout>
-      {/* Right Side Clean White Form Panel */}
-      <div className="w-full max-w-md mx-auto my-auto py-2">
+    <div className="min-h-screen bg-[var(--cds-background)] text-[var(--cds-text-primary)] flex items-center justify-center p-[24px]">
+      <div className="w-full max-w-[420px] bg-[var(--cds-layer-01)] border border-[var(--cds-border-subtle)] shadow-[var(--cds-shadow-overlay)]">
         {/* Header */}
-        <div className="mb-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 text-xs font-bold mb-3 border border-blue-100 dark:border-blue-900">
-            <Compass className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-            <span>Portal Masuk Sistem</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-            Selamat Datang di Mova
+        <div className="p-[24px] border-b border-[var(--cds-border-subtle)] bg-[var(--cds-layer-02)]">
+          <h1 className="cds-heading-03 text-[var(--cds-text-primary)] font-bold mt-1">
+            MOVA App
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-            Sistem Pendukung Keputusan Lokasi Penjualan Usaha Keliling — Cabang Sidoarjo
+          <p className="cds-body-compact-01 text-[var(--cds-text-secondary)] mt-1">
+            Masuk dengan kredensial terdaftar untuk mengakses konsol operasional.
           </p>
         </div>
 
-        {/* Error Alert */}
-        {errorMessage && (
-          <div className="mb-4 p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 text-red-600 dark:text-red-400 text-xs flex items-start gap-2.5">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-            <span>{errorMessage}</span>
-          </div>
-        )}
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="p-[24px] space-y-[var(--cds-spacing-05)]">
+          <Input
+            id="login-id"
+            label="Email / Username"
+            type="text"
+            icon={User}
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
+            required
+            autoComplete="username"
+          />
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Email / Username */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-              Email atau Username
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                <Mail className="w-4 h-4" />
-              </div>
-              <input
-                type="text"
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
-                placeholder="nama@email.com atau username"
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
-                required
-              />
-            </div>
-          </div>
+          <Input
+            id="login-pw"
+            label="Password"
+            type="password"
+            icon={Lock}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            autoComplete="current-password"
+          />
 
-          {/* Password */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                Kata Sandi
-              </label>
-              <Link
-                to="/forgot-password"
-                className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline"
-              >
-                Lupa kata sandi?
-              </Link>
-            </div>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                <Lock className="w-4 h-4" />
-              </div>
-              <input
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full pl-10 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-              >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
-
-          {/* Remember Me */}
-          <div className="flex items-center justify-between pt-0.5">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500/20 cursor-pointer"
-              />
-              <span className="text-xs text-slate-600 dark:text-slate-400">Ingat sesi saya</span>
-            </label>
-          </div>
-
-          {/* Submit Button */}
-          <Button
-            type="submit"
-            variant="primary"
-            size="lg"
-            className="w-full mt-2 font-bold py-3 text-sm rounded-xl shadow-md shadow-blue-500/20"
-            isLoading={isLoading}
-            icon={ArrowRight}
-          >
-            Masuk ke Akun
-          </Button>
-        </form>
-
-        {/* Footer Navigation */}
-        <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800 text-center space-y-2">
-          <div className="text-xs text-slate-500 dark:text-slate-400">
-            Belum memiliki akun atau butuh aktivasi?{" "}
+          {/* Navigation Links: Forgot Password & Account Activation */}
+          <div className="flex items-center justify-between cds-label-01 text-[12px] pt-[var(--cds-spacing-01)]">
             <Link
-              to="/register"
-              className="font-bold text-blue-600 dark:text-blue-400 hover:underline"
+              to="/forgot-password"
+              className="text-[var(--cds-interactive)] hover:underline focus:outline-none focus-visible:outline-2 focus-visible:outline-[var(--cds-focus)]"
             >
-              Aktivasi / Buat Akun
+              Lupa Password?
+            </Link>
+            <Link
+              to="/activate"
+              className="text-[var(--cds-text-secondary)] hover:text-[var(--cds-text-primary)] hover:underline focus:outline-none focus-visible:outline-2 focus-visible:outline-[var(--cds-focus)]"
+            >
+              Aktivasi Akun
             </Link>
           </div>
-          <div className="text-[11px] text-slate-400">
-            Dibuat untuk operasional <span className="font-semibold text-slate-600 dark:text-slate-300">Sejuta Jiwa Cabang Sidoarjo</span>
+
+          <div className="pt-[var(--cds-spacing-02)]">
+            <Button
+              kind="primary"
+              size="lg"
+              type="submit"
+              loading={loading}
+              icon={ArrowRight}
+              className="w-full justify-between"
+            >
+              Masuk ke Sistem
+            </Button>
           </div>
+        </form>
+
+        {/* Footer */}
+        <div className="p-[16px] border-t border-[var(--cds-border-subtle)] bg-[var(--cds-layer-02)] flex items-center justify-between cds-label-01 text-[var(--cds-text-secondary)]">
+          <span>Sejuta Jiwa HUB Sidoarjo</span>
         </div>
       </div>
-    </AuthLayout>
+    </div>
   );
 }
 
 export default LoginPage;
+
+

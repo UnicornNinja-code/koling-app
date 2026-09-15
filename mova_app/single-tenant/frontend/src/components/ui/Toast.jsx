@@ -1,101 +1,48 @@
 import React, { createContext, useContext, useState, useCallback } from "react";
-import { CheckCircle2, AlertCircle, AlertTriangle, Info, X } from "lucide-react";
+import { CheckCircle2, AlertTriangle, AlertOctagon, Info, X } from "lucide-react";
+import { cn } from "./Button.jsx";
 
 const ToastContext = createContext(null);
 
 /**
- * MOVA Design System v3.0 Toast Provider & Component
+ * Carbon Notification / Toast Component & Provider
  */
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
 
-  const addToast = useCallback(
-    ({ title, description, type = "info", duration = 4000 }) => {
-      const id = Date.now() + Math.random();
-      setToasts((prev) => [...prev, { id, title, description, type }]);
+  const addToast = useCallback(({ title, message, kind = "info", duration = 4500 }) => {
+    const id = Date.now().toString() + Math.random().toString(36).substr(2, 4);
+    const newToast = { id, title, message, kind, timestamp: new Date() };
 
-      if (duration > 0) {
-        setTimeout(() => {
-          removeToast(id);
-        }, duration);
-      }
-      return id;
-    },
-    []
-  );
+    setToasts((prev) => [...prev, newToast]);
+
+    if (duration > 0) {
+      setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== id));
+      }, duration);
+    }
+  }, []);
 
   const removeToast = useCallback((id) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const toast = useCallback(
-    {
-      success: (title, description) =>
-        addToast({ title, description, type: "success" }),
-      error: (title, description) =>
-        addToast({ title, description, type: "danger" }),
-      warning: (title, description) =>
-        addToast({ title, description, type: "warning" }),
-      info: (title, description) =>
-        addToast({ title, description, type: "info" }),
-    },
-    [addToast]
-  );
+  const toast = {
+    success: (title, message) => addToast({ title, message, kind: "success" }),
+    error: (title, message) => addToast({ title, message, kind: "error" }),
+    warning: (title, message) => addToast({ title, message, kind: "warning" }),
+    info: (title, message) => addToast({ title, message, kind: "info" }),
+  };
 
   return (
-    <ToastContext.Provider value={{ toast, addToast, removeToast }}>
+    <ToastContext.Provider value={toast}>
       {children}
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2.5 max-w-sm w-full pointer-events-none">
+      <div className="fixed bottom-[24px] right-[24px] z-50 flex flex-col gap-[var(--cds-spacing-03)] max-w-[420px] w-full pointer-events-none">
         {toasts.map((t) => (
-          <ToastItem key={t.id} toast={t} onClose={() => removeToast(t.id)} />
+          <NotificationItem key={t.id} toast={t} onClose={() => removeToast(t.id)} />
         ))}
       </div>
     </ToastContext.Provider>
-  );
-}
-
-function ToastItem({ toast, onClose }) {
-  const icons = {
-    success: <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />,
-    warning: <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />,
-    danger: <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />,
-    info: <Info className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />,
-  };
-
-  const borders = {
-    success: "border-emerald-200 dark:border-emerald-800/80",
-    warning: "border-amber-200 dark:border-amber-800/80",
-    danger: "border-red-200 dark:border-red-800/80",
-    info: "border-blue-200 dark:border-blue-800/80",
-  };
-
-  return (
-    <div
-      className={`pointer-events-auto bg-white dark:bg-slate-900 border rounded-[10px] p-3.5 shadow-lg flex items-start gap-3 animate-in slide-in-from-bottom-3 duration-200 font-['Inter'] ${
-        borders[toast.type] || "border-slate-200 dark:border-slate-800"
-      }`}
-    >
-      {icons[toast.type] || icons.info}
-      <div className="flex-1 min-w-0">
-        {toast.title && (
-          <div className="text-xs font-bold text-slate-900 dark:text-slate-100">
-            {toast.title}
-          </div>
-        )}
-        {toast.description && (
-          <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
-            {toast.description}
-          </div>
-        )}
-      </div>
-      <button
-        type="button"
-        onClick={onClose}
-        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-0.5 rounded transition-colors"
-      >
-        <X className="w-3.5 h-3.5" />
-      </button>
-    </div>
   );
 }
 
@@ -105,4 +52,70 @@ export function useToast() {
     throw new Error("useToast must be used within a ToastProvider");
   }
   return context;
+}
+
+export function NotificationItem({ toast, onClose, inline = false }) {
+  const kindConfig = {
+    error: {
+      borderColor: "border-l-[var(--cds-support-error)]",
+      Icon: AlertOctagon,
+      iconColor: "text-[var(--cds-support-error)]",
+    },
+    success: {
+      borderColor: "border-l-[var(--cds-support-success)]",
+      Icon: CheckCircle2,
+      iconColor: "text-[var(--cds-support-success)]",
+    },
+    warning: {
+      borderColor: "border-l-[var(--cds-support-warning)]",
+      Icon: AlertTriangle,
+      iconColor: "text-[var(--cds-support-warning)]",
+    },
+    info: {
+      borderColor: "border-l-[var(--cds-support-info)]",
+      Icon: Info,
+      iconColor: "text-[var(--cds-support-info)]",
+    },
+  };
+
+  const config = kindConfig[toast.kind] || kindConfig.info;
+  const Icon = config.Icon;
+
+  return (
+    <div
+      className={cn(
+        "pointer-events-auto w-full bg-[var(--cds-layer-02)] border border-[var(--cds-border-subtle)] border-l-4 shadow-[var(--cds-shadow-elevated)] p-[14px] flex items-start justify-between gap-[var(--cds-spacing-03)] animate-fadeIn",
+        config.borderColor,
+        inline && "shadow-none"
+      )}
+      role="alert"
+    >
+      <div className="flex items-start gap-[var(--cds-spacing-03)] flex-1 min-w-0">
+        <Icon className={cn("w-4 h-4 shrink-0 mt-0.5", config.iconColor)} />
+        <div className="space-y-0.5 flex-1 min-w-0">
+          {toast.title && (
+            <h5 className="cds-heading-compact-01 text-[var(--cds-text-primary)] font-semibold text-[13px] truncate">
+              {toast.title}
+            </h5>
+          )}
+          {toast.message && (
+            <p className="cds-body-compact-01 text-[var(--cds-text-secondary)] text-[12px] leading-[16px] break-words">
+              {toast.message}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {onClose && (
+        <button
+          type="button"
+          onClick={onClose}
+          className="p-1 hover:bg-[var(--cds-layer-hover-02)] text-[var(--cds-icon-secondary)] hover:text-[var(--cds-icon-primary)] focus:outline-none focus-visible:outline-2 focus-visible:outline-[var(--cds-focus)] cursor-pointer shrink-0"
+          aria-label="Tutup notifikasi"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      )}
+    </div>
+  );
 }

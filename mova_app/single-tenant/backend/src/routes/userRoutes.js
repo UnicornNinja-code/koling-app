@@ -7,6 +7,7 @@ import {
     setUserStatus,
     deleteUser,
     getProfile,
+    updateProfile,
     changePassword,
 } from "../controllers/userController.js";
 import { authenticateToken } from "../middlewares/authMiddleware.js";
@@ -19,6 +20,7 @@ router.use(authenticateToken);
 
 // 1. Self Profile Operations (All Authenticated Users)
 router.get("/profile", getProfile);
+router.put("/profile", updateProfile);
 router.put("/change-password", changePassword);
 
 // 2. User Listing (SUPERADMIN, MANAGEMENT, and SUPERVISOR-scoped)

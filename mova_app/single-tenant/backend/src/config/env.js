@@ -40,9 +40,15 @@ const env = {
         PORT: Number(process.env.SMTP_PORT || 587),
         USER: process.env.SMTP_USER,
         PASS: process.env.SMTP_PASS,
-        FROM: process.env.SMTP_FROM || '"MantaKopi DSS" <noreply@mantakopi.com>',
+        FROM: process.env.SMTP_FROM || '"Mova Support" <support@mova.test>',
       }
     : null,
+  TURNSTILE: {
+    ENABLED: process.env.TURNSTILE_ENABLED !== "false",
+    SECRET_KEY:
+      process.env.TURNSTILE_SECRET_KEY ||
+      (isProduction ? undefined : "1x0000000000000000000000000000000AA"),
+  },
 };
 
 export { env };
